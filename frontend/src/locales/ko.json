@@ -278,6 +278,26 @@
       "info": "이 이메일에는 카테고리가 없습니다. AI로 분류하시겠습니까?",
       "done": "{{category}}로 분류됨",
       "error": "AI 분류에 실패했습니다."
+    },
+    "preview": {
+      "open": "미리보기",
+      "label": "{{name}} 미리보기",
+      "position": "{{current}}/{{total}}",
+      "download": "다운로드",
+      "print": "인쇄",
+      "preparingPrint": "준비 중… {{done}}/{{total}}",
+      "close": "닫기",
+      "zoomIn": "확대",
+      "zoomOut": "축소",
+      "fit": "화면에 맞추기",
+      "previous": "이전 첨부 파일",
+      "next": "다음 첨부 파일",
+      "failed": "이 파일을 표시할 수 없습니다.",
+      "unsupported": "이 파일은 유효한 PDF나 이미지가 아닌 것으로 보여 여기에 표시하지 않습니다.",
+      "password": "이 PDF는 비밀번호로 보호되어 있습니다. 열려면 비밀번호를 입력하세요.",
+      "passwordLabel": "PDF 비밀번호",
+      "passwordSubmit": "열기",
+      "passwordIncorrect": "비밀번호가 올바르지 않습니다. 다시 시도하세요."
     }
   },
   "messageList": {
@@ -658,6 +678,15 @@
       "toggleRightSidebar": {
         "description": "오른쪽 사이드바 숨기기 또는 표시",
         "label": "오른쪽 사이드바 전환"
+      },
+      "gtdReference": {
+        "description": "선택한 메시지를 참조로 분류"
+      },
+      "gtdSomeday": {
+        "description": "선택한 메시지를 언젠가로 분류"
+      },
+      "gtdDone": {
+        "description": "선택한 GTD 메시지를 완료로 표시"
       }
     },
     "browserMailboxFallback": "브라우저 환경: g 입력 후 1–9를 누르면 해당 편지함으로 이동하고, g 입력 후 l을 누르면 라벨 선택기가 열립니다."
@@ -1741,6 +1770,7 @@
     "undoFailed": "라벨을 실행취소할 수 없습니다.",
     "removed": "라벨이 삭제됨",
     "removeFailed": "라벨을 삭제할 수 없습니다.",
+    "onlyCopy": "이 메시지의 유일한 사본이므로 라벨을 삭제하면 메시지도 삭제됩니다. 대신 보관하거나 이동하세요.",
     "doneArchiveFailed": "완료로 표시했지만 보관에 실패했습니다. 여전히 받은편지함에 있습니다."
   },
   "rightSidebar": {
