@@ -188,7 +188,8 @@ const SAME_VALUE_ALLOWED = {
   'spam.verdict.spam':            [['cs', 'de', 'en', 'es', 'fr', 'it', 'pl', 'ptBR']],
   // authserv-id example — a literal hostname, identical in every locale
   'admin.accounts.trustedAuthservPlaceholder': 'any',
-  'admin.privacy.addSenderPh': [['en', 'ru', 'zhCN']],
+  'admin.privacy.addSenderPh': [['en', 'ko', 'ru', 'zhCN']],
+  'admin.blockList.emailPlaceholder': [['en', 'ko']],
   'admin.aliases.replyToLabel': [['en', 'pl']],
 
   'admin.rules.actionForwardPlaceholder': [['es', 'it']],
