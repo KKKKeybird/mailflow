@@ -1,0 +1,16 @@
+{
+  "survivedPostgresRestart": true,
+  "rebuilt": false,
+  "data": [
+    {
+      "mode": "flat",
+      "rows": 90,
+      "checksum": "d1a5240b756d3537f776eae15e98f579"
+    },
+    {
+      "mode": "thread",
+      "rows": 31,
+      "checksum": "6dc222802acb3056191b2a9b9fe60b77"
+    }
+  ]
+}

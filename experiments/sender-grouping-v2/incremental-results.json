@@ -1,0 +1,96 @@
+{
+  "verifiedOperations": 11,
+  "timings": [
+    {
+      "id": 84000,
+      "patch": {
+        "unread": false
+      },
+      "rollback": false,
+      "elapsedMs": 20.719916000000012
+    },
+    {
+      "id": 84000,
+      "patch": {
+        "deleted": true
+      },
+      "rollback": false,
+      "elapsedMs": 1.3829169999999067
+    },
+    {
+      "id": 83999,
+      "patch": {
+        "deleted": true
+      },
+      "rollback": false,
+      "elapsedMs": 4.58358300000009
+    },
+    {
+      "id": 83998,
+      "patch": {
+        "deleted": true
+      },
+      "rollback": false,
+      "elapsedMs": 2.5747080000001006
+    },
+    {
+      "id": 84000,
+      "patch": {
+        "deleted": false
+      },
+      "rollback": false,
+      "elapsedMs": 2.417040999999699
+    },
+    {
+      "id": 84000,
+      "patch": {
+        "from_email": "sender1@example.com"
+      },
+      "rollback": false,
+      "elapsedMs": 4.239416999999776
+    },
+    {
+      "id": 84000,
+      "patch": {
+        "from_email": "new@example.com"
+      },
+      "rollback": false,
+      "elapsedMs": 4.387124999999287
+    },
+    {
+      "id": 84001,
+      "patch": {
+        "from_email": "fresh@example.com",
+        "date": "2026-11-01T00:00:00.000Z",
+        "thread": 28001,
+        "unread": true
+      },
+      "rollback": false,
+      "elapsedMs": 2.6248340000001917
+    },
+    {
+      "id": 84001,
+      "patch": {
+        "unread": true
+      },
+      "rollback": false,
+      "elapsedMs": 3.38091600000007
+    },
+    {
+      "id": 84001,
+      "patch": {
+        "deleted": true
+      },
+      "rollback": true,
+      "elapsedMs": 3.995249999999942
+    },
+    {
+      "id": 84001,
+      "patch": {
+        "deleted": true
+      },
+      "rollback": false,
+      "elapsedMs": 1.41150000000016
+    }
+  ]
+}

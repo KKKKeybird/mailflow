@@ -1,0 +1,8 @@
+{
+  "mutation": "Exclude expanded group members from action/navigation model",
+  "rejected": true,
+  "summary": [
+    "# pass 8",
+    "# fail 6"
+  ]
+}

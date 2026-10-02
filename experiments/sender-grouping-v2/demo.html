@@ -1,0 +1,124 @@
+<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MailFlow · 发件人聚合交互原型</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f7f8fb;color:#253149;font:15px -apple-system,BlinkMacSystemFont,sans-serif}button,select{font:inherit;cursor:pointer;background:white;border:1px solid #dce3ee;border-radius:9px;padding:9px 13px;color:inherit}button:hover{background:#edf2fb}button:focus-visible{outline:3px solid #8aafff}header{padding:22px 28px;background:white;border-bottom:1px solid #e4e8ef;display:flex;align-items:center;gap:16px;flex-wrap:wrap}h1{font-size:21px;margin:0}small,.muted{color:#718096}header small{flex:1}.shell{max-width:1300px;margin:24px auto;padding:0 20px;display:grid;grid-template-columns:minmax(380px,1fr) minmax(280px,.8fr);gap:20px}.panel{background:white;border:1px solid #e1e7f0;border-radius:16px;overflow:hidden}.toolbar{padding:14px;display:flex;gap:8px;flex-wrap:wrap;border-bottom:1px solid #e9edf4}.row{display:flex;gap:10px;align-items:center;min-height:76px;border-bottom:1px solid #eef1f6;padding:14px 18px}.row:hover{background:#f5f8ff}.row.selected{background:#eaf1ff;box-shadow:inset 3px 0 #4c7ef1}.row.group{background:#f4f6fb;min-height:80px}.title{font-weight:600;margin-bottom:5px}.body{flex:1;min-width:0}.preview{font-size:13px;color:#718096;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.badge{background:#dce8ff;color:#315ab2;border-radius:20px;padding:3px 9px;font-size:12px}.disclosure{border:0;background:transparent;padding:8px}.popover{position:fixed;z-index:10;background:white;box-shadow:0 8px 35px #22365826;padding:8px;border:1px solid #dce3ee;border-radius:12px}.popover button{border:0;display:block;width:100%;text-align:left}.back{display:none;margin-bottom:20px}.menu{font-size:12px;border:0;color:#607698;padding:7px}.reader{padding:26px;min-height:330px}.reader h2{font-size:22px}.reader p{line-height:1.8}.notice{padding:13px 18px;background:#f2f7ff;line-height:1.6;font-size:13px}.status{display:flex;align-items:center;gap:12px;min-height:60px;padding:13px 18px;color:#566783}.help{grid-column:1/-1;line-height:1.8;font-size:13px;color:#67748a}.help strong{color:#344765}input[type=checkbox]{width:17px;height:17px;accent-color:#4c7ef1}@media(max-width:760px){.shell{display:block;padding:0 12px;margin:14px auto}.panel{margin-bottom:14px}header{padding:17px}.reader{min-height:220px}.row{padding:12px}.toolbar{gap:5px}.toolbar button{padding:8px}.help{padding:8px}.shell.reading>section:first-child{display:none}.shell:not(.reading)>section:nth-child(2){display:none}.back{display:inline-block}}
+</style><header><h1>MailFlow <span class="muted">/ 发件人聚合</span></h1><small>本地交互原型 · 合成邮件 · 不连接真实邮箱</small><select id="mode"><option value="flat">普通邮件</option><option value="thread">会话模式</option></select><button id="reset">重置演示</button></header>
+<div class="shell"><section class="panel"><div class="toolbar"><button id="all">选择可见邮件</button><button id="read">标记已读</button><button id="archive">归档</button><button id="delete">删除</button><button id="readall">全部已读</button></div><div class="notice">点组头展开。组头不选中邮件，也不改变已读状态。勾选后可批量操作。</div><div id="list"></div></section><section class="panel"><div class="reader" id="reader"></div><div class="toolbar"><button id="readerread">标记已读</button><button id="readerarchive">归档</button><button id="readerdelete">删除</button><button id="prev">← 上一封</button><button id="next">下一封 →</button><button id="arrival">模拟新邮件</button><button id="failure">下一次操作模拟失败</button></div></section><div class="status panel" id="status" aria-live="polite" style="grid-column:1/-1"></div><div class="help"><strong>快捷键：</strong>j / k 下一封 / 上一封；Delete 删除；e 归档。Shift + 勾选进行范围选择。<br><strong>验证情景：</strong>展开组 → 选中成员 → 删除 → 撤销；收起正在阅读的组 → 下一封；全部已读；模拟失败和并发来信。会话行操作整条会话，展开后单封行仅操作该封。<br>原型用有限、全部已加载的数据验证交互。正式方案的组内分页、服务端授权与索引性能另行验证；该页面不是已集成的生产功能。</div></div>
+<script>// Interaction design prototype. Separate from MailFlow's production store.
+class InboxFlow {
+  constructor(snapshot) {
+    this.base = structuredClone(snapshot); this.pending = new Map(); this.open = new Set();
+    this.selected = null; this.focus = null; this.checked = new Set(); this.generation = 0; this.anchor = null;
+  }
+  state() {
+    const s=structuredClone(this.base);
+    for(const op of this.pending.values()) {
+      if(op.kind==='readAll') {for(const m of s.mail) if(op.ids.includes(m.id)) m.unread=false;}
+      else if(op.kind==='read') {for(const m of s.mail) if(op.ids.includes(m.id)) m.unread=op.unread;}
+      else if(op.kind==='remove') s.mail=s.mail.filter(m=>!op.ids.includes(m.id));
+    }
+    return s;
+  }
+  rows() {
+    const s=this.state(), groups=new Map(), top=[];
+    const leaves=s.threaded ? Array.from(Map.groupBy(s.mail,m=>m.thread||m.id), ([thread,mail])=>{
+      const sorted=[...mail].sort(sortMail), origin=[...mail].sort((a,b)=>a.date-b.date||a.id.localeCompare(b.id))[0];
+      return {key:'thread:'+thread,kind:'thread',sender:origin.sender,date:sorted[0].date,mail:sorted, ids:mail.map(m=>m.id)};
+    }):s.mail.map(m=>({key:'message:'+m.id,kind:'message',sender:m.sender,date:m.date,mail:[m],ids:[m.id]}));
+    for(const leaf of leaves) {
+      if(s.grouped.includes(leaf.sender)) {if(!groups.has(leaf.sender))groups.set(leaf.sender,[]);groups.get(leaf.sender).push(leaf);}
+      else top.push(leaf);
+    }
+    for(const [sender,children] of groups)top.push({key:'sender:'+sender,kind:'sender',sender,date:Math.max(...children.map(r=>r.date)),children,ids:children.flatMap(r=>r.ids),mail:children.flatMap(r=>r.mail)});
+    top.sort(sortRow);
+    const visible=[];
+    const add=(r,depth)=>{
+      visible.push({...r,depth});
+      if(r.kind==='sender' && this.open.has(r.key))for(const child of r.children.sort(sortRow))add(child,depth+1);
+      if(r.kind==='thread' && this.open.has(r.key))for(const m of r.mail)visible.push({key:'member:'+m.id,kind:'message',sender:m.sender,date:m.date,ids:[m.id],mail:[m],depth:depth+1});
+    };
+    for(const r of top)add(r,0);
+    return visible.map(r=>({...r,count:r.ids.length,unread:r.mail.filter(m=>m.unread).length}));
+  }
+  actionable(){return this.rows().filter(r=>r.kind!=='sender');}
+  toggle(key){
+    if(this.open.has(key)) {
+      const before=this.rows(), i=before.findIndex(r=>r.key===key), hidden=[];
+      for(let n=i+1;n<before.length&&before[n].depth>before[i].depth;n++)hidden.push(before[n].key);
+      if(hidden.includes(this.selected))this.focus=key; // reading pane stays open; navigation uses collapsed anchor
+      this.open.delete(key);
+    } else this.open.add(key);
+    this.focus=key;
+  }
+  select(key){if(!this.actionable().some(r=>r.key===key))return;this.selected=key;this.focus=key;this.reading=this.actionable().find(r=>r.key===key).mail[0];}
+  navigate(step){
+    const rows=this.rows(), at=rows.findIndex(r=>r.key===this.focus);
+    let i=at<0?(step>0?-1:rows.length):at;
+    while((i+=step)>=0&&i<rows.length)if(rows[i].kind!=='sender'){this.select(rows[i].key);return this.selected;}
+    return this.selected;
+  }
+  check(key,range=false){
+    const rows=this.actionable(), i=rows.findIndex(r=>r.key===key);if(i<0)return;
+    const start=rows.findIndex(r=>r.key===this.anchor);
+    if(range&&start>=0)for(const r of rows.slice(Math.min(start,i),Math.max(start,i)+1))this.checked.add(r.key);
+    else {this.checked.has(key)?this.checked.delete(key):this.checked.add(key);this.anchor=key;}
+  }
+  selectAll(){this.checked=new Set(this.actionable().map(r=>r.key));}
+  targets(keys=this.checked.size?[...this.checked]:[this.selected]){return [...new Set(this.actionable().filter(r=>keys.includes(r.key)).flatMap(r=>r.ids))];}
+  begin(id,kind,options={}){
+    const ids=kind==='readAll'?this.state().mail.map(m=>m.id):this.targets(options.keys);
+    if(!ids.length)return false;
+    if([...this.pending.values()].some(op=>op.kind==='readAll'||kind==='readAll'||op.ids.some(v=>ids.includes(v))))throw new Error('Wait for the previous action on these messages');
+    const before=this.actionable(), selectedAt=before.findIndex(r=>r.key===this.selected);
+    const op={kind,ids,unread:options.unread,selection:this.selected,focus:this.focus,checked:[...this.checked]};this.pending.set(id,op);
+    if(kind==='remove') {
+      const after=this.actionable(), remaining=new Set(after.map(r=>r.key));
+      const next=before.slice(Math.max(selectedAt,0)).find(r=>remaining.has(r.key))||[...before.slice(0,Math.max(selectedAt,0))].reverse().find(r=>remaining.has(r.key));
+      this.selected=next?.key||null;this.focus=this.selected;this.checked.clear();
+      if(next)this.reading=next.mail[0];else this.reading=null;
+    }
+    op.resultSelection=this.selected; return true;
+  }
+  finish(id,success=true,ackRevision=this.base.revision+1){
+    const op=this.pending.get(id);if(!op)return;
+    if(success){
+      this.base.revision=Math.max(this.base.revision,ackRevision);
+      if(op.kind==='remove')this.base.mail=this.base.mail.filter(m=>!op.ids.includes(m.id));
+      else for(const m of this.base.mail)if(op.ids.includes(m.id))m.unread=op.kind==='readAll'?false:op.unread;
+    }
+    this.pending.delete(id);
+    if(!success&&this.selected===op.resultSelection){this.selected=op.selection;this.focus=op.focus;this.checked=new Set(op.checked);const r=this.actionable().find(r=>r.key===this.selected);this.reading=r?.mail[0]||this.reading;}
+  }
+  request(){return {generation:this.generation,revision:this.base.revision};}
+  switchScope(snapshot){this.generation++;this.base=structuredClone(snapshot);this.selected=null;this.focus=null;this.checked.clear();this.open.clear();this.reading=null;this.pending.clear();}
+  refresh(token,snapshot){if(token.generation!==this.generation||snapshot.revision<this.base.revision)return false;this.base=structuredClone(snapshot);return true;}
+  group(sender,enabled){this.base.grouped=enabled?[...new Set([...this.base.grouped,sender])]:this.base.grouped.filter(v=>v!==sender);this.open.add('sender:'+sender);}
+}
+const sortMail=(a,b)=>b.date-a.date||a.id.localeCompare(b.id);
+const sortRow=(a,b)=>b.date-a.date||a.key.localeCompare(b.key);
+
+const labels={service:'GitHub',other:'日常联系',friend:'林同学'};
+const subjects={a:'Actions：构建完成',b:'周末安排',c:'Pull request：新的评论',d:'Re：Actions 构建完成',e:'Actions：最初的任务',f:'旅行计划'};
+const seed=()=>({revision:1,threaded:document.querySelector('#mode').value==='thread',grouped:['service'],mail:[{id:'a',sender:'service',date:6,unread:true,thread:'t1'},{id:'b',sender:'other',date:5,unread:true,thread:'t2'},{id:'c',sender:'service',date:4,unread:false,thread:'t3'},{id:'d',sender:'other',date:3,unread:true,thread:'t1'},{id:'e',sender:'service',date:2,unread:true,thread:'t1'},{id:'f',sender:'friend',date:1,unread:false,thread:'t4'}]});
+let f=new InboxFlow(seed()),seq=0,fail=false,timers=new Map(),notice='展开 GitHub 查看邮件。';
+const el=id=>document.getElementById(id),esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function render(){
+ document.querySelector('.shell').classList.toggle('reading',!!f.reading);
+ el('list').innerHTML=f.rows().map(r=>`<div class="row ${r.kind==='sender'?'group':''} ${f.selected===r.key?'selected':''}" data-key="${esc(r.key)}" style="padding-left:${18+r.depth*23}px">${r.kind==='sender'?'':`<input type="checkbox" aria-label="选择 ${esc(subjects[r.mail[0].id]||'新邮件')}" ${f.checked.has(r.key)?'checked':''}>`}${r.kind!=='message'?`<button class="disclosure" aria-expanded="${f.open.has(r.key)}" aria-label="${f.open.has(r.key)?'收起':'展开'} ${esc(labels[r.sender])}">${f.open.has(r.key)?'▾':'▸'}</button>`:''}<div class="body"><div class="title">${esc(labels[r.sender]||r.sender)} ${r.kind==='sender'?`<span class="muted">· ${r.count} 封邮件</span>`:r.kind==='thread'?`<span class="muted">· ${r.count} 封会话</span>`:''}</div><div class="preview">${esc(subjects[r.mail[0].id]||'一封新邮件')} ${r.kind==='sender'?'· 按发件人聚合':''}</div></div>${r.unread?`<span class="badge">${r.unread} 未读</span>`:''}<button class="menu" aria-label="${esc(labels[r.sender])} 的更多选项">⋯</button></div>`).join('')||'<div class="reader muted">当前视图没有邮件</div>';
+ for(const row of el('list').children){if(!row.dataset.key)continue;const key=row.dataset.key;
+ row.addEventListener('click',()=>{f.rows().find(r=>r.key===key).kind==='sender'?f.toggle(key):f.select(key);render();});
+ row.querySelector('input')?.addEventListener('click',e=>{e.stopPropagation();f.check(key,e.shiftKey);render();});
+ row.querySelector('.disclosure')?.addEventListener('click',e=>{e.stopPropagation();f.toggle(key);render();});
+ row.querySelector('.menu')?.addEventListener('click',e=>{e.stopPropagation();document.querySelector('.popover')?.remove();const sender=f.rows().find(r=>r.key===key).sender,box=document.createElement('div');box.className='popover';const rect=e.currentTarget.getBoundingClientRect();box.style.top=(rect.bottom+4)+'px';box.style.left=Math.max(12,rect.right-190)+'px';const b=document.createElement('button');b.textContent=f.state().grouped.includes(sender)?'取消聚合此发件人':'聚合此发件人';b.onclick=()=>{f.group(sender,!f.state().grouped.includes(sender));notice='聚合设置已保存。';box.remove();render();};box.appendChild(b);document.body.appendChild(box);});
+ }
+ const m=f.reading;el('reader').innerHTML=m?`<button class="back" id="back">← 收件箱</button><div class="muted">${esc(labels[m.sender]||m.sender)}</div><h2>${esc(subjects[m.id]||'新邮件')}</h2><p>这是用于验证流程的合成邮件。展开或收起发件人组不会自动标记已读。</p><p class="muted">当前行：${esc(f.selected)}<br>已选择 ${f.checked.size} 行</p>`:'<h2>选择一封邮件</h2><p class="muted">展开左侧 GitHub 发件人组，点击成员，或按 j 开始导航。</p>';
+ el('back')?.addEventListener('click',()=>{f.reading=null;render();});
+ el('status').textContent=notice;
+ for(const [id,op]of f.pending){const b=document.createElement('button');b.textContent=op.kind==='remove'?'撤销':'取消本次操作';b.addEventListener('click',()=>{clearTimeout(timers.get(id));timers.delete(id);f.finish(id,false);notice='已撤销，计数和原选择已恢复。';render();});el('status').appendChild(b);}
+}
+function act(kind){try{const id='op:'+ ++seq;if(!f.begin(id,kind,{unread:false})){notice='先选择邮件；组头不能直接执行邮件操作。';render();return;}const shouldFail=fail;fail=false;notice=kind==='remove'?'已移出当前视图；5 秒内可以撤销。':'正在保存，组头计数同步更新…';timers.set(id,setTimeout(()=>{f.finish(id,!shouldFail);timers.delete(id);notice=shouldFail?'保存失败，已恢复邮件与计数；新到邮件保留。':'操作已保存。';render();},5000));render();}catch(e){notice=e.message;render();}}
+el('all').onclick=()=>{f.selectAll();render();};el('read').onclick=()=>act('read');el('readall').onclick=()=>act('readAll');el('delete').onclick=el('archive').onclick=el('readerarchive').onclick=el('readerdelete').onclick=()=>act('remove');el('readerread').onclick=()=>act('read');el('prev').onclick=()=>{f.navigate(-1);render();};el('next').onclick=()=>{f.navigate(1);render();};el('failure').onclick=()=>{fail=true;notice='下一次操作将在 5 秒后失败，用来验证回滚。';render();};
+el('arrival').onclick=()=>{const s=structuredClone(f.base);s.revision++;s.mail.push({id:'new:'+ ++seq,sender:'service',date:10+seq,unread:true,thread:'new:'+seq});f.refresh(f.request(),s);notice='收到新邮件；未完成的删除仍保持隐藏。';render();};
+function reset(){for(const t of timers.values())clearTimeout(t);timers.clear();f=new InboxFlow(seed());notice='演示已重置。';render();}el('reset').onclick=reset;el('mode').onchange=reset;
+document.addEventListener('click',e=>{if(!e.target.closest('.popover')&&!e.target.closest('.menu'))document.querySelector('.popover')?.remove();});
+document.addEventListener('keydown',e=>{if(e.ctrlKey||e.metaKey||e.altKey||['INPUT','TEXTAREA','SELECT'].includes(e.target.tagName))return;if(e.key==='j'||e.key==='k'){e.preventDefault();f.navigate(e.key==='j'?1:-1);render();}if(e.key==='Delete'||e.key==='e'){e.preventDefault();act('remove');}});render();
+</script></html>
