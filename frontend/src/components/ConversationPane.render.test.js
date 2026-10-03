@@ -135,6 +135,20 @@ describe('conversation pane', () => {
     assert.ok(!/skeleton-line/.test(html), 'and is no longer showing the loading skeleton');
   });
 
+  test('the body frame sits in the same white padded card the reading pane uses', async () => {
+    // The frame's stylesheet zeroes body margin and padding, so an email's only gutter is
+    // whatever the surrounding card provides. The reading pane wraps its frame in a white
+    // .msg-card with a 16px gutter; the conversation card put the frame straight on the
+    // dark card, and hand-typed mail (no margins of its own) rendered flush against the
+    // frame edge. Asserting the wrapper — not just the frame — is what makes this fail if
+    // the card or its padding is removed again.
+    const frame = document.querySelector('iframe');
+    const card = frame?.closest('.msg-card');
+    assert.ok(card, 'the body frame is wrapped in a message card');
+    assert.equal(card.style.padding, '14px 16px 12px', 'with the reading pane gutter');
+    assert.equal(card.style.background, 'white', 'on the same white card');
+  });
+
   test('only the opened message fetches a body', async () => {
     // A collapsed card must cost nothing: no request, no frame, no document.
     assert.deepEqual(bodyRequests, ['m3'], 'exactly the newest message was fetched');
