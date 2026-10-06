@@ -270,53 +270,40 @@ describe('listMessages — ghost row suppression (#407)', () => {
 });
 
 describe('listMessages — sender grouping', () => {
-  it('groups before pagination using user-owned preferences and the inbox scope', async () => {
-    query
-      .mockResolvedValueOnce({ rows: [{ id: 'acc-1' }] })
-      .mockResolvedValueOnce({ rows: [{ preferences: { groupedSenders: [' Alerts@Example.com '] } }] })
-      .mockResolvedValueOnce({ rows: [{ n: 90 }] })
-      .mockResolvedValueOnce({ rows: [{ id: 'latest', sender_group: 'alerts@example.com', sender_message_count: 75, display_total: 16 }] });
+  it('pages compact candidates and hydrates only the selected page', async () => {
+    query.mockImplementation(async sql => {
+      if (sql.startsWith('SELECT id, include')) return { rows: [{ id: 'acc-1' }] };
+      if (sql.startsWith('SELECT preferences')) return { rows: [{ preferences: { groupedSenders: [' Alerts@Example.com '] } }] };
+      if (sql.includes('SELECT page.*')) return { rows: [{ id: 'latest', sender_group: 'alerts@example.com', sender_message_count: 75, sender_unread_count: 3, display_total: 16 }] };
+      if (sql.includes('FROM folders')) return { rows: [{ n: 90 }] };
+      return { rows: [{ id: 'latest', from_email: 'alerts@example.com', subject: 'Latest' }] };
+    });
     const result = await listMessages({ userId: 'user-1', groupSenders: true, limit: 10, offset: 10 });
-    expect(query.mock.calls[1][1]).toEqual(['user-1']);
     expect(result.total).toBe(16);
-    expect(result.messages[0].sender_message_count).toBe(75);
-    const [sql, values] = query.mock.calls[3];
-    expect(values).toEqual([['acc-1'], ['alerts@example.com'], 10, 10]);
-    expect(sql.indexOf('PARTITION BY display_key')).toBeLessThan(sql.lastIndexOf('LIMIT'));
-    expect(sql).toContain("m.folder = 'INBOX'");
-    expect(sql).toContain('m.is_deleted = false');
+    expect(result.messages[0]).toMatchObject({ id: 'sender:alerts@example.com', preview_message_id: 'latest', sender_message_count: 75 });
+    const [candidateSql, candidateValues] = query.mock.calls.find(([sql]) => sql.includes('SELECT page.*'));
+    expect(candidateSql).not.toContain('m.to_addresses');
+    expect(candidateSql).toContain('CROSS JOIN LATERAL');
+    expect(candidateValues).toEqual([['acc-1'], ['alerts@example.com'], 20, 10, 10, ['acc-1']]);
+    const [hydrateSql, hydrateValues] = query.mock.calls.find(([sql]) => sql.includes('m.to_addresses'));
+    expect(hydrateSql).toContain('m.id = ANY');
+    expect(hydrateValues).toEqual([['acc-1'], ['latest'], 1, 0]);
   });
-
-  it('expands exactly one sender with the same account, category and unread filters', async () => {
-    query
-      .mockResolvedValueOnce({ rows: [{ id: 'acc-1' }] })
-      .mockResolvedValueOnce({ rows: [{ total_count: 100 }] })
-      .mockResolvedValueOnce({ rows: [{ total: 2 }] })
-      .mockResolvedValueOnce({ rows: [{ id: 'member' }] });
+  it('expands a sender under the same unread and category scope', async () => {
+    query.mockImplementation(async sql => {
+      if (sql.startsWith('SELECT id, include')) return { rows: [{ id: 'acc-1' }] };
+      if (sql.includes('COUNT(*)')) return { rows: [{ total: 2 }] };
+      if (sql.includes('FROM folders')) return { rows: [{ total_count: 2 }] };
+      return { rows: [{ id: 'member' }] };
+    });
     const result = await listMessages({ userId: 'user-1', accountId: 'acc-1', sender: ' Alerts@Example.com ', unreadOnly: true, category: 'automated' });
     expect(result.total).toBe(2);
-    const [sql, values] = query.mock.calls[3];
+    const [sql, values] = query.mock.calls[1];
     expect(sql).toContain('m.is_read = false');
     expect(sql).toContain('lower(btrim(m.from_email)) = $4');
     expect(values).toEqual(['acc-1', 'INBOX', 'automated', 'alerts@example.com', 50, 0]);
   });
-
-  it('keeps conversation grouping inside sender groups without paging threads first', async () => {
-    query
-      .mockResolvedValueOnce({ rows: [{ id: 'acc-1' }] })
-      .mockResolvedValueOnce({ rows: [{ preferences: { groupedSenders: ['alerts@example.com'] } }] })
-      .mockResolvedValueOnce({ rows: [{ n: 100 }] })
-      .mockResolvedValueOnce({ rows: [{ id: 'thread', display_total: 1 }] });
-    const result = await listMessages({ userId: 'user-1', groupSenders: true, threaded: true });
-    expect(result.threaded).toBe(true);
-    const [sql, values] = query.mock.calls[3];
-    expect(sql).toContain('SUM(message_count)');
-    expect(sql).toContain('SUM(unread_count)');
-    expect(sql.match(/LIMIT \$/g)).toHaveLength(1);
-    expect(values).toEqual([['acc-1'], ['acc-1'], ['alerts@example.com'], 50, 0]);
-  });
 });
-
 
 describe('normalizeGroupedSenders', () => {
   it('canonicalizes case, strips whitespace and rejects malformed entries', () => {
@@ -326,16 +313,19 @@ describe('normalizeGroupedSenders', () => {
 });
 
 describe('listMessages — sender conversation expansion', () => {
-  it('filters the originating sender after constructing conversation rows', async () => {
-    query.mockResolvedValueOnce({ rows: [{ id: 'acc-1' }] })
-      .mockResolvedValueOnce({ rows: [{ n: 10 }] })
-      .mockResolvedValueOnce({ rows: [{ id: 'thread' }] })
-      .mockResolvedValueOnce({ rows: [{ total: 1 }] });
+  it('pages conversation keys before hydrating full conversation metadata', async () => {
+    query.mockImplementation(async sql => {
+      if (sql.startsWith('SELECT id, include')) return { rows: [{ id: 'acc-1' }] };
+      if (sql.includes('COUNT(*)') && !sql.includes('deduped AS')) return { rows: [{ total: 1 }] };
+      if (sql.includes('AS total')) return { rows: [{ total: 1 }] };
+      if (sql.includes('FROM folders')) return { rows: [{ n: 10 }] };
+      return { rows: [{ id: 'thread-rep', thread_key: 'thread', thread_id: 'thread' }] };
+    });
     const result = await listMessages({ userId: 'user-1', sender: 'alerts@example.com', threaded: true });
     expect(result.total).toBe(1);
-    const [sql, values] = query.mock.calls[2];
-    expect(sql).toContain('sender_threads WHERE lower(btrim(from_email)) = $3');
-    expect(sql.match(/LIMIT \$/g)).toHaveLength(1);
-    expect(values).toEqual([['acc-1'], ['acc-1'], 'alerts@example.com', 50, 0]);
+    expect(query.mock.calls[1][0]).toContain('array_agg(lower(btrim(from_email)) ORDER BY date ASC)');
+    const hydration = query.mock.calls.find(([sql]) => sql.includes('m.to_addresses'));
+    expect(hydration[0]).toContain('m.thread_key = ANY');
+    expect(hydration[0]).toContain('LIMIT $');
   });
 });

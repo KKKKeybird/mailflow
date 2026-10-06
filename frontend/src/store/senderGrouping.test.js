@@ -42,8 +42,9 @@ describe('server-backed sender grouping preferences', () => {
   });
   it('updates a sender badge when a cached member is marked read', () => {
     const member = { id: 'member', from_email: 'alerts@example.com', is_read: false };
+    useStore.setState({ senderGroupContext: '{}', selectedFolder: 'INBOX', groupedSenders: ['alerts@example.com'] });
     const key = 'sender:{}:alerts@example.com';
-    useStore.setState({ messages: [{ id: 'head', sender_group: 'alerts@example.com', sender_unread_count: 2 }], threadMessages: { [key]: [member] } });
+    useStore.setState({ messages: [{ id: 'head', sender_group: 'alerts@example.com', sender_unread_count: 2, sender_message_count: 3 }], threadMessages: { [key]: [member] } });
     useStore.getState().updateMessage('member', { is_read: true });
     assert.equal(useStore.getState().messages[0].sender_unread_count, 1);
     useStore.getState().updateMessage('member', { is_read: false });
@@ -51,8 +52,9 @@ describe('server-backed sender grouping preferences', () => {
   });
   it('removes and restores a member without discarding its whole sender group', () => {
     const member = { id: 'latest', from_email: 'alerts@example.com', date: '2026-10-01T10:00:00Z' };
+    useStore.setState({ senderGroupContext: '{}', selectedFolder: 'INBOX', groupedSenders: ['alerts@example.com'] });
     const key = 'sender:{}:alerts@example.com';
-    useStore.setState({ messages: [{ ...member, sender_group: 'alerts@example.com' }], threadMessages: { [key]: [member] } });
+    useStore.setState({ messages: [{ ...member, id: 'sender:alerts@example.com', preview_message_id: member.id, sender_group: 'alerts@example.com', sender_message_count: 2, sender_unread_count: 0 }], threadMessages: { [key]: [member] } });
     useStore.getState().removeMessage(member.id);
     assert.equal(useStore.getState().messages.length, 1);
     assert.equal(useStore.getState().threadMessages[key].length, 0);

@@ -1,10 +1,11 @@
+import { selectedListMessage } from './messageRowTree.js';
 // Resolve the selected row across the ordinary list, search, deep-link stash,
 // and GTD rail. GTD copies may not exist in the current mailbox's messages.
 export function selectedMessage(state) {
   const id = state?.selectedMessageId ?? topOpenMessageWindow(state)?.messageId;
   if (id == null) return null;
   const pool = state.searchQuery?.trim() ? state.searchResults : state.messages;
-  return pool?.find(message => message.id === id)
+  return selectedListMessage(state) ?? pool?.find(message => !message.sender_group && message.id === id)
     ?? Object.values(state.threadMessages || {}).flat().find(message => message.id === id)
     ?? Object.values(state.gtdSections || {}).flatMap(section => section?.threads || []).find(message => message.id === id)
     ?? null;

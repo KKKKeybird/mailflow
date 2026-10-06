@@ -15,7 +15,7 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
   const [error, setError] = useState(false);
   const [retry, setRetry] = useState(0);
   const paramsJson = JSON.stringify(params);
-  const refreshToken = useStore(s => s.messagesRefreshToken);
+  const refreshToken = useStore(s => s.senderMembersRevision);
   const unreadCount = message.sender_unread_count;
 
   useEffect(() => {
@@ -24,7 +24,7 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
     let cancelled = false;
     setLoading(true);
     setError(false);
-    api.getMessages({ ...JSON.parse(paramsJson), sender: message.sender_group, limit: 50, offset: 0 })
+    api.getMessages({ ...JSON.parse(paramsJson), sender: message.sender_group, limit: Math.min(Math.max(useStore.getState().threadMessages[cacheKey]?.length || 0, 50), 500), offset: 0 })
       .then(data => {
         if (cancelled) return;
         setThreadMessages(cacheKey, applyReadGuard(data.messages));
