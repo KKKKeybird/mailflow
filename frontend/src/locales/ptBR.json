@@ -829,6 +829,8 @@
       "actionMove": "Mover para pasta",
       "actionForward": "Encaminhar para",
       "actionForwardPlaceholder": "destinatario@exemplo.com",
+      "actionSetCategory": "Definir categoria",
+      "actionSetCategorySelect": "Selecione uma categoria…",
       "actionMovePlaceholder": "Caminho IMAP exato da pasta (ex.: Trabalho ou INBOX/Trabalho)",
       "actionMoveSelectFolder": "Selecione uma pasta…",
       "actionMoveRequiresAccount": "Requer uma conta específica",

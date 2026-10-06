@@ -822,6 +822,8 @@
       "actionMove": "Mover a carpeta",
       "actionForward": "Reenviar a",
       "actionForwardPlaceholder": "destinatario@example.com",
+      "actionSetCategory": "Establecer categoría",
+      "actionSetCategorySelect": "Selecciona una categoría…",
       "actionMovePlaceholder": "Nombre de la carpeta",
       "stopProcessing": "Detener el procesamiento de reglas posteriores si esta coincide",
       "stopProcessingHint": "Si esta regla coincide, las reglas posteriores no se ejecutarán para el mismo mensaje.",

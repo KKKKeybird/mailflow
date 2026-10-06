@@ -822,6 +822,8 @@
       "actionMove": "Sposta nella cartella",
       "actionForward": "Inoltra a",
       "actionForwardPlaceholder": "destinatario@example.com",
+      "actionSetCategory": "Imposta categoria",
+      "actionSetCategorySelect": "Seleziona una categoria…",
       "actionMovePlaceholder": "Nome cartella",
       "stopProcessing": "Interrompi l'elaborazione delle regole successive se questa corrisponde",
       "stopProcessingHint": "Se questa regola corrisponde, le regole successive non verranno eseguite per lo stesso messaggio.",

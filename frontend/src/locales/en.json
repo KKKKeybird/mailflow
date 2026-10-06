@@ -829,6 +829,8 @@
       "actionMove": "Move to folder",
       "actionForward": "Forward to",
       "actionForwardPlaceholder": "recipient@example.com",
+      "actionSetCategory": "Set category",
+      "actionSetCategorySelect": "Select a category…",
       "actionMovePlaceholder": "Exact IMAP folder path (e.g. Work or INBOX/Work)",
       "actionMoveSelectFolder": "Select a folder…",
       "actionMoveRequiresAccount": "Requires a specific account",

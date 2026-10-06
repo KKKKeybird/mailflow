@@ -822,6 +822,8 @@
       "actionMove": "Déplacer vers le dossier",
       "actionForward": "Transférer à",
       "actionForwardPlaceholder": "destinataire@example.com",
+      "actionSetCategory": "Définir la catégorie",
+      "actionSetCategorySelect": "Choisir une catégorie…",
       "actionMovePlaceholder": "Nom du dossier",
       "stopProcessing": "Arrêter le traitement des règles suivantes si celle-ci correspond",
       "stopProcessingHint": "Si cette règle correspond, les règles suivantes ne s'exécuteront pas pour le même message.",

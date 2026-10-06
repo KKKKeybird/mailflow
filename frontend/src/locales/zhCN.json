@@ -822,6 +822,8 @@
       "actionMove": "移动到文件夹",
       "actionForward": "转发至",
       "actionForwardPlaceholder": "shoujianren@example.com",
+      "actionSetCategory": "设置分类",
+      "actionSetCategorySelect": "选择分类…",
       "actionMovePlaceholder": "文件夹名称",
       "actionMoveSelectFolder": "选择文件夹…",
       "actionMoveRequiresAccount": "需要指定账户",

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { query } from '../services/db.js';
 import { requireAuth } from '../middleware/auth.js';
-import { applyInboxRules, isDangerousRegex } from '../services/inboxRules.js';
+import { applyInboxRules, isDangerousRegex, RULE_CATEGORIES } from '../services/inboxRules.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -38,6 +38,9 @@ export function validateConditions(conditions) {
 
 export function validateActions(actions) {
   for (const action of actions) {
+    if (action.type === 'set_category' && !RULE_CATEGORIES.has(action.value)) {
+      return 'Set category action requires one of: primary, newsletter, promotion, automated, social';
+    }
     if (action.type !== 'forward') continue;
     const value = typeof action.value === 'string' ? action.value.trim() : '';
     if (!FORWARD_EMAIL_RE.test(value) || /[\r\n\0]/.test(value)) {
@@ -53,6 +56,7 @@ export function validateActions(actions) {
 export function normalizeActions(actions) {
   let destSeen = false;
   let forwardSeen = false;
+  let categorySeen = false;
   return actions
     .filter(a => {
       if (!a || typeof a.type !== 'string') return false;
@@ -63,6 +67,11 @@ export function normalizeActions(actions) {
       if (a.type === 'forward') {
         if (forwardSeen) return false;
         forwardSeen = true;
+      }
+      // A message has one category, so a rule sets at most one.
+      if (a.type === 'set_category') {
+        if (categorySeen) return false;
+        categorySeen = true;
       }
       return true;
     })

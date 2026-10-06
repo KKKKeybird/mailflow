@@ -1313,11 +1313,11 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
         break;
       }
       case 'setCategory': {
+        // Stored as chosen, 'primary' included, as the server does (#489).
         const newCategory = data || 'primary';
-        const dbCategory = newCategory === 'primary' ? null : newCategory;
         try {
           await api.setMessageCategory(message.id, newCategory);
-          updateMessage(message.id, { category: dbCategory });
+          updateMessage(message.id, { category: newCategory });
           const params = message.account_id ? { accountId: message.account_id } : {};
           api.getCategoryCounts(params).then(d => setCategoryCounts(d.counts || {})).catch(() => {});
         } catch (err) {

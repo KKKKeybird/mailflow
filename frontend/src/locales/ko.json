@@ -828,6 +828,8 @@
       "actionForward": "다음으로 전달",
       "opEndsWith": "다음으로 끝남",
       "actionForwardPlaceholder": "수신자@example.com",
+      "actionSetCategory": "카테고리 지정",
+      "actionSetCategorySelect": "카테고리 선택…",
       "saving": "저장 중…",
       "actionMovePlaceholder": "정확한 IMAP 폴더 경로(예: 직장 또는 INBOX/직장)",
       "saveButton": "규칙 저장",

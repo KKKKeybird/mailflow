@@ -845,6 +845,8 @@
       "actionMove": "Przenieś do folderu",
       "actionForward": "Przekaż dalej do",
       "actionForwardPlaceholder": "odbiorca@example.com",
+      "actionSetCategory": "Ustaw kategorię",
+      "actionSetCategorySelect": "Wybierz kategorię…",
       "actionMovePlaceholder": "Dokładna ścieżka folderu IMAP (np. Praca lub Odebrane/Praca)",
       "actionMoveSelectFolder": "Wybierz folder…",
       "actionMoveRequiresAccount": "Wymaga konkretnego konta",

@@ -1199,6 +1199,8 @@
       "actionMove": "Přesunout do složky",
       "actionForward": "Přeposlat na",
       "actionForwardPlaceholder": "prijemce@example.com",
+      "actionSetCategory": "Nastavit kategorii",
+      "actionSetCategorySelect": "Vyberte kategorii…",
       "actionMovePlaceholder": "Přesná cesta ke složce IMAP (např. Práce nebo INBOX/Práce)",
       "actionMoveSelectFolder": "Vyberte složku…",
       "actionMoveRequiresAccount": "Vyžaduje konkrétní účet",

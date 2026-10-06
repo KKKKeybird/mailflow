@@ -822,6 +822,8 @@
       "actionMove": "Переместить в папку",
       "actionForward": "Переслать на",
       "actionForwardPlaceholder": "poluchatel@example.com",
+      "actionSetCategory": "Назначить категорию",
+      "actionSetCategorySelect": "Выберите категорию…",
       "actionMovePlaceholder": "Название папки",
       "stopProcessing": "Остановить обработку следующих правил при совпадении",
       "stopProcessingHint": "Если это правило совпадает, последующие правила не будут применяться к тому же сообщению.",

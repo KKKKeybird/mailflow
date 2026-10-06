@@ -1548,6 +1548,8 @@
       "actionMove": "In Ordner verschieben",
       "actionForward": "Weiterleiten an",
       "actionForwardPlaceholder": "empfaenger@example.com",
+      "actionSetCategory": "Kategorie festlegen",
+      "actionSetCategorySelect": "Kategorie auswählen…",
       "nameLabel": "Regelname",
       "editButton": "Bearbeiten",
       "deleteConfirm": "Diese Regel löschen?",
