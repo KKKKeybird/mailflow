@@ -63,6 +63,11 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
     const prefs = await query('SELECT preferences FROM users WHERE id = $1', [userId]);
     senders = normalizeGroupedSenders(prefs.rows[0]?.preferences?.groupedSenders);
   }
+  if (senders.length) {
+    const present = await query(`SELECT 1 FROM messages m WHERE ${where}
+      AND lower(btrim(m.from_email)) = ANY($${values.length + 1}::text[]) LIMIT 1`, [...values, senders]);
+    if (!present.rows.length) senders = [];
+  }
   if (sender || senders.length) {
     const { candidates, total } = await senderCandidates({ where, values, accounts: scopedAccountIds,
       senders, sender: typeof sender === 'string' ? sender.trim().toLowerCase() : null,

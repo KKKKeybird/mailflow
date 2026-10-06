@@ -23,6 +23,19 @@ registerHooks({ load(url, context, next) {
 } });
 const current = await import(serviceUrl + '?implementation');
 const baseline = await import(pathToFileURL(baselinePath).href);
+let comparison;
+if (process.env.BENCH_COMPARE_REF) {
+  const ref = process.env.BENCH_COMPARE_REF;
+  const comparisonPath = `${directory}/comparison.mjs`;
+  const helperPath = `${directory}/comparison-sender.mjs`;
+  const source = execFileSync('git', ['show', `${ref}:backend/src/services/messageService.js`], { cwd: base, encoding: 'utf8' });
+  const helper = execFileSync('git', ['show', `${ref}:backend/src/services/senderGrouping.js`], { cwd: base, encoding: 'utf8' });
+  await writeFile(helperPath, helper.replace("'./db.js'", JSON.stringify(new URL('src/services/db.js', base).href)));
+  await writeFile(comparisonPath, source.replace("'./db.js'", JSON.stringify(new URL('src/services/db.js', base).href))
+    .replace("'./unifiedInbox.js'", JSON.stringify(new URL('src/services/unifiedInbox.js', base).href))
+    .replace("'./senderGrouping.js'", JSON.stringify(pathToFileURL(helperPath).href)));
+  comparison = await import(pathToFileURL(comparisonPath).href);
+}
 globalThis.__senderBenchmarkImplementation = current.listMessages;
 const { default: routes } = await import(new URL('src/routes/mail.js', base));
 const { pool, query } = await import(new URL('src/services/db.js', base));
@@ -97,17 +110,48 @@ try {
       console.error('Validated',threaded,filters);
     }
     results.validation=checks;
-  } else for (const density of [90, 99.9]) {
-    await query(`UPDATE messages SET from_email = CASE WHEN ((uid-1)/3)%$1=0 THEN 'person'||((uid-1)/3)||'@example.com' ELSE 'sender'||((uid-1)/3)%6||'@example.com' END`, [density === 90 ? 10 : 1000]);
-    await query('VACUUM ANALYZE messages');
-    for (const threaded of [false, true]) for (const offset of [0, 1000]) {
-      for (const implementation of ['main', 'revision']) for (const grouping of [false, true]) {
-        globalThis.__senderBenchmarkImplementation = implementation === 'main' ? baseline.listMessages : current.listMessages;
-        const params = { threaded, groupSenders: grouping, limit: 50, offset };
-        const times = []; let data;
-        for (let i = 0; i < 12; i++) { const start = performance.now(); data = await request(params); if (i >= 2) times.push(performance.now() - start); }
-        times.sort((a,b) => a-b);
-        results.scenarios.push({ density, threaded, offset, implementation, grouping, p50_ms: times[4], p95_ms: times[9], rows: data.messages.length, total: data.total });
+  } else {
+    const filters=JSON.parse(process.env.BENCH_PARAMS || '{}');
+    results.filters=filters;
+    if(process.env.BENCH_ACCOUNTS === '2') {
+      await query(`INSERT INTO email_accounts VALUES('66666666-6666-6666-6666-666666666666',$1,true,true,'Second','second@example.com','#222') ON CONFLICT(id) DO NOTHING`,[userId]);
+      await query(`UPDATE messages SET account_id=CASE WHEN ((uid-1)/3)%2=0 THEN '22222222-2222-2222-2222-222222222222'::uuid ELSE '66666666-6666-6666-6666-666666666666'::uuid END`);
+    } else {
+      await query(`UPDATE messages SET account_id='22222222-2222-2222-2222-222222222222'`);
+      await query(`DELETE FROM email_accounts WHERE id='66666666-6666-6666-6666-666666666666'`);
+    }
+    await query(`DELETE FROM folders; INSERT INTO folders SELECT account_id,'INBOX',count(*)::int,count(*) FILTER(WHERE NOT is_read)::int FROM messages GROUP BY account_id`);
+    results.accounts=process.env.BENCH_ACCOUNTS === '2' ? 2 : 1;
+    await query(`UPDATE messages SET date='2026-10-01'::timestamptz+uid*interval '1 second'`);
+    results.cache='warm buffers; two warm-ups and 30 measured requests per case; rotating implementation order';
+    results.comparison=process.env.BENCH_COMPARE_REF || null;
+    for (const density of (process.env.BENCH_DENSITIES || '90,99.9').split(',').map(Number)) {
+      if(!Number.isFinite(density) || density < 0 || density > 100) throw new Error('Invalid density');
+      if(density !== 90 && density !== 99.9) await query(`UPDATE messages SET from_email=CASE WHEN ((uid-1)/3)%1000 < $1 THEN 'sender'||((uid-1)/3)%6||'@example.com' ELSE 'person'||((uid-1)/3)||'@example.com' END`,[density*10]);else
+      await query(`UPDATE messages SET from_email=CASE WHEN ((uid-1)/3)%$1=0 THEN 'person'||((uid-1)/3)||'@example.com' ELSE 'sender'||((uid-1)/3)%6||'@example.com' END`, [density === 90 ? 10 : 1000]);
+      await query('REINDEX TABLE messages'); await query('VACUUM ANALYZE messages');
+      for (const threaded of [false, true]) {
+        globalThis.__senderBenchmarkImplementation=current.listMessages;
+        const folded=await request({...filters,threaded,groupSenders:true,limit:50,offset:0});
+        const offsets=[...new Set([0,Math.floor(folded.total*.8/50)*50])];
+        for (const offset of offsets) {
+          const cases=[{name:'main',implementation:baseline,grouping:false},
+            {name:'revision-off',implementation:current,grouping:false},
+            ...(comparison ? [{name:'previous-B',implementation:comparison,grouping:true}] : []),
+            {name:'revision-on',implementation:current,grouping:true}];
+          const samples=cases.map(()=>[]),data=[];
+          for(let round=0;round<32;round++) for(let i=0;i<cases.length;i++) {
+            const index=(i+round)%cases.length,entry=cases[index];
+            globalThis.__senderBenchmarkImplementation=entry.implementation.listMessages;
+            const start=performance.now();data[index]=await request({...filters,threaded,groupSenders:entry.grouping,limit:50,offset});
+            if(round>=2)samples[index].push(performance.now()-start);
+          }
+          for(let i=0;i<cases.length;i++) {
+            const sorted=[...samples[i]].sort((a,b)=>a-b);
+            results.scenarios.push({density,threaded,offset,implementation:cases[i].name,grouping:cases[i].grouping,
+              n:30,p50_ms:sorted[14],p95_ms:sorted[28],rows:data[i].messages.length,total:data[i].total,samples_ms:samples[i]});
+          }
+        }
       }
     }
   }

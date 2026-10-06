@@ -284,7 +284,7 @@ describe('listMessages — sender grouping', () => {
     const [candidateSql, candidateValues] = query.mock.calls.find(([sql]) => sql.includes('SELECT page.*'));
     expect(candidateSql).not.toContain('m.to_addresses');
     expect(candidateSql).toContain('CROSS JOIN LATERAL');
-    expect(candidateValues).toEqual([['acc-1'], ['alerts@example.com'], 20, 10, 10, ['acc-1']]);
+    expect(candidateValues).toEqual([['acc-1'], 'acc-1', ['alerts@example.com'], ['acc-1'], 20, 10, 10]);
     const [hydrateSql, hydrateValues] = query.mock.calls.find(([sql]) => sql.includes('m.to_addresses'));
     expect(hydrateSql).toContain('m.id = ANY');
     expect(hydrateValues).toEqual([['acc-1'], ['latest'], 1, 0]);
@@ -292,7 +292,7 @@ describe('listMessages — sender grouping', () => {
   it('expands a sender under the same unread and category scope', async () => {
     query.mockImplementation(async sql => {
       if (sql.startsWith('SELECT id, include')) return { rows: [{ id: 'acc-1' }] };
-      if (sql.includes('COUNT(*)')) return { rows: [{ total: 2 }] };
+      if (sql.includes('SELECT page.*')) return { rows: [{ id: 'member', display_total: 2 }] };
       if (sql.includes('FROM folders')) return { rows: [{ total_count: 2 }] };
       return { rows: [{ id: 'member' }] };
     });
@@ -316,14 +316,14 @@ describe('listMessages — sender conversation expansion', () => {
   it('pages conversation keys before hydrating full conversation metadata', async () => {
     query.mockImplementation(async sql => {
       if (sql.startsWith('SELECT id, include')) return { rows: [{ id: 'acc-1' }] };
-      if (sql.includes('COUNT(*)') && !sql.includes('deduped AS')) return { rows: [{ total: 1 }] };
+      if (sql.includes('SELECT page.*')) return { rows: [{ id: 'thread-rep', thread_key: 'thread', display_total: 1 }] };
       if (sql.includes('AS total')) return { rows: [{ total: 1 }] };
       if (sql.includes('FROM folders')) return { rows: [{ n: 10 }] };
       return { rows: [{ id: 'thread-rep', thread_key: 'thread', thread_id: 'thread' }] };
     });
     const result = await listMessages({ userId: 'user-1', sender: 'alerts@example.com', threaded: true });
     expect(result.total).toBe(1);
-    expect(query.mock.calls[1][0]).toContain('array_agg(lower(btrim(from_email)) ORDER BY date ASC)');
+    expect(query.mock.calls[1][0]).toContain('lower(btrim((array_agg(from_email ORDER BY date ASC))[1]))');
     const hydration = query.mock.calls.find(([sql]) => sql.includes('m.to_addresses'));
     expect(hydration[0]).toContain('m.thread_key = ANY');
     expect(hydration[0]).toContain('LIMIT $');
