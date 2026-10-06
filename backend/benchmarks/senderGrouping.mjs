@@ -51,12 +51,14 @@ const request = async params => {
   const response = await fetch(url + '?' + new URLSearchParams(params));
   const data = await response.json(); assert.equal(response.status, 200, JSON.stringify(data)); return data;
 };
-const results = { baseline: execFileSync('git', ['rev-parse', ref], { cwd: base, encoding: 'utf8' }).trim(), engine: (await query('SELECT version()')).rows[0].version,
+const results = { revision: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: base, encoding: 'utf8' }).trim(), baseline: execFileSync('git', ['rev-parse', ref], { cwd: base, encoding: 'utf8' }).trim(), engine: (await query('SELECT version()')).rows[0].version,
   authentication: 'fixture session + real account authorization; actual mail router, database and JSON serialization', cache: 'warm PostgreSQL/OS buffers; two warm-ups, ten measured requests', scenarios: [] };
 try {
   if (process.env.BENCH_FIRST_READ) {
     const threaded=process.env.BENCH_THREADED==='true', grouping=process.env.BENCH_GROUPING==='true';
-    globalThis.__senderBenchmarkImplementation=process.env.BENCH_IMPLEMENTATION==='main' ? baseline.listMessages : current.listMessages;
+    const firstImplementation=process.env.BENCH_IMPLEMENTATION==='previous-B' ? comparison : process.env.BENCH_IMPLEMENTATION==='main' ? baseline : current;
+    if(!firstImplementation)throw new Error('Set BENCH_COMPARE_REF for previous-B');
+    globalThis.__senderBenchmarkImplementation=firstImplementation.listMessages;
     const start=performance.now(); const data=await request({threaded,groupSenders:grouping,limit:50,offset:0});
     results.cache='first inbox read after PostgreSQL restart; PostgreSQL buffers cold, OS cache not flushed; one sample';
     results.scenarios=[{implementation:process.env.BENCH_IMPLEMENTATION||'revision',threaded,grouping,elapsed_ms:performance.now()-start,rows:data.messages.length,total:data.total}];
@@ -75,6 +77,9 @@ try {
       SELECT md5('duplicate:'||uid)::uuid,account_id,90000+uid,'INBOX',message_id,thread_id,thread_key,subject,from_name,from_email,date+interval '0.1 second',snippet,is_read,category FROM messages WHERE uid=4 AND account_id='22222222-2222-2222-2222-222222222222' ON CONFLICT DO NOTHING`);
     await query(`UPDATE messages SET date=(SELECT date FROM messages WHERE uid=9 AND account_id='22222222-2222-2222-2222-222222222222') WHERE uid=6 AND account_id='22222222-2222-2222-2222-222222222222'`);
     await query(`UPDATE messages SET from_email='  '||upper(from_email)||'  ' WHERE uid%11=0 AND account_id='22222222-2222-2222-2222-222222222222'`);
+    await query(`INSERT INTO messages(id,account_id,uid,folder,message_id,thread_id,thread_key,subject,from_name,from_email,date,snippet,is_read,category)
+      SELECT md5('null-date:'||i)::uuid,'22222222-2222-2222-2222-222222222222',91000+i,'INBOX','<null-date-'||i||'>','null-date-thread','null-date-thread','Null date','Sender','sender0@example.com',NULL,'Null date',i=2,'primary'
+      FROM generate_series(1,2)i ON CONFLICT DO NOTHING`);
     await query(`DELETE FROM folders; INSERT INTO folders SELECT account_id,'INBOX',count(*)::int,count(*)FILTER(WHERE NOT is_read)::int FROM messages GROUP BY account_id`);
     globalThis.__senderBenchmarkImplementation=current.listMessages;
     assert.ok((await request({ accountId:'44444444-4444-4444-4444-444444444444',groupSenders:true })).messages.every(m => m.account_id !== '44444444-4444-4444-4444-444444444444'));
@@ -85,7 +90,15 @@ try {
       globalThis.__senderBenchmarkImplementation = baseline.listMessages;
       const source = [];
       for (let offset=0;;offset+=500) { const data = await request({ threaded, ...filters, limit:500, offset }); source.push(...data.messages); if(data.messages.length<500)break; }
-      const ordered = [...source].sort((a,b) => new Date(b.date)-new Date(a.date) || a.id.localeCompare(b.id));
+      const ordered = [...source].sort((a,b) => {
+        if (a.date == null || b.date == null) {
+          if (a.date !== b.date) return a.date == null ? -1 : 1;
+        } else {
+          const difference=new Date(b.date)-new Date(a.date);
+          if(difference)return difference;
+        }
+        return a.id.localeCompare(b.id);
+      });
       const groups = new Map(), expected=[];
       const senders = (await query('SELECT preferences FROM users WHERE id=$1',[userId])).rows[0].preferences.groupedSenders;
       for (const row of ordered) {
@@ -109,7 +122,21 @@ try {
       checks.push({threaded,filters,sourceRows:source.length,foldedRows:actual.length,fullPaginationAndExpansion:true});
       console.error('Validated',threaded,filters);
     }
+    const originalPreferences=(await query('SELECT preferences FROM users WHERE id=$1',[userId])).rows[0].preferences;
+    for(const threaded of[false,true]) {
+      await query('UPDATE users SET preferences=$2 WHERE id=$1',[userId,originalPreferences]);
+      const standard=await request({threaded,groupSenders:true,limit:500});
+      await query('UPDATE users SET preferences=$2 WHERE id=$1',[userId,{...originalPreferences,groupedSenders:[...originalPreferences.groupedSenders,...Array.from({length:11},(_,i)=>`missing${i}@example.com`)]}]);
+      assert.deepEqual(await request({threaded,groupSenders:true,limit:500}),standard);
+      await query('UPDATE users SET preferences=$2 WHERE id=$1',[userId,{...originalPreferences,groupedSenders:['missing@example.com']}]);
+      globalThis.__senderBenchmarkImplementation=baseline.listMessages;
+      const reference=await request({threaded,limit:500});
+      globalThis.__senderBenchmarkImplementation=current.listMessages;
+      assert.deepEqual(await request({threaded,groupSenders:true,limit:500}),reference);
+    }
+    await query('UPDATE users SET preferences=$2 WHERE id=$1',[userId,originalPreferences]);
     results.validation=checks;
+    results.additionalValidation=['NULL-date group heads','17 selected senders including absent ones','no selected sender in scope matches main'];
   } else {
     const filters=JSON.parse(process.env.BENCH_PARAMS || '{}');
     results.filters=filters;
@@ -135,8 +162,8 @@ try {
         const folded=await request({...filters,threaded,groupSenders:true,limit:50,offset:0});
         const offsets=[...new Set([0,Math.floor(folded.total*.8/50)*50])];
         for (const offset of offsets) {
-          const cases=[{name:'main',implementation:baseline,grouping:false},
-            {name:'revision-off',implementation:current,grouping:false},
+          const cases=[...(filters.sender ? [] : [{name:'main',implementation:baseline,grouping:false},
+            {name:'revision-off',implementation:current,grouping:false}]),
             ...(comparison ? [{name:'previous-B',implementation:comparison,grouping:true}] : []),
             {name:'revision-on',implementation:current,grouping:true}];
           const samples=cases.map(()=>[]),data=[];
@@ -151,6 +178,7 @@ try {
             results.scenarios.push({density,threaded,offset,implementation:cases[i].name,grouping:cases[i].grouping,
               n:30,p50_ms:sorted[14],p95_ms:sorted[28],rows:data[i].messages.length,total:data[i].total,samples_ms:samples[i]});
           }
+          console.error('Measured',density,threaded,offset,filters);
         }
       }
     }

@@ -55,11 +55,18 @@ export async function senderCandidates({ where, values, accounts, senders, sende
   if (threaded && !unfiltered) {
     const accountParam = `$${args.length + 1}`;
     args.push(accounts);
+    const accountTotals = accounts.length <= 16 ? accounts.map((_, i) => `
+      SELECT thread_key, COUNT(DISTINCT message_id)::int AS message_count
+      FROM messages WHERE account_id = (${accountParam}::uuid[])[${i + 1}]
+        AND folder = 'INBOX' AND NOT is_deleted AND message_id IS NOT NULL
+      GROUP BY thread_key`) : null;
     totals = `, thread_totals AS (
-      SELECT thread_key, COUNT(DISTINCT ${accounts.length === 1 ? 'message_id' : '(account_id, message_id)'})::int AS message_count
-      FROM messages WHERE account_id = ANY(${accountParam}) AND folder = 'INBOX'
-        AND NOT is_deleted AND message_id IS NOT NULL
-        ${accounts.length === 1 ? `AND account_id = (${accountParam}::uuid[])[1]` : ''} GROUP BY thread_key
+      ${accountTotals ? (accounts.length === 1 ? accountTotals[0] : `
+        SELECT thread_key, SUM(message_count)::int AS message_count
+        FROM (${accountTotals.join(' UNION ALL ')}) account_totals GROUP BY thread_key`) : `
+        SELECT thread_key, COUNT(DISTINCT (account_id, message_id))::int AS message_count
+        FROM messages WHERE account_id = ANY(${accountParam}) AND folder = 'INBOX'
+          AND NOT is_deleted AND message_id IS NOT NULL GROUP BY thread_key`}
     )`;
     messages = 'COALESCE(tt.message_count, 1)';
   }
@@ -74,26 +81,32 @@ export async function senderCandidates({ where, values, accounts, senders, sende
       CROSS JOIN LATERAL (SELECT m.id, m.date FROM messages m
         WHERE ${where} AND m.account_id = a.account_id AND (${normalized} IS NULL OR ${normalized} <> ALL(${groupParam}))
         ORDER BY m.date DESC, m.id LIMIT $${n + 2}) o` ;
-  const headSource = threaded ? `
-        SELECT id, date, thread_key FROM thread_keys WHERE sender = s.sender ORDER BY date DESC, id LIMIT 1` : `
+  const headSource = !threaded ? `
         SELECT h.* FROM unnest(${accountsParam}) a(account_id)
         CROSS JOIN LATERAL (SELECT m.id, m.date FROM messages m
           WHERE ${where} AND m.account_id = a.account_id AND ${normalized} = s.sender
-          ORDER BY m.date DESC, m.id LIMIT 1) h ORDER BY h.date DESC, h.id LIMIT 1`;
-  const cte = `WITH ${source ? source + ',' : ''}
-    ordinary AS (${ordinarySource}), heads AS (
+          ORDER BY m.date DESC, m.id LIMIT 1) h ORDER BY h.date DESC, h.id LIMIT 1` : '';
+  const heads = threaded ? `
+      SELECT DISTINCT ON (c.sender_group) t.id, t.date, t.thread_key, c.sender_group
+      FROM thread_keys t JOIN counts c ON t.sender = c.sender_group
+      WHERE (c.has_null_date AND t.date IS NULL)
+        OR (NOT c.has_null_date AND t.date = c.head_date)
+      ORDER BY c.sender_group, t.id` : `
       SELECT h.*, s.sender AS sender_group FROM unnest(${groupParam}) s(sender)
-      CROSS JOIN LATERAL (${headSource}) h
-    ), page AS (
-      SELECT * FROM (SELECT * FROM ordinary UNION ALL
-        SELECT id, date, sender_group ${threaded ? ', thread_key' : ''} FROM heads) candidates
-      ORDER BY date DESC, id LIMIT $${n + 3} OFFSET $${n + 4}
-    ) ${totals}, counts AS (
+      CROSS JOIN LATERAL (${headSource}) h`;
+  const cte = `WITH ${source ? source + ',' : ''}
+    ${totals ? totals.replace(/^,\s*/, '') + ',' : ''}
+    counts AS MATERIALIZED (
       SELECT CASE WHEN ${from} = ANY(${groupParam}) THEN ${from} END AS sender_group,
         COUNT(*)::int AS list_count, SUM(${messages})::int AS sender_message_count,
         SUM(${unread})::int AS sender_unread_count
+        ${threaded ? ', MAX(date) AS head_date, BOOL_OR(date IS NULL) AS has_null_date' : ''}
       FROM ${rows} ${threaded && !unfiltered ? 'LEFT JOIN thread_totals tt USING (thread_key)' : ''}
       WHERE ${scope} GROUP BY CASE WHEN ${from} = ANY(${groupParam}) THEN ${from} END
+    ), ordinary AS (${ordinarySource}), heads AS (${heads}), page AS (
+      SELECT * FROM (SELECT * FROM ordinary UNION ALL
+        SELECT id, date, sender_group ${threaded ? ', thread_key' : ''} FROM heads) candidates
+      ORDER BY date DESC, id LIMIT $${n + 3} OFFSET $${n + 4}
     )`;
   const total = '(SELECT COALESCE(SUM(CASE WHEN sender_group IS NULL THEN list_count ELSE 1 END), 0)::int FROM counts)';
   const result = await query(`${cte} SELECT page.*, counts.sender_message_count, counts.sender_unread_count, totals.display_total
