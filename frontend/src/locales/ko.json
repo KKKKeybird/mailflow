@@ -514,6 +514,7 @@
     "unstar": "별표 제거",
     "moveToFolder": "이동",
     "forward": "전달",
+    "forwardAsAttachment": "첨부 파일로 전달",
     "archive": "보관",
     "snooze": {
       "label": "다시 알림",

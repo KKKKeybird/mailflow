@@ -515,6 +515,7 @@
     "reply": "Reply",
     "replyAll": "Reply all",
     "forward": "Forward",
+    "forwardAsAttachment": "Forward as attachment",
     "moveToFolder": "Move",
     "archive": "Archive",
     "snooze": {

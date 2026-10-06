@@ -12,7 +12,7 @@ import { pendingMarkReadMap, completedMarkReadMap, setPending } from '../utils/p
 import { applyMarkRead, scheduleMarkRead, cancelScheduledMarkRead, cancelScheduledMarkReadFor } from '../utils/markRead.js';
 import { markMessageUnread } from '../utils/messageHotkeys.js';
 import { BUILTIN_SUMMARIZE } from '../aiActions.js';
-import { openReplyFromMessage, openForwardFromMessage } from '../utils/composeFromMessage.js';
+import { openReplyFromMessage, openForwardFromMessage, openForwardAsAttachmentFromMessage } from '../utils/composeFromMessage.js';
 import MessageBodyView from './MessageBodyView.jsx';
 import { copyToClipboard } from '../utils/clipboard.js';
 import { saveSenderCategory } from '../utils/senderCategory.js';
@@ -1265,6 +1265,9 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
         break;
       case 'forward':
         handleForward();
+        break;
+      case 'forwardAsAttachment':
+        if (message) openForwardAsAttachmentFromMessage(message, { openCompose });
         break;
       case 'archive':
         handleArchive();

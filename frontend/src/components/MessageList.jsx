@@ -20,7 +20,7 @@ import {
 } from '../utils/gtd.js';
 import { formatDate } from '../utils/formatDate.js';
 import { advanceSelectionAfterRemoval } from '../utils/listSelection.js';
-import { openReplyFromMessage, openForwardFromMessage } from '../utils/composeFromMessage.js';
+import { openReplyFromMessage, openForwardFromMessage, openForwardAsAttachmentFromMessage } from '../utils/composeFromMessage.js';
 import { selectedMessage, markMessageUnread } from '../utils/messageHotkeys.js';
 import { cancelScheduledMarkReadFor } from '../utils/markRead.js';
 import { saveSenderCategory } from '../utils/senderCategory.js';
@@ -2237,6 +2237,9 @@ export default function MessageList() {
           openCompose,
           getMessageBody: api.getMessageBody,
         });
+        break;
+      case 'forwardAsAttachment':
+        openForwardAsAttachmentFromMessage(message, { openCompose });
         break;
       case 'bulkSelect':
         setSelectedIds(new Set([message.id]));

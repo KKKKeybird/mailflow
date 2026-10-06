@@ -515,6 +515,7 @@
     "reply": "Responder",
     "replyAll": "Responder a todos",
     "forward": "Encaminhar",
+    "forwardAsAttachment": "Encaminhar como anexo",
     "moveToFolder": "Mover",
     "archive": "Arquivar",
     "snooze": {

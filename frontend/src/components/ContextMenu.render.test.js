@@ -110,3 +110,11 @@ describe('ContextMenu — Always for this sender / domain (#490)', () => {
     assert.equal(byText('contextMenu.categoryAlwaysSender'), undefined);
   });
 });
+
+describe('ContextMenu — Forward as attachment (#466)', () => {
+  test('sits with the compose actions and asks for a forward as attachment', async () => {
+    const calls = await openMenu({ id: 'm1', account_id: 'acct-1', folder: 'INBOX', from_email: 'a@b.example', is_read: true });
+    await click('contextMenu.forwardAsAttachment');
+    assert.deepEqual(calls, [['forwardAsAttachment']]);
+  });
+});
