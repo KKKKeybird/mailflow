@@ -1,3 +1,4 @@
+import { actionableMessageRows } from './messageRowTree.js';
 import { useStore } from '../store/index.js';
 
 // Auto-advance the reading pane when the open message leaves the list: select the row that takes
@@ -9,11 +10,13 @@ import { useStore } from '../store/index.js';
 // used by threaded archive, where the open message may be a child of the removed thread head
 // (a different id) but still leaves the list, so selection must still advance.
 export function advanceSelectionAfterRemoval(removedId, selectedWithinRemovedRow = false) {
-  const { messages, searchResults, searchQuery, selectedMessageId, setSelectedMessage } = useStore.getState();
+  const { selectedMessageId, setSelectedMessage } = useStore.getState();
   if (!selectedWithinRemovedRow && selectedMessageId !== removedId) return;
-  const displayMsgs = searchQuery.trim() ? searchResults : messages;
+  const displayMsgs = actionableMessageRows(useStore.getState());
   const idx = displayMsgs.findIndex(m => m.id === removedId);
   if (idx === -1) return;
-  const next = displayMsgs[idx + 1] || displayMsgs[idx - 1] || null;
-  setSelectedMessage(next?.id ?? null);
+  const removed = displayMsgs[idx];
+  const leavesScope = m => m.id === removedId || (removed.__list_kind === 'thread' && (m.__list_thread === removed.thread_id || m.thread_id === removed.thread_id));
+  const next = displayMsgs.slice(idx + 1).find(m => !leavesScope(m)) || displayMsgs.slice(0, idx).reverse().find(m => !leavesScope(m)) || null;
+  setSelectedMessage(next?.id ?? null, next?.__list_key);
 }

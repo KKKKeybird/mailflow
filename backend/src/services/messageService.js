@@ -1,7 +1,8 @@
 import { query } from './db.js';
+import { senderCandidates } from './senderGrouping.js';
 import { resolveAccountScope } from './unifiedInbox.js';
 
-export async function listMessages({ userId, accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category, groupSenders, sender }) {
+export async function listMessages({ userId, accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category, groupSenders, sender, candidateIds, candidateThreads }) {
   const accountsResult = await query(
     'SELECT id, include_in_unified_inbox FROM email_accounts WHERE user_id = $1 AND enabled = true',
     [userId]
@@ -49,21 +50,37 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
   // `where`), so pagination and the threaded count stay consistent.
   whereConditions.push(`NOT (m.message_id IS NULL AND (m.subject IS NULL OR m.subject = '(no subject)') AND COALESCE(m.snippet, '') = '')`);
 
-  const isThreaded = threaded === 'true' || threaded === true;
-  if (sender && !isThreaded) {
-    whereConditions.push(`lower(btrim(m.from_email)) = $${p++}`);
-    values.push(sender.trim().toLowerCase());
-  }
-  let groupedSenders = [];
-  if (!sender && folder === 'INBOX' && (groupSenders === true || groupSenders === 'true')) {
-    const prefs = await query('SELECT preferences FROM users WHERE id = $1', [userId]);
-    groupedSenders = normalizeGroupedSenders(prefs.rows[0]?.preferences?.groupedSenders);
-  }
-  const grouping = groupedSenders.length > 0;
+  if (candidateIds) { whereConditions.push(`m.id = ANY($${p++}::uuid[])`); values.push(candidateIds); }
+  if (candidateThreads) { whereConditions.push(`m.thread_key = ANY($${p++}::text[])`); values.push(candidateThreads); }
   const where = whereConditions.join(' AND ');
 
   const safeLimit  = Math.min(Math.max(parseInt(limit)  || 50, 1), 500);
   const safeOffset = Math.max(parseInt(offset) || 0, 0);
+
+  const isThreaded = threaded === 'true' || threaded === true;
+  let senders = [];
+  if (!sender && folder === 'INBOX' && (groupSenders === true || groupSenders === 'true')) {
+    const prefs = await query('SELECT preferences FROM users WHERE id = $1', [userId]);
+    senders = normalizeGroupedSenders(prefs.rows[0]?.preferences?.groupedSenders);
+  }
+  if (sender || senders.length) {
+    const { candidates, total } = await senderCandidates({ where, values, accounts: scopedAccountIds,
+      senders, sender: typeof sender === 'string' ? sender.trim().toLowerCase() : null,
+      threaded: isThreaded, unfiltered: !isUnreadOnly && !safeCategory, limit: safeLimit, offset: safeOffset });
+    if (!candidates.length) return { messages: [], total, threaded: isThreaded, resolvedAccountId };
+    const hydrated = await listMessages({ userId, accountId, folder, unreadOnly, threaded, category,
+      limit: candidates.length, offset: 0,
+      ...(isThreaded ? { candidateThreads: candidates.map(c => c.thread_key) } : { candidateIds: candidates.map(c => c.id) }) });
+    const byId = new Map(hydrated.messages.map(m => [isThreaded ? m.thread_id : m.id, m]));
+    const messages = candidates.flatMap(c => {
+      const message = byId.get(isThreaded ? c.thread_key : c.id);
+      if (!message) return [];
+      return [c.sender_group ? { ...message, id: `sender:${c.sender_group}`, message_id: null,
+        preview_message_id: message.id, sender_group: c.sender_group,
+        sender_message_count: c.sender_message_count, sender_unread_count: c.sender_unread_count } : message];
+    });
+    return { messages, total, threaded: isThreaded, resolvedAccountId };
+  }
 
   let total = 0;
   try {
@@ -91,11 +108,6 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
     total = 0;
   }
 
-  if (sender && !isThreaded) {
-    const count = await query(`SELECT COUNT(*)::int AS total FROM messages m WHERE ${where}`, values);
-    total = count.rows[0]?.total ?? 0;
-  }
-
   if (threaded === 'true' || threaded === true) {
     const filterValues = [...values];
     const threadAccountParam = isSpecificAccount ? [resolvedAccountId] : scopedAccountIds;
@@ -106,7 +118,7 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
       ? (folder === 'INBOX' ? `AND folder = $2` : '')
       : `AND folder = 'INBOX'`;
 
-    const threadSql = `
+    const threadResult = await query(`
       WITH paged_threads AS (
         SELECT m.thread_key AS thread_id
         FROM messages m
@@ -114,7 +126,7 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
         GROUP BY m.thread_key
         -- thread_key breaks exact date ties so paging is stable (see the flat query).
         ORDER BY MAX(m.date) DESC, m.thread_key
-        ${grouping || sender ? '' : `LIMIT $${p + 1} OFFSET $${p + 2}`}
+        LIMIT $${p + 1} OFFSET $${p + 2}
       ),
       deduped AS MATERIALIZED (
         SELECT DISTINCT ON (m.account_id, m.thread_key, m.message_id)
@@ -184,16 +196,7 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
       FROM ranked
       WHERE rn = 1
       ORDER BY date DESC, id
-    `;
-    if (grouping) return listSenderGroups(threadSql, [...filterValues, threadAccountParam], groupedSenders, safeLimit, safeOffset, resolvedAccountId, true);
-    if (sender) {
-      const sourceValues = [...filterValues, threadAccountParam, sender.trim().toLowerCase()];
-      const senderSql = `SELECT * FROM (${threadSql}) sender_threads WHERE lower(btrim(from_email)) = $${p + 1}`;
-      const result = await query(`${senderSql} ORDER BY date DESC, id LIMIT $${p + 2} OFFSET $${p + 3}`, [...sourceValues, safeLimit, safeOffset]);
-      const count = await query(`SELECT COUNT(*)::int AS total FROM (${senderSql}) matched_threads`, sourceValues);
-      return { messages: result.rows, total: count.rows[0]?.total ?? 0, threaded: true, resolvedAccountId };
-    }
-    const threadResult = await query(threadSql, [...filterValues, threadAccountParam, safeLimit, safeOffset]);
+    `, [...filterValues, threadAccountParam, safeLimit, safeOffset]);
 
     const threadCountResult = await query(`
       SELECT COUNT(DISTINCT m.thread_key)::int AS total
@@ -211,9 +214,9 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
 
   const limitParam  = p;
   const offsetParam = p + 1;
-  if (!grouping) values.push(safeLimit, safeOffset);
+  values.push(safeLimit, safeOffset);
 
-  const messageSql = `
+  const result = await query(`
     SELECT m.id, m.uid, m.folder, m.message_id, m.subject, m.from_name, m.from_email,
            m.to_addresses, m.cc_addresses, m.reply_to, m.in_reply_to,
            m.date, m.snippet, m.is_read, m.is_starred,
@@ -232,10 +235,8 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
     -- paging could show a row twice or skip it entirely, and the client-side duplicate
     -- collapse would receive the two copies of a message in an arbitrary order.
     ORDER BY m.date DESC, m.id
-    ${grouping ? '' : `LIMIT $${limitParam} OFFSET $${offsetParam}`}
-  `;
-  if (grouping) return listSenderGroups(messageSql, values, groupedSenders, safeLimit, safeOffset, resolvedAccountId, false);
-  const result = await query(messageSql, values);
+    LIMIT $${limitParam} OFFSET $${offsetParam}
+  `, values);
 
   return {
     messages: result.rows,
@@ -248,31 +249,4 @@ export function normalizeGroupedSenders(value) {
   if (!Array.isArray(value)) return [];
   return [...new Set(value.filter(v => typeof v === 'string' && v.length <= 320 && /^[^\s@]+@[^\s@]+$/.test(v.trim()))
     .map(v => v.trim().toLowerCase()))].slice(0, 500);
-}
-
-async function listSenderGroups(sourceSql, values, senders, limit, offset, resolvedAccountId, threaded) {
-  const n = values.length;
-  const cte = `WITH source_rows AS (${sourceSql}), keyed AS (
-    SELECT s.*, CASE WHEN lower(btrim(from_email)) = ANY($${n + 1}::text[])
-      THEN lower(btrim(from_email)) END AS sender_group,
-      CASE WHEN lower(btrim(from_email)) = ANY($${n + 1}::text[])
-      THEN 'sender:' || lower(btrim(from_email)) ELSE 'row:' || id::text END AS display_key
-    FROM source_rows s
-  ), ranked AS (
-    SELECT k.*,
-      SUM(${threaded ? 'message_count' : '1'}) OVER (PARTITION BY display_key)::int AS sender_message_count,
-      SUM(${threaded ? 'unread_count' : 'CASE WHEN is_read THEN 0 ELSE 1 END'}) OVER (PARTITION BY display_key)::int AS sender_unread_count,
-      ROW_NUMBER() OVER (PARTITION BY display_key ORDER BY date DESC, id) AS sender_rank
-    FROM keyed k
-  )`;
-  const result = await query(`${cte}
-    SELECT *, COUNT(*) OVER ()::int AS display_total FROM ranked WHERE sender_rank = 1
-    ORDER BY date DESC, id LIMIT $${n + 2} OFFSET $${n + 3}`,
-  [...values, senders, limit, offset]);
-  let total = result.rows[0]?.display_total ?? 0;
-  if (!result.rows.length && offset > 0) {
-    const count = await query(`${cte} SELECT COUNT(*)::int AS total FROM ranked WHERE sender_rank = 1`, [...values, senders]);
-    total = count.rows[0]?.total ?? 0;
-  }
-  return { messages: result.rows, total, resolvedAccountId, threaded };
 }

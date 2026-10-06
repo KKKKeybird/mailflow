@@ -172,7 +172,7 @@ router.get('/messages', async (req, res) => {
   });
 
   if (resolvedAccountId && messages.length) {
-    imapManager.prefetchFolderBodies(resolvedAccountId, messages.map(r => r.id))
+    imapManager.prefetchFolderBodies(resolvedAccountId, messages.map(r => r.preview_message_id || r.id))
       .catch(err => console.warn('Folder body prefetch error:', err.message));
   }
 
@@ -181,7 +181,7 @@ router.get('/messages', async (req, res) => {
   // the visible #407 symptom; measuring it turns "sometimes there are ghost rows" into a rate.
   if (resolvedAccountId && messages.length) {
     const ghosts = messages.filter(m =>
-      !m.message_id && (!m.subject || m.subject === '(no subject)') && !m.snippet).length;
+      !m.sender_group && !m.message_id && (!m.subject || m.subject === '(no subject)') && !m.snippet).length;
     if (ghosts > 0) recordSyncSignal('ghost_rows_served', { accountId: resolvedAccountId, magnitude: ghosts });
   }
 

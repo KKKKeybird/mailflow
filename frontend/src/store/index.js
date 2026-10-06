@@ -1,3 +1,5 @@
+import { reconcileSenderHeads, removeSenderMembers, refreshSenderThreadReadState, restoreSenderMembers } from '../utils/senderGroupState.js';
+import { actionableMessageRows } from '../utils/messageRowTree.js';
 import { create } from 'zustand';
 import { resolveConversationMode, groupsMessageList, conversationModeTransition, isConversationMode } from '../utils/conversationMode.js';
 import { api } from '../utils/api.js';
@@ -124,7 +126,7 @@ export const useStore = create((set, get) => ({
       ...(state.user?.id !== user?.id ? {
         serverUnreadCounts: { total: 0, byAccount: {}, snapshots: {} }, pendingCounts: {},
         unreadCounts: { total: 0, byAccount: {}, snapshots: {}, complete: false },
-        groupedSenders: [], senderGroupingSaving: false, threadMessages: {},
+        groupedSenders: [], senderGroupingSaving: false, threadMessages: {}, expandedSenders: new Set(), senderGroupContext: '', selectedListRowKey: null,
         senderFaviconsLoaded: false,
         senderFavicons: false,
         senderFaviconsSaving: false,
@@ -277,9 +279,9 @@ export const useStore = create((set, get) => ({
   }),
   updateMessage: (id, updates) => set(state => {
     const apply = (m) => m.id === id ? { ...m, ...updates } : m;
-    const threadMessages = Object.fromEntries(
+    const threadMessages = refreshSenderThreadReadState(Object.fromEntries(
       Object.entries(state.threadMessages).map(([tid, msgs]) => [tid, msgs.map(apply)])
-    );
+    ), id, updates, state);
     // Resync the parent thread row's aggregate read state only when a sub-message was
     // updated. Sub-messages live exclusively in threadMessages, not in the main list.
     // Resyncing on direct thread-row updates would read stale sub-messages and revert
@@ -287,13 +289,7 @@ export const useStore = create((set, get) => ({
     const inMainList = state.messages.some(m => m.id === id);
     const messages = state.messages.map(m => {
       const updated = apply(m);
-      if (m.sender_group) {
-        const member = Object.entries(state.threadMessages).filter(([key]) => key.startsWith('sender:') && key.endsWith(':' + m.sender_group))
-          .flatMap(([, rows]) => rows).find(row => row.id === id);
-        if (!member) return updated;
-        const unread = row => Number.isFinite(Number(row.unread_count)) ? Number(row.unread_count) : (row.is_read ? 0 : 1);
-        return { ...updated, sender_unread_count: Math.max(0, m.sender_unread_count + unread(apply(member)) - unread(member)) };
-      }
+      if (m.sender_group) return updated;
       if (inMainList) return updated;
       const tid = m.thread_id || m.id;
       const subs = threadMessages[tid];
@@ -301,14 +297,16 @@ export const useStore = create((set, get) => ({
       const unread_count = subs.filter(s => !s.is_read).length;
       return { ...updated, unread_count, is_read: unread_count === 0 };
     });
-    return { messages, searchResults: state.searchResults.map(apply), threadMessages };
+    return { messages: reconcileSenderHeads(state, threadMessages, messages), searchResults: state.searchResults.map(apply), threadMessages };
   }),
-  removeMessage: (id) => set(state => ({
-    threadMessages: Object.fromEntries(Object.entries(state.threadMessages).map(([key, rows]) => [key, key.startsWith('sender:') ? rows.filter(m => m.id !== id) : rows])),
-    messages: state.messages.filter(m => m.sender_group || m.id !== id),
-    searchResults: state.searchResults.filter(m => m.id !== id),
-    selectedMessageId: state.selectedMessageId === id ? null : state.selectedMessageId,
-  })),
+  removeMessage: (id, scope) => set(state => {
+    const removed = removeSenderMembers(state, new Set([id]), scope);
+    return { ...removed,
+      messages: removed.messages.filter(m => m.sender_group || m.id !== id),
+      searchResults: state.searchResults.filter(m => m.id !== id),
+      selectedMessageId: state.selectedMessageId === id ? null : state.selectedMessageId,
+    };
+  }),
   // Remove many messages in a single state update. Bulk triage (e.g. archiving ~40 rows)
   // otherwise calls removeMessage once per id, firing one store update — and, in a
   // non-virtualized list, one re-render — each, which stalls the UI. This collapses them
@@ -316,33 +314,31 @@ export const useStore = create((set, get) => ({
   removeMessages: (ids) => set(state => {
     const idSet = ids instanceof Set ? ids : new Set(ids);
     if (idSet.size === 0) return {};
+    const removed = removeSenderMembers(state, idSet);
     return {
-      threadMessages: Object.fromEntries(Object.entries(state.threadMessages).map(([key, rows]) => [key, key.startsWith('sender:') ? rows.filter(m => !idSet.has(m.id)) : rows])),
-      messages: state.messages.filter(m => m.sender_group || !idSet.has(m.id)),
+      ...removed,
+      messages: removed.messages.filter(m => m.sender_group || !idSet.has(m.id)),
       searchResults: state.searchResults.filter(m => !idSet.has(m.id)),
       selectedMessageId: idSet.has(state.selectedMessageId) ? null : state.selectedMessageId,
     };
   }),
   restoreMessages: (msgs) => set(state => {
     const restored = Array.isArray(msgs) ? msgs : [msgs];
-    const senderGroups = new Set(state.searchQuery.trim() ? [] : state.messages.filter(m => m.sender_group).map(m => m.sender_group));
-    const list = restored.filter(m => !senderGroups.has((m.from_email || '').trim().toLowerCase()));
-    const threadMessages = Object.fromEntries(Object.entries(state.threadMessages).map(([key, rows]) => {
-      if (!key.startsWith('sender:')) return [key, rows];
-      const additions = restored.filter(m => key.endsWith(':' + (m.from_email || '').trim().toLowerCase()) && !rows.some(row => row.id === m.id));
-      return [key, [...rows, ...additions].sort((a, b) => new Date(b.date) - new Date(a.date))];
-    }));
+    const restoredState = restoreSenderMembers(state, restored);
+    const threadMessages = restoredState.threadMessages;
+    const list = restored.filter(m => !restoredState.restoredGroupRows.has(m.id));
     const sort = arr => [...arr].sort((a, b) => new Date(b.date) - new Date(a.date));
     // Deduplicate against both the main list and searchResults by stable identity (Message-ID when
     // present, else id): if the message is already present — including re-added by a network
     // refresh under a regenerated id (matched via Message-ID) — skip it. The local copy carries the
     // freshest optimistic state, so we prefer it over the server view. See missingByIdentity.
     const missing = missingByIdentity(state.messages, list);
-    if (missing.length === 0 && !state.searchQuery.trim()) return { threadMessages };
+    const senderHeads = restoredState.messages;
+    if (missing.length === 0 && !state.searchQuery.trim()) return { threadMessages, messages: senderHeads };
     const missingFromSearch = missingByIdentity(state.searchResults, list);
     return {
       threadMessages,
-      messages: missing.length ? sort([...state.messages, ...missing]) : state.messages,
+      messages: missing.length ? sort([...senderHeads, ...missing]) : senderHeads,
       searchResults: state.searchQuery.trim() && missingFromSearch.length
         ? sort([...state.searchResults, ...missingFromSearch])
         : state.searchResults,
@@ -358,7 +354,8 @@ export const useStore = create((set, get) => ({
   // Selected message
   selectedMessageId: null,
   lastViewedMessageId: null,
-  setSelectedMessage: (id) => set(id ? { selectedMessageId: id, lastViewedMessageId: id } : { selectedMessageId: null }),
+  selectedListRowKey: null,
+  setSelectedMessage: (id, rowKey = null) => set(id ? { selectedMessageId: id, selectedListRowKey: rowKey, lastViewedMessageId: id } : { selectedMessageId: null, selectedListRowKey: null }),
 
   // Server snapshots are retained separately from a bounded optimistic window.
   serverUnreadCounts: { total: 0, byAccount: {}, snapshots: {} },
@@ -618,6 +615,12 @@ export const useStore = create((set, get) => ({
     get().setConversationMode(val ? 'list' : 'off');
   },
 
+  senderMembersRevision: 0,
+  refreshSenderMembers: () => set(state => ({ senderMembersRevision: state.senderMembersRevision + 1 })),
+  senderGroupContext: '',
+  setSenderGroupContext: context => set({ senderGroupContext: context }),
+  expandedSenders: new Set(),
+  setExpandedSenders: value => set(state => ({ expandedSenders: typeof value === 'function' ? value(state.expandedSenders) : value })),
   groupedSenders: [],
   senderGroupingSaving: false,
   senderGroupingEpoch: 0,
@@ -1338,7 +1341,7 @@ export function selectSelectedMessageAccountId(s) {
 function findSelectedMessage(s) {
   const id = s.selectedMessageId;
   if (id == null) return null;
-  const pool = s.searchQuery?.trim() ? s.searchResults : s.messages;
+  const pool = actionableMessageRows(s);
   return pool.find(m => m.id === id)
     ?? Object.values(s.threadMessages).flat().find(m => m.id === id)
     ?? null;

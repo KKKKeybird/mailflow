@@ -108,7 +108,7 @@ async function mount({ rows, threadedView, folder = 'INBOX' }) {
     accounts: [ACCOUNT], accountsReady: true,
     selectedAccountId: 'acct-1', selectedFolder: folder,
     messages: rows, messagesTotal: rows.length, hasMoreMessages: false, loadingMessages: false,
-    searchQuery: '', threadedView, groupedSenders: [], threadMessages: {}, selectedMessageId: null,
+    searchQuery: '', threadedView, groupedSenders: rows.filter(m=>m.sender_group).map(m=>m.sender_group), threadMessages: {}, selectedMessageId: null, selectedListRowKey: null, markReadBehavior: 'manual', notifications: [],
     folders: { 'acct-1': [{ path: 'INBOX', name: 'INBOX' }, { path: 'Archive', name: 'Archive' }, { path: 'Drafts', name: 'Drafts', special_use: '\\Drafts' }] },
   });
   await React.act(async () => {
@@ -360,5 +360,31 @@ describe('MessageList — sender grouping', () => {
     await React.act(async () => button.click());
     assert.ok(draggableIn(THREAD.id));
     assert.equal(button.getAttribute('aria-expanded'), 'true');
+  });
+});
+
+
+describe('sender grouping — actual list actions', () => {
+  test('keyboard navigation reaches members, deletion advances and undo restores the count', async () => {
+    const head = { ...MESSAGE, id: 'sender:alerts@example.com', message_id: null, preview_message_id: 'alert-1', from_email: 'alerts@example.com', sender_group: 'alerts@example.com', sender_message_count: 2, sender_unread_count: 2 };
+    SENDER_ROWS = [{ ...MESSAGE, id: 'alert-1', from_email: 'alerts@example.com', subject: 'First alert' }, { ...MESSAGE, id: 'alert-2', from_email: 'alerts@example.com', subject: 'Second alert' }];
+    await mount({ rows: [head, { ...MESSAGE, id: 'outside' }], threadedView: false });
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    await React.act(async () => shortcutBus.emit('nextMessage'));
+    assert.equal(useStore.getState().selectedMessageId, 'alert-1');
+    await React.act(async () => shortcutBus.emit('nextMessage'));
+    assert.equal(useStore.getState().selectedMessageId, 'alert-2');
+    await React.act(async () => shortcutBus.emit('prevMessage'));
+    assert.equal(useStore.getState().selectedMessageId, 'alert-1');
+    await React.act(async () => { shortcutBus.emit('delete'); await new Promise(r => setTimeout(r, 10)); });
+    assert.equal(useStore.getState().selectedMessageId, 'alert-2');
+    assert.equal(useStore.getState().messages[0].sender_message_count, 1);
+    const notice = useStore.getState().notifications.find(n => typeof n.onUndo === 'function');
+    assert.ok(notice);
+    await React.act(async () => notice.onUndo());
+    assert.equal(useStore.getState().messages[0].sender_message_count, 2);
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    await React.act(async () => shortcutBus.emit('nextMessage'));
+    assert.equal(useStore.getState().selectedMessageId, 'outside');
   });
 });

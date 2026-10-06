@@ -1,3 +1,4 @@
+import { actionableMessageRows, selectedListMessage, neighborMessageRow } from '../utils/messageRowTree.js';
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/index.js';
@@ -101,7 +102,7 @@ function fileIcon(type) {
 export default function MessagePane({ windowMessageId = null, onWindowClose = null } = {}) {
   const { t } = useTranslation();
   const {
-    messages, searchResults, searchQuery, selectedMessageId: globalSelectedId, setSelectedMessage,
+    selectedMessageId: globalSelectedId, setSelectedMessage,
     updateMessage, removeMessage, decrementUnread, incrementUnread, openCompose, accounts, addNotification,
     imageWhitelist, addToImageWhitelist, blockRemoteImages, threadMessages,
     replyDefault, shortcuts, recentFolders, favoriteFolders, todoistConnected,
@@ -137,7 +138,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   const selectAndMarkRead = useCallback((msg) => {
     window.dispatchEvent(new CustomEvent(MESSAGE_OPENING_EVENT));
     api.getMessageBody(msg.id).catch(() => {});
-    setSelectedMessage(msg.id);
+    setSelectedMessage(msg.id, msg.__list_key);
     cancelScheduledMarkRead(autoMarkReadTimerRef.current);
     autoMarkReadTimerRef.current = scheduleMarkRead(msg);
   }, [setSelectedMessage]);
@@ -190,9 +191,11 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
     setShowAiMenu(false);
   }, [selectedMessageId]);
 
-  const allMessages = searchQuery.trim() ? searchResults : messages;
-  const message = allMessages.find(m => m.id === selectedMessageId)
+  const navigationState = windowMode ? { ...useStore.getState(), selectedMessageId, selectedListRowKey: null } : useStore.getState();
+  const allMessages = actionableMessageRows(navigationState);
+  const selected = selectedListMessage(navigationState) ?? allMessages.find(m => m.id === selectedMessageId)
     ?? Object.values(threadMessages).flat().find(m => m.id === selectedMessageId);
+  const message = selected ? { ...selected, __list_kind: 'message', __list_thread: selected.__list_thread || selected.thread_id, message_count: undefined, unread_count: undefined } : selected;
 
   useEffect(() => {
     setResolvedSubject(null);
@@ -229,7 +232,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   const performSingleSpamLabel = useCallback(async (label) => {
     if (!message) return;
     const wasUnread = !message.is_read;
-    removeMessage(message.id);
+    removeMessage(message.id, { ...message, __list_kind: 'message', __list_thread: message.__list_thread || message.thread_id, message_count: undefined, unread_count: undefined });
     closeWindowIfWindowed();
     if (wasUnread) decrementUnread(message.account_id);
     let settled = false;
@@ -260,9 +263,10 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
     });
   }, [message, removeMessage, decrementUnread, incrementUnread, addNotification, t, closeWindowIfWindowed]);
 
-  const currentIdx = allMessages.findIndex(m => m.id === selectedMessageId);
-  const hasPrev = currentIdx > 0;
-  const hasNext = currentIdx >= 0 && currentIdx < allMessages.length - 1;
+  const previousMessage = neighborMessageRow(navigationState, -1, false);
+  const nextMessage = neighborMessageRow(navigationState, 1, false);
+  const hasPrev = !!previousMessage;
+  const hasNext = !!nextMessage;
 
   const [body, setBody] = useState(null);
   const [bodyError, setBodyError] = useState(null);
@@ -698,19 +702,13 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
           el.style.transform = 'translateX(0)';
         }
       } else {
-        const { messages: msgs, searchResults: sr, searchQuery: sq, selectedMessageId: selId, setSelectedMessage: setSel, updateMessage: updMsg, decrementUnread: decUnread, incrementUnread: incUnread, adjustCategoryCount: adjCat } = useStore.getState();
-        const list = sq.trim() ? sr : msgs;
-        const idx = list.findIndex(m => m.id === selId);
-        let target = null;
-        if (dx < -60 && idx >= 0 && idx < list.length - 1) {
-          target = list[idx + 1];
-        } else if (dx > 60 && idx > 0) {
-          target = list[idx - 1];
-        }
+        const state = useStore.getState();
+        const { setSelectedMessage: setSel, updateMessage: updMsg, decrementUnread: decUnread, incrementUnread: incUnread, adjustCategoryCount: adjCat } = state;
+        const target = Math.abs(dx) > 60 ? neighborMessageRow(state, dx < 0 ? 1 : -1, false) : null;
         if (target) {
           window.dispatchEvent(new CustomEvent(MESSAGE_OPENING_EVENT));
           api.getMessageBody(target.id).catch(() => {});
-          setSel(target.id);
+          setSel(target.id, target.__list_key);
           cancelScheduledMarkRead(autoMarkReadTimerRef.current);
           autoMarkReadTimerRef.current = null;
           if (!target.is_read) {
@@ -1034,7 +1032,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
     if (!message) return;
     setShowMovePicker(false);
     const moved = message;
-    removeMessage(moved.id);
+    removeMessage(moved.id, { ...moved, __list_kind: 'message', __list_thread: moved.__list_thread || moved.thread_id, message_count: undefined, unread_count: undefined });
     closeWindowIfWindowed();
     if (!moved.is_read) decrementUnread(moved.account_id);
     let undone = false;
@@ -1150,7 +1148,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   const handleDelete = () => {
     const deleted = message;
     setPendingDelete(deleted.id);
-    removeMessage(deleted.id);
+    removeMessage(deleted.id, { ...deleted, __list_kind: 'message', __list_thread: deleted.__list_thread || deleted.thread_id, message_count: undefined, unread_count: undefined });
     closeWindowIfWindowed();
     if (!deleted.is_read) decrementUnread(deleted.account_id);
     let undone = false;
@@ -1181,7 +1179,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
 
   const handleArchive = () => {
     const archived = message;
-    removeMessage(archived.id);
+    removeMessage(archived.id, { ...archived, __list_kind: 'message', __list_thread: archived.__list_thread || archived.thread_id, message_count: undefined, unread_count: undefined });
     closeWindowIfWindowed();
     if (!archived.is_read) decrementUnread(archived.account_id);
     let undone = false;
@@ -1284,7 +1282,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
       case 'snooze':
         if (data) {
           const snoozedMsg = message;
-          removeMessage(snoozedMsg.id);
+          removeMessage(snoozedMsg.id, { ...snoozedMsg, __list_kind: 'message', __list_thread: snoozedMsg.__list_thread || snoozedMsg.thread_id, message_count: undefined, unread_count: undefined });
           closeWindowIfWindowed();
           if (!snoozedMsg.is_read) decrementUnread(snoozedMsg.account_id);
           addNotification({ title: t('message.snoozed.title'), body: snoozedMsg.subject || t('common.noSubject') });
@@ -1372,7 +1370,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
         actionLabel: t('message.unsubscribe.moveToTrash'),
         onAction: () => {
           const { removeMessage, decrementUnread, restoreMessages, incrementUnread } = useStore.getState();
-          removeMessage(msg.id);
+          removeMessage(msg.id, { ...msg, __list_kind: 'message', __list_thread: msg.__list_thread || msg.thread_id, message_count: undefined, unread_count: undefined });
           if (!msg.is_read) decrementUnread(msg.account_id);
           api.deleteMessage(msg.id).catch(() => {
             restoreMessages([msg]);
@@ -1508,7 +1506,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
           </div>
           <button
             disabled={!hasPrev}
-            onClick={() => selectAndMarkRead(allMessages[currentIdx - 1])}
+            onClick={() => selectAndMarkRead(previousMessage)}
             title={t('message.previousMessage')}
             style={{
               background: 'none', border: 'none', flexShrink: 0,
@@ -1523,7 +1521,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
           </button>
           <button
             disabled={!hasNext}
-            onClick={() => selectAndMarkRead(allMessages[currentIdx + 1])}
+            onClick={() => selectAndMarkRead(nextMessage)}
             title={t('message.nextMessage')}
             style={{
               background: 'none', border: 'none', flexShrink: 0,
