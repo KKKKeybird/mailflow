@@ -195,7 +195,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   const allMessages = actionableMessageRows(navigationState);
   const selected = selectedListMessage(navigationState) ?? allMessages.find(m => m.id === selectedMessageId)
     ?? Object.values(threadMessages).flat().find(m => m.id === selectedMessageId);
-  const message = selected ? { ...selected, __list_kind: 'message', __list_thread: selected.__list_thread || selected.thread_id, message_count: undefined, unread_count: undefined } : selected;
+  const message = useMemo(() => selected ? { ...selected, __list_kind: 'message', __list_thread: selected.__list_thread || selected.thread_id, message_count: undefined, unread_count: undefined } : selected, [selected]);
 
   useEffect(() => {
     setResolvedSubject(null);
