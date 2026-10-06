@@ -416,6 +416,11 @@
       "automated": "Automatico",
       "social": "Social"
     },
+    "categoryAlways": {
+      "done": "La posta da {{value}} ora va in {{category}}",
+      "doneBody": "Salvato come regola della posta in arrivo; aggiornati anche i messaggi già ricevuti.",
+      "failed": "Impossibile salvare la categoria per questo mittente"
+    },
     "changeLayout": "Cambia disposizione",
     "layouts": {
       "focused": {
@@ -520,6 +525,9 @@
       "custom": "Personalizzato..."
     },
     "categorize": "Categorizza come…",
+    "categoryAlwaysSender": "Sempre per questo mittente",
+    "categoryAlwaysDomain": "Sempre per questo dominio",
+    "categoryAlwaysFor": "Sempre per {{value}}",
     "createRule": "Crea regola da questo messaggio",
     "addToBlockList": "Aggiungi alla lista blocchi",
     "markAsSpam": "Segnala come Spam",

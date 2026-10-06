@@ -416,6 +416,11 @@
       "automated": "Automáticos",
       "social": "Social"
     },
+    "categoryAlways": {
+      "done": "E-mails de {{value}} agora vão para {{category}}",
+      "doneBody": "Salvo como regra da caixa de entrada; os e-mails já recebidos também foram atualizados.",
+      "failed": "Não foi possível salvar a categoria deste remetente"
+    },
     "changeLayout": "Alterar layout",
     "layouts": {
       "focused": {
@@ -520,6 +525,9 @@
       "custom": "Personalizado..."
     },
     "categorize": "Categorizar como…",
+    "categoryAlwaysSender": "Sempre para este remetente",
+    "categoryAlwaysDomain": "Sempre para este domínio",
+    "categoryAlwaysFor": "Sempre para {{value}}",
     "createRule": "Criar regra a partir da mensagem",
     "addToBlockList": "Adicionar à lista de bloqueio",
     "markAsSpam": "Marcar como spam",

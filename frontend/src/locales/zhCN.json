@@ -416,6 +416,11 @@
       "automated": "自动邮件",
       "social": "社交"
     },
+    "categoryAlways": {
+      "done": "来自 {{value}} 的邮件现在归入{{category}}",
+      "doneBody": "已保存为收件箱规则；已收到的收件箱邮件也已更新。",
+      "failed": "无法保存此发件人的分类"
+    },
     "changeLayout": "更改布局",
     "layouts": {
       "focused": {
@@ -520,6 +525,9 @@
       "custom": "自定义……"
     },
     "categorize": "分类为…",
+    "categoryAlwaysSender": "始终用于此发件人",
+    "categoryAlwaysDomain": "始终用于此域名",
+    "categoryAlwaysFor": "始终用于 {{value}}",
     "createRule": "根据此邮件创建规则",
     "addToBlockList": "添加到黑名单",
     "markAsSpam": "标记为垃圾邮件",

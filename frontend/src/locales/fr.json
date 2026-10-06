@@ -416,6 +416,11 @@
       "automated": "Automatisé",
       "social": "Réseaux sociaux"
     },
+    "categoryAlways": {
+      "done": "Les e-mails de {{value}} vont désormais dans {{category}}",
+      "doneBody": "Enregistré comme règle de réception ; les e-mails déjà reçus ont aussi été mis à jour.",
+      "failed": "Impossible d’enregistrer la catégorie pour cet expéditeur"
+    },
     "changeLayout": "Changer la disposition",
     "layouts": {
       "focused": {
@@ -520,6 +525,9 @@
       "custom": "Personnalisé..."
     },
     "categorize": "Catégoriser comme…",
+    "categoryAlwaysSender": "Toujours pour cet expéditeur",
+    "categoryAlwaysDomain": "Toujours pour ce domaine",
+    "categoryAlwaysFor": "Toujours pour {{value}}",
     "createRule": "Créer une règle depuis ce message",
     "addToBlockList": "Ajouter à la liste de blocage",
     "markAsSpam": "Marquer comme Spam",

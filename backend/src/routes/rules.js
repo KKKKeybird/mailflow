@@ -7,6 +7,7 @@ const router = Router();
 router.use(requireAuth);
 
 const DESTINATION_ACTIONS = new Set(['move', 'archive', 'delete']);
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FORWARD_EMAIL_RE = /^[^\s@<>(),;:]+@[^\s@<>(),;:]+\.[^\s@<>(),;:]+$/;
 
 // Fields where the condition value must be a non-empty string.
@@ -141,6 +142,101 @@ router.post('/run', async (req, res) => {
       runInFlight.delete(userId);
     }
   })();
+});
+
+// "Always for this sender / domain" from a message's Categorize menu (#490). Saves the choice as an
+// ordinary all-account rule (From equals the address, or ends with @domain, then set_category) so
+// it shows and is edited in the rules list, and applies the category to that sender's existing
+// INBOX mail directly. It does not run the user's other rules over the backlog, as POST /run would.
+// A rule this created earlier for the same sender is updated rather than duplicated.
+router.post('/sender-category', async (req, res) => {
+  const { messageId, scope, category, name } = req.body || {};
+  if (typeof messageId !== 'string' || !UUID_RE.test(messageId)) return res.status(400).json({ error: 'Invalid message id' });
+  if (scope !== 'sender' && scope !== 'domain') return res.status(400).json({ error: 'scope must be sender or domain' });
+  if (!RULE_CATEGORIES.has(category)) return res.status(400).json({ error: 'Invalid category' });
+  const userId = req.session.userId;
+  try {
+    const msgResult = await query(
+      `SELECT m.from_email FROM messages m JOIN email_accounts a ON a.id = m.account_id
+       WHERE m.id = $1 AND a.user_id = $2`,
+      [messageId, userId]
+    );
+    if (!msgResult.rows.length) return res.status(404).json({ error: 'Message not found' });
+    const email = String(msgResult.rows[0].from_email || '').trim().toLowerCase();
+    const at = email.lastIndexOf('@');
+    if (at <= 0 || at === email.length - 1 || /\s/.test(email)) {
+      return res.status(422).json({ error: 'This message has no sender address to match' });
+    }
+    const condition = scope === 'sender'
+      ? { field: 'from', operator: 'equals', value: email }
+      : { field: 'from', operator: 'ends_with', value: email.slice(at) };
+    const actions = [{ type: 'set_category', value: category }];
+    const ruleName = typeof name === 'string' && name.trim() ? name.trim().slice(0, 200) : `${condition.value} → ${category}`;
+
+    // The same all-account sender rule, made here before: one From condition, only set_category.
+    const existing = await query(
+      `SELECT id FROM inbox_rules
+       WHERE user_id = $1 AND account_id IS NULL
+         AND conditions = $2::jsonb
+         AND jsonb_typeof(actions) = 'array' AND jsonb_array_length(actions) = 1
+         AND actions->0->>'type' = 'set_category'
+       ORDER BY priority ASC LIMIT 1`,
+      [userId, JSON.stringify([condition])]
+    );
+    let ruleId;
+    let created = false;
+    if (existing.rows.length) {
+      ruleId = existing.rows[0].id;
+      await query(
+        'UPDATE inbox_rules SET actions = $1, name = $2, enabled = true, updated_at = NOW() WHERE id = $3 AND user_id = $4',
+        [JSON.stringify(actions), ruleName, ruleId, userId]
+      );
+    } else {
+      // An exact address wins over its domain. Rules run in priority order and a later
+      // set_category overwrites an earlier one, so a domain rule goes in before every rule and a
+      // sender rule after every rule. Reordering the list by hand afterwards still decides.
+      const bounds = await query(
+        'SELECT COALESCE(MIN(priority), 0) AS lo, COALESCE(MAX(priority), -1) AS hi FROM inbox_rules WHERE user_id = $1',
+        [userId]
+      );
+      const priority = scope === 'domain'
+        ? parseInt(bounds.rows[0].lo, 10) - 1
+        : parseInt(bounds.rows[0].hi, 10) + 1;
+      const inserted = await query(
+        `INSERT INTO inbox_rules
+           (user_id, account_id, name, enabled, stop_processing, priority, condition_logic, conditions, actions)
+         VALUES ($1, NULL, $2, true, false, $3, 'AND', $4, $5)
+         RETURNING id`,
+        [userId, ruleName, priority, JSON.stringify([condition]), JSON.stringify(actions)]
+      );
+      ruleId = inserted.rows[0].id;
+      created = true;
+    }
+
+    // Matched as the rule matches: the whole address, or its ending, case-insensitively. right()
+    // rather than LIKE, so a "_" or "%" in an address is not a wildcard. A domain leaves alone the
+    // senders that have their own rule, as it does for new mail (see the priorities above).
+    const updated = await query(
+      `UPDATE messages m SET category = $1
+       FROM email_accounts a
+       WHERE m.account_id = a.id AND a.user_id = $2
+         AND lower(m.folder) = 'inbox' AND m.is_deleted = false
+         AND ${scope === 'sender' ? 'lower(trim(m.from_email)) = $3' : `right(lower(trim(m.from_email)), length($3)) = $3
+         AND NOT EXISTS (
+           SELECT 1 FROM inbox_rules r
+           WHERE r.user_id = $2 AND r.account_id IS NULL AND r.enabled
+             AND jsonb_typeof(r.conditions) = 'array' AND jsonb_array_length(r.conditions) = 1
+             AND r.conditions->0->>'field' = 'from' AND r.conditions->0->>'operator' = 'equals'
+             AND r.conditions->0->>'value' = lower(trim(m.from_email))
+             AND jsonb_typeof(r.actions) = 'array' AND jsonb_array_length(r.actions) = 1
+             AND r.actions->0->>'type' = 'set_category')`}`,
+      [category, userId, condition.value]
+    );
+    res.json({ ok: true, ruleId, created, scope, value: condition.value, category, updated: updated.rowCount });
+  } catch (err) {
+    console.error('POST /rules/sender-category error:', err.message);
+    res.status(500).json({ error: 'Failed to save the sender category' });
+  }
 });
 
 // Users with a background "Run rules on inbox" sweep in flight.
