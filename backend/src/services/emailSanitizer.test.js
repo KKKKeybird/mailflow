@@ -65,6 +65,28 @@ describe('sanitizeEmail — malformed markup', () => {
       '<p>outer cell</p></td><td>second cell</td></tr></tbody></table>'
     );
   });
+
+  it('still sanitizes markup nested deeper than the HTML5 rebuild allows', () => {
+    const out = sanitizeEmail(`<html><body>${'<div>'.repeat(5000)}deep text</body></html>`);
+    expect(out).toContain('deep text');
+  });
+
+  it('does not re-create unclosed formatting elements in every later paragraph', () => {
+    let open = '';
+    for (let i = 0; i < 200; i++) open += `<b class="c${i}">`;
+    const html = `<html><body><p>${open}</p>${'<p>x</p>'.repeat(500)}</body></html>`;
+    const out = sanitizeEmail(html);
+    expect(out.match(/<b /g)).toHaveLength(200);
+  });
+
+  it('does not show the <title> of a document forwarded inside the body', () => {
+    const out = sanitizeEmail(
+      '<div>FYI<html><head><title>Your receipt from Example Store</title></head>' +
+      '<body><p>Total: $12.00</p></body></html></div>'
+    );
+    expect(out).not.toContain('Your receipt');
+    expect(out).toContain('<p>Total: $12.00</p>');
+  });
 });
 
 describe('sanitizeEmail — XSS prevention', () => {

@@ -1,5 +1,6 @@
 import sanitizeHtml from 'sanitize-html';
-import { parse, serialize } from 'parse5';
+import { parse, serialize, defaultTreeAdapter } from 'parse5';
+import { logger } from './logger.js';
 
 // Strip the <head> element from email HTML, preserving any <style> blocks inside it.
 //
@@ -331,8 +332,36 @@ function stripDarkModeStyleBlocks(html) {
 // error recovery: a stray </td> closes the nearest <td> on the whole stack, even one in
 // an outer table, and a </head> placed after </body> made stripEmailHead treat the
 // entire document as head.
+//
+// parse5 sets no limits, and this runs on every body that sync prefetches. Its serializer
+// recurses once per level, so a few thousand unclosed <div>s overflow the stack. The spec
+// also re-creates every open formatting element after each block, so a few KB of distinct
+// unclosed <b>s ahead of many paragraphs builds a tree that exhausts the heap. Past either
+// bound the message is sanitized as received, as it was before.
+const MAX_TREE_DEPTH = 512; // Chromium's parser caps its tree depth at 512 as well
+const TOO_COSTLY = new Error('HTML5 tree too deep or too large');
+
 function toBrowserTree(html) {
-  return html ? serialize(parse(html)) : html;
+  if (!html) return html;
+  let depth = 0;
+  let budget = 64;
+  for (let i = html.indexOf('<'); i !== -1; i = html.indexOf('<', i + 1)) budget += 4;
+  const treeAdapter = {
+    ...defaultTreeAdapter,
+    createElement(tagName, namespaceURI, attrs) {
+      if (--budget < 0) throw TOO_COSTLY;
+      return defaultTreeAdapter.createElement(tagName, namespaceURI, attrs);
+    },
+    onItemPush() { if (++depth > MAX_TREE_DEPTH) throw TOO_COSTLY; },
+    onItemPop() { depth--; },
+  };
+  try {
+    return serialize(parse(html, { treeAdapter }));
+  } catch (err) {
+    if (err !== TOO_COSTLY && !(err instanceof RangeError)) throw err;
+    logger.warn(`sanitizeEmail: ${err.message}; sanitizing the HTML as received`);
+    return html;
+  }
 }
 
 // Sanitize HTML email body — permissive but safe.
@@ -370,6 +399,10 @@ export function sanitizeEmail(html) {
       'th': ['abbr', 'axis', 'headers', 'scope'],
     },
     transformTags: {
+      // A browser never renders <title>, but discarding the tag keeps its text. The HTML5
+      // pass moves a <title> into <body> when junk ends the head early, or when a whole
+      // document is embedded in a forward, so stripEmailHead no longer catches it.
+      'title': (tagName) => ({ tagName, attribs: {}, text: '' }),
       // Ensure all links open safely.  Also normalise bare-domain hrefs like
       // "benchmade.com" → "https://benchmade.com" so they work as expected in
       // the sandboxed iframe, and strip relative/fragment hrefs that would
