@@ -3,7 +3,7 @@ import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
 import { authenticator } from 'otplib';
 import QRCode from 'qrcode';
-import { query, pool } from '../services/db.js';
+import { query, pool, withTransaction } from '../services/db.js';
 import { imapManager } from '../index.js';
 import { decrypt, encrypt } from '../services/encryption.js';
 import { pushConfigured } from '../services/pushNotifications.js';
@@ -977,7 +977,18 @@ router.patch('/profile/recovery-email', async (req, res) => {
   if (trimmed && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)) {
     return res.status(400).json({ error: 'Invalid email address' });
   }
-  await query('UPDATE users SET recovery_email = $1 WHERE id = $2', [trimmed || null, req.session.userId]);
+  const userId = req.session.userId;
+  const current = await query('SELECT recovery_email FROM users WHERE id = $1', [userId]);
+  const changed = (trimmed || null) !== (current.rows[0]?.recovery_email ?? null);
+  await withTransaction(async client => {
+    await client.query('UPDATE users SET recovery_email = $1 WHERE id = $2', [trimmed || null, userId]);
+    // A reset link or login code already sent to the old address must stop working, as when
+    // an admin changes it (routes/admin.js): the old address may be why it is changing.
+    if (changed) {
+      await client.query('DELETE FROM password_reset_tokens WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM email_otp_tokens WHERE user_id = $1', [userId]);
+    }
+  });
   res.json({ ok: true });
 });
 
