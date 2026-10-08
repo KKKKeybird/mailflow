@@ -1175,6 +1175,7 @@
       "eventAdminPasswordSet": "Password impostata",
       "eventAdminUserUpdate": "Account modificato",
       "eventAdminTotpDisable": "2FA disattivato",
+      "eventAdminUserDelete": "Account eliminato",
       "byActor": "da {{actor}}",
       "activityTitle": "Attività di accesso",
       "loginProtectionTitle": "Protezione accesso",

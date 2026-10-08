@@ -1177,6 +1177,7 @@
       "eventAdminPasswordSet": "Senha definida",
       "eventAdminUserUpdate": "Conta editada",
       "eventAdminTotpDisable": "2FA desativado",
+      "eventAdminUserDelete": "Conta excluída",
       "byActor": "por {{actor}}",
       "qrCodeAlt": "QR code",
       "mailPolicyTitle": "Política de conexão com servidores de e-mail",

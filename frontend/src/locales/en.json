@@ -1177,6 +1177,7 @@
       "eventAdminPasswordSet": "Password set",
       "eventAdminUserUpdate": "Account edited",
       "eventAdminTotpDisable": "2FA turned off",
+      "eventAdminUserDelete": "Account deleted",
       "byActor": "by {{actor}}",
       "qrCodeAlt": "QR code",
       "mailPolicyTitle": "Mail Server Connection Policy",

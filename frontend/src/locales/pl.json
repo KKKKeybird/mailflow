@@ -1196,6 +1196,7 @@
       "eventAdminPasswordSet": "Ustawiono hasło",
       "eventAdminUserUpdate": "Edytowano konto",
       "eventAdminTotpDisable": "Wyłączono 2FA",
+      "eventAdminUserDelete": "Usunięto konto",
       "byActor": "przez {{actor}}",
       "qrCodeAlt": "Kod QR",
       "mailPolicyTitle": "Zasady połączeń z serwerem pocztowym",

@@ -1175,6 +1175,7 @@
       "eventAdminPasswordSet": "Пароль установлен",
       "eventAdminUserUpdate": "Учётная запись изменена",
       "eventAdminTotpDisable": "2FA отключено",
+      "eventAdminUserDelete": "Учётная запись удалена",
       "byActor": "пользователем {{actor}}",
       "activityTitle": "Активность входа",
       "loginProtectionTitle": "Защита входа",

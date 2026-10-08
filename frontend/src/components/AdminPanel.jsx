@@ -7951,6 +7951,7 @@ function SecurityTab() {
       admin_password_set: t('admin.security.eventAdminPasswordSet'),
       admin_user_update:  t('admin.security.eventAdminUserUpdate'),
       admin_totp_disable: t('admin.security.eventAdminTotpDisable'),
+      admin_user_delete:  t('admin.security.eventAdminUserDelete'),
     };
     return map[type] || type;
   };

@@ -1175,6 +1175,7 @@
       "eventAdminPasswordSet": "已设置密码",
       "eventAdminUserUpdate": "已编辑账户",
       "eventAdminTotpDisable": "已关闭双重认证",
+      "eventAdminUserDelete": "已删除账户",
       "byActor": "（由 {{actor}} 操作）",
       "activityTitle": "登录活动",
       "loginProtectionTitle": "登录保护",

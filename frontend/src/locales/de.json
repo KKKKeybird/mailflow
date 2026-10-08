@@ -1104,6 +1104,7 @@
       "eventAdminPasswordSet": "Passwort gesetzt",
       "eventAdminUserUpdate": "Konto bearbeitet",
       "eventAdminTotpDisable": "2FA deaktiviert",
+      "eventAdminUserDelete": "Konto gelöscht",
       "byActor": "von {{actor}}",
       "qrCodeAlt": "QR-Code",
       "mailPolicyTitle": "Verbindungsrichtlinie für Mailserver",

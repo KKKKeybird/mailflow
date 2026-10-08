@@ -1178,6 +1178,7 @@
       "eventAdminPasswordSet": "비밀번호 설정됨",
       "eventAdminUserUpdate": "계정 수정됨",
       "eventAdminTotpDisable": "2FA 해제됨",
+      "eventAdminUserDelete": "계정 삭제됨",
       "byActor": "({{actor}})",
       "allowInsecureTls": "안전하지 않은 TLS 허용",
       "mailPolicyDesc": "사용자가 구성할 수 있는 연결 유형을 제어합니다. 인터넷 연결 배포의 경우 이를 비활성화합니다.",

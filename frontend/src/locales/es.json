@@ -1175,6 +1175,7 @@
       "eventAdminPasswordSet": "Contraseña establecida",
       "eventAdminUserUpdate": "Cuenta editada",
       "eventAdminTotpDisable": "2FA desactivado",
+      "eventAdminUserDelete": "Cuenta eliminada",
       "byActor": "por {{actor}}",
       "activityTitle": "Actividad de inicio de sesión",
       "loginProtectionTitle": "Protección de inicio de sesión",

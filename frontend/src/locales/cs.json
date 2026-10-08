@@ -1519,6 +1519,7 @@
       "eventAdminPasswordSet": "Heslo nastaveno",
       "eventAdminUserUpdate": "Účet upraven",
       "eventAdminTotpDisable": "2FA vypnuto",
+      "eventAdminUserDelete": "Účet smazán",
       "byActor": "uživatelem {{actor}}",
       "qrCodeAlt": "QR kód",
       "mailPolicyTitle": "Zásady připojení k poštovním serverům",

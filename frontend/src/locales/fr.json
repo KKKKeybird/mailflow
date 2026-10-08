@@ -1175,6 +1175,7 @@
       "eventAdminPasswordSet": "Mot de passe défini",
       "eventAdminUserUpdate": "Compte modifié",
       "eventAdminTotpDisable": "2FA désactivé",
+      "eventAdminUserDelete": "Compte supprimé",
       "byActor": "par {{actor}}",
       "activityTitle": "Activité de connexion",
       "loginProtectionTitle": "Protection de connexion",
