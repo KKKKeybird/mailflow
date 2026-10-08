@@ -48,6 +48,25 @@ describe('stripEmailHead', () => {
 
 // ── sanitizeEmail ──────────────────────────────────────────────────────────
 
+describe('sanitizeEmail — malformed markup', () => {
+  it('keeps the body when </head> comes after </body>', () => {
+    const out = sanitizeEmail('<html><head><style>p{color:red}</style><body><p>Je bezorging is bijgewerkt</p></body></head></html>');
+    expect(out).toContain('<p>Je bezorging is bijgewerkt</p>');
+    expect(out).toContain('p{color:red}');
+  });
+
+  it('does not let a stray </td> close a cell of the outer table', () => {
+    const out = sanitizeEmail(
+      '<table><tr><td><table><tr><td><tr><td>inner</td></tr></td></tr></table>' +
+      '<p>outer cell</p></td><td>second cell</td></tr></table>'
+    );
+    expect(out).toBe(
+      '<table><tbody><tr><td><table><tbody><tr><td></td></tr><tr><td>inner</td></tr></tbody></table>' +
+      '<p>outer cell</p></td><td>second cell</td></tr></tbody></table>'
+    );
+  });
+});
+
 describe('sanitizeEmail — XSS prevention', () => {
   it('strips <script> tags and their content', () => {
     const out = sanitizeEmail('<p>Hi</p><script>alert(1)</script>');

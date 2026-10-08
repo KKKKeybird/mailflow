@@ -1,4 +1,5 @@
 import sanitizeHtml from 'sanitize-html';
+import { parse, serialize } from 'parse5';
 
 // Strip the <head> element from email HTML, preserving any <style> blocks inside it.
 //
@@ -325,9 +326,18 @@ function stripDarkModeStyleBlocks(html) {
   );
 }
 
+// Re-serialize through the HTML5 tree builder first so the markup sanitize-html sees
+// has the structure a browser would build. htmlparser2 does not implement the spec's
+// error recovery: a stray </td> closes the nearest <td> on the whole stack, even one in
+// an outer table, and a </head> placed after </body> made stripEmailHead treat the
+// entire document as head.
+function toBrowserTree(html) {
+  return html ? serialize(parse(html)) : html;
+}
+
 // Sanitize HTML email body — permissive but safe.
 export function sanitizeEmail(html) {
-  const sanitized = sanitizeHtml(stripEmailHead(html), {
+  const sanitized = sanitizeHtml(stripEmailHead(toBrowserTree(html)), {
     allowVulnerableTags: true,
     allowedTags: [
       'div','span','p','br','hr',
