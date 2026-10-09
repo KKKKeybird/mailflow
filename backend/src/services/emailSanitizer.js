@@ -333,24 +333,46 @@ function stripDarkModeStyleBlocks(html) {
 // an outer table, and a </head> placed after </body> made stripEmailHead treat the
 // entire document as head.
 //
-// parse5 sets no limits, and this runs on every body that sync prefetches. Its serializer
-// recurses once per level, so a few thousand unclosed <div>s overflow the stack. The spec
-// also re-creates every open formatting element after each block, so a few KB of distinct
-// unclosed <b>s ahead of many paragraphs builds a tree that exhausts the heap. Past either
-// bound the message is sanitized as received, as it was before.
+// parse5 sets no limits, and this runs on every body that sync prefetches. Markup can make
+// it far costlier than its size: the serializer recurses once per level, the spec re-creates
+// every open formatting element, attributes and all, after each block, each foster-parented
+// node or repeated <body> costs a scan, and the tokenizer compares every attribute name with
+// all earlier ones on its tag. So large bodies skip the pass, and every tree operation is
+// charged against a budget proportional to the input. Past the depth cap or the budget the
+// body is sanitized as received, as it was before.
+const MAX_HTML5_LENGTH = 128 * 1024; // Gmail clips mail past 102 KB, so senders stay under it
 const MAX_TREE_DEPTH = 512; // Chromium's parser caps its tree depth at 512 as well
 const TOO_COSTLY = new Error('HTML5 tree too deep or too large');
 
 function toBrowserTree(html) {
-  if (!html) return html;
+  if (!html || html.length > MAX_HTML5_LENGTH) return html;
   let depth = 0;
-  let budget = 64;
-  for (let i = html.indexOf('<'); i !== -1; i = html.indexOf('<', i + 1)) budget += 4;
+  let budget = 8 * html.length + 4096;
+  const spend = (cost) => { if ((budget -= cost) < 0) throw TOO_COSTLY; };
   const treeAdapter = {
     ...defaultTreeAdapter,
     createElement(tagName, namespaceURI, attrs) {
-      if (--budget < 0) throw TOO_COSTLY;
+      let size = 2 * tagName.length + 5;
+      for (const { name, value } of attrs) size += name.length + value.length + 4;
+      spend(size);
       return defaultTreeAdapter.createElement(tagName, namespaceURI, attrs);
+    },
+    // The default adapter scans the parent's children, or the recipient's attributes, here.
+    insertBefore(parentNode, newNode, referenceNode) {
+      spend(parentNode.childNodes.length);
+      defaultTreeAdapter.insertBefore(parentNode, newNode, referenceNode);
+    },
+    insertTextBefore(parentNode, text, referenceNode) {
+      spend(parentNode.childNodes.length);
+      defaultTreeAdapter.insertTextBefore(parentNode, text, referenceNode);
+    },
+    detachNode(node) {
+      if (node.parentNode) spend(node.parentNode.childNodes.length);
+      defaultTreeAdapter.detachNode(node);
+    },
+    adoptAttributes(recipient, attrs) {
+      spend(recipient.attrs.length + attrs.length);
+      defaultTreeAdapter.adoptAttributes(recipient, attrs);
     },
     onItemPush() { if (++depth > MAX_TREE_DEPTH) throw TOO_COSTLY; },
     onItemPop() { depth--; },

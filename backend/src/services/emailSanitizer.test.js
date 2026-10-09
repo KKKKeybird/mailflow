@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
+import { logger } from './logger.js';
 import {
   stripEmailHead,
   sanitizeEmail,
@@ -86,6 +87,35 @@ describe('sanitizeEmail — malformed markup', () => {
     );
     expect(out).not.toContain('Your receipt');
     expect(out).toContain('<p>Total: $12.00</p>');
+  });
+
+  it('does not copy a large attribute into every later paragraph', () => {
+    const html = `<html><body><p><b data-x="${'A'.repeat(20000)}">x</p>${'<p>x</p>'.repeat(1000)}</body></html>`;
+    expect(sanitizeEmail(html).match(/<b>/g)).toHaveLength(1);
+  });
+
+  it('gives up when the rebuild would rescan the tree without bound', () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      let bodies = '';
+      for (let i = 0; i < 2000; i++) bodies += `<body a${i}>`;
+      sanitizeEmail(`<html><body>${bodies}x</body></html>`);
+      sanitizeEmail(`<table>${'<i></i>'.repeat(2000)}</table>`);
+      expect(warn).toHaveBeenCalledTimes(2);
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('keeps rebuilding ordinary malformed mail', () => {
+    const warn = vi.spyOn(logger, 'warn').mockImplementation(() => {});
+    try {
+      sanitizeEmail(`<html><body>${'<p><font face=Arial size=2>Paragraph text'.repeat(1000)}</body></html>`);
+      sanitizeEmail(`<table>${'<tr><td>row</td></tr><br>'.repeat(50)}</table>`);
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
   });
 });
 
@@ -295,19 +325,19 @@ describe('sanitizeEmail — dark-mode CSS', () => {
   });
 });
 
-describe('sanitizeEmail — crafted <style> CSS', () => {
-  // Fastest of two runs so a GC pause or cold JIT cannot flake CI. Each input took
-  // 5 to 9 seconds per run when these passes were backtracking regexes.
-  function fastestRunMs(fn, runs) {
-    let fastest = Infinity;
-    for (let i = 0; i < runs; i++) {
-      const start = performance.now();
-      fn();
-      fastest = Math.min(fastest, performance.now() - start);
-    }
-    return fastest;
+// Fastest of two runs so a GC pause or cold JIT cannot flake CI.
+function fastestRunMs(fn, runs) {
+  let fastest = Infinity;
+  for (let i = 0; i < runs; i++) {
+    const start = performance.now();
+    fn();
+    fastest = Math.min(fastest, performance.now() - start);
   }
+  return fastest;
+}
 
+describe('sanitizeEmail — crafted <style> CSS', () => {
+  // Each input took 5 to 9 seconds per run when these passes were backtracking regexes.
   it('stays linear on input crafted against each pass', () => {
     // Each input holds the `)`, `{` or `]` its old regex needed, where the regex could not
     // use it, so skipping a pass only when that character is absent still fails here.
@@ -321,6 +351,16 @@ describe('sanitizeEmail — crafted <style> CSS', () => {
       const html = `<style>${css}</style>`;
       expect(fastestRunMs(() => sanitizeEmail(html), 2), name).toBeLessThan(1000);
     }
+  });
+});
+
+describe('sanitizeEmail — crafted markup against the HTML5 pass', () => {
+  it('stays fast on a tag with tens of thousands of attributes', () => {
+    // parse5's tokenizer compares each attribute name with every earlier one on the tag,
+    // before any tree-adapter hook runs. This took 4 to 5 seconds per run.
+    let attrs = '';
+    for (let i = 0; i < 60000; i++) attrs += ` a${i}`;
+    expect(fastestRunMs(() => sanitizeEmail(`<p${attrs}>x</p>`), 2)).toBeLessThan(1000);
   });
 });
 
