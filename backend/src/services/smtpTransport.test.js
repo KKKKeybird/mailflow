@@ -391,3 +391,20 @@ describe('smtpClientName (#492)', () => {
     expect(smtpClientName(env)).toBeUndefined();
   });
 });
+
+
+describe('account SMTP proxy socket hook', () => {
+  it('passes the tunnel hook to every validated-address attempt', async () => {
+    const verify = vi.fn().mockRejectedValueOnce(Object.assign(new Error('no greeting'), { command: 'CONN' })).mockResolvedValue(true);
+    const createTransport = vi.fn(() => ({ verify, close: vi.fn() }));
+    const transport = createSmtpTransport({ ...resolved, proxy: 'socks5://192.0.2.1:1080/' },
+      { port: 465, secure: true, tls: { servername: 'smtp.example.com', rejectUnauthorized: true } }, createTransport);
+    expect(await transport.verify()).toBe(true);
+    expect(createTransport).toHaveBeenCalledTimes(2);
+    for (const [options] of createTransport.mock.calls) {
+      expect(options.getSocket).toBeTypeOf('function');
+      expect(options.tls.servername).toBe('smtp.example.com');
+      expect(options.tls.rejectUnauthorized).toBe(true);
+    }
+  });
+});

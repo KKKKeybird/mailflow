@@ -29,7 +29,7 @@ function buildApp() {
 }
 
 // Write-only credentials: the form sends them only when the user types a new one.
-const WRITE_ONLY = new Set(['auth_pass', 'smtp_auth_pass']);
+const WRITE_ONLY = new Set(['auth_pass', 'smtp_auth_pass', 'proxy_password']);
 
 describe('GET /api/accounts columns', () => {
   let server;

@@ -966,7 +966,19 @@
       "trustedAuthservDetected": "Widziane w ostatnich wiadomościach (kliknij, aby użyć):",
       "trustedAuthservDetectedNone": "Brak danych — wiadomości są analizowane, gdy antyspam jest włączony dla tego konta.",
       "trustedAuthservWarn": "Ufaj tylko identyfikatorowi, który rozpoznajesz jako serwer odbierający Twojego dostawcy.",
-      "enabledGlobally": "Włączone globalnie"
+      "enabledGlobally": "Włączone globalnie",
+      "proxy": {
+        "section": "Proxy połączenia pocztowego",
+        "none": "Połączenie bezpośrednie",
+        "host": "Host proxy",
+        "port": "Port",
+        "username": "Użytkownik (opcjonalnie)",
+        "password": "Hasło (opcjonalnie)",
+        "keepPassword": "Pozostaw puste, aby zachować zapisane hasło",
+        "clearPassword": "Usuń zapisane hasło",
+        "note": "Używane do odbierania i wysyłania poczty tego konta. Proxy musi być dostępne z serwera MailFlow.",
+        "privateNote": "Dla proxy w sieci LAN włącz „Zezwalaj na prywatne hosty” w ustawieniach bezpieczeństwa."
+      }
     },
     "folderMappings": {
       "title": "Mapowania folderów",

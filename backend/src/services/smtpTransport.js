@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { refreshMicrosoftToken, refreshGoogleToken } from '../routes/oauth.js';
 import { decrypt } from './encryption.js';
+import { resolveMailProxy, proxySocketFactory } from './mailProxy.js';
 import { getConnectionPolicy } from './connectionPolicy.js';
 import { resolveForConnection } from './hostValidation.js';
 
@@ -55,6 +56,7 @@ async function runWithAddressFallback({
       host: candidates[i],
       connectionTimeout: attemptTimeout,
       greetingTimeout: attemptTimeout,
+      ...(resolved.proxy ? { getSocket: proxySocketFactory(resolved.proxy, attemptTimeout) } : {}),
     });
 
     try {
@@ -137,6 +139,7 @@ export async function createAccountSmtpTransport(inputAccount) {
   const resolved = await resolveForConnection(account.smtp_host, {
     allowPrivate: policy.allowPrivateHosts,
   });
+  resolved.proxy = await resolveMailProxy(account, policy);
   const plain = account.smtp_tls !== 'STARTTLS' && account.smtp_tls !== 'SSL';
   if (!policy.allowInsecureTls && plain) {
     return {

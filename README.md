@@ -714,3 +714,5 @@ If any accounts were configured with **Skip TLS verification** (e.g. for a self-
 - IMAP/SMTP credentials are stored at rest in the database (standard for webmail clients — protect access to your server and database volume accordingly)
 - Responses set a strict `Content-Security-Policy`, clickjacking protection via `X-Frame-Options`, and a restrictive `Referrer-Policy`
 - Email HTML is sanitized before rendering, including stripping external `url()` references from CSS style blocks to prevent tracking
+
+邮箱连接支持按账户配置 HTTP CONNECT / SOCKS5 代理，详见[代理设置说明](docs/mail-proxy.md)。

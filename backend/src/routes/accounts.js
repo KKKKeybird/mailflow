@@ -11,6 +11,7 @@ import { normalizeAuthservId } from '../services/spamParser.js';
 import { pluginRegistry } from '../plugins/registry.js';
 import { createKeyedSerializer } from '../utils/keyedSerializer.js';
 import { uuidParam } from '../utils/uuid.js';
+import { validateMailProxy, PROXY_FIELDS } from '../services/mailProxy.js';
 import { normalizeAddressList } from '../utils/addressList.js';
 
 // Serialize an account's reconnect triggers so a rapid settings change (e.g. a
@@ -53,6 +54,7 @@ export const SAFE_FIELDS = [
   'id', 'name', 'sender_name', 'email_address', 'color', 'protocol',
   'imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify',
   'smtp_host', 'smtp_port', 'smtp_tls',
+  'proxy_type', 'proxy_host', 'proxy_port', 'proxy_username',
   'auth_user', 'smtp_auth_user', 'oauth_provider', 'enabled',
   'include_in_unified_inbox',
   'last_sync', 'sync_error', 'sort_order', 'folder_mappings',
@@ -61,17 +63,18 @@ export const SAFE_FIELDS = [
 ];
 // Columns PUT /:id may write. The settings form sends back what GET returned, so every
 // non-secret one must be in SAFE_FIELDS or saving an unrelated edit would write it as empty.
-export const ACCOUNT_UPDATE_FIELDS = ['name', 'sender_name', 'color', 'enabled', 'include_in_unified_inbox', 'auth_user', 'auth_pass', 'sort_order', 'imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'smtp_auth_user', 'smtp_auth_pass', 'folder_mappings', 'signature', 'signature_enabled', 'categorization_enabled', 'antispam_enabled', 'trusted_authserv_id', 'auto_cc_addresses', 'auto_bcc_addresses'];
+export const ACCOUNT_UPDATE_FIELDS = ['name', 'sender_name', 'color', 'enabled', 'include_in_unified_inbox', 'auth_user', 'auth_pass', 'sort_order', 'imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'smtp_auth_user', 'smtp_auth_pass', 'folder_mappings', 'signature', 'signature_enabled', 'categorization_enabled', 'antispam_enabled', 'trusted_authserv_id', 'auto_cc_addresses', 'auto_bcc_addresses', ...PROXY_FIELDS];
 function safeAccount(row) {
   const obj = Object.fromEntries(SAFE_FIELDS.map(k => [k, row[k]]));
   // Sanitize on read so legacy values stored before the write-time sanitizer are safe
   if (obj.signature) obj.signature = sanitizeSignature(obj.signature);
+  obj.proxy_password_set = !!(row.proxy_password || row.proxy_password_set);
   return obj;
 }
 
 router.get('/', async (req, res) => {
   const result = await query(
-    `SELECT ${SAFE_FIELDS.join(', ')}
+    `SELECT ${SAFE_FIELDS.join(', ')}, proxy_password IS NOT NULL AS proxy_password_set
      FROM email_accounts WHERE user_id = $1 ORDER BY sort_order, created_at`,
     [req.session.userId]
   );
@@ -128,6 +131,9 @@ router.post('/', async (req, res) => {
   }
 
   const policy = await getConnectionPolicy();
+  let proxy;
+  try { proxy = await validateMailProxy(req.body, policy); }
+  catch (err) { return res.status(400).json({ error: err.message }); }
 
   if (imap_host) {
     const err = (await validateHost(imap_host, { allowPrivate: policy.allowPrivateHosts }))
@@ -146,15 +152,16 @@ router.post('/', async (req, res) => {
         user_id, name, sender_name, email_address, color, protocol,
         imap_host, imap_port, imap_tls, imap_skip_tls_verify, smtp_host, smtp_port, smtp_tls,
         auth_user, auth_pass, smtp_auth_user, smtp_auth_pass, oauth_provider, oauth_access_token, oauth_refresh_token,
-        signature, signature_enabled
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22)
+        signature, signature_enabled, proxy_type, proxy_host, proxy_port, proxy_username, proxy_password
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27)
       RETURNING *
     `, [
       req.session.userId, name, sender_name || null, email_address, color, protocol,
       imap_host, imap_port, Number(imap_port) % 1000 === 993, !!imap_skip_tls_verify, smtp_host, smtp_port, smtp_tls,
       auth_user, encrypt(auth_pass), smtp_auth_user || null, encrypt(smtp_auth_pass) || null,
       oauth_provider, encrypt(oauth_access_token), encrypt(oauth_refresh_token),
-      sanitizeSignature(signature) || null, signature_enabled !== false
+      sanitizeSignature(signature) || null, signature_enabled !== false,
+      proxy.proxy_type, proxy.proxy_host, proxy.proxy_port, proxy.proxy_username, encrypt(proxy.proxy_password) || null
     ]);
 
     const account = result.rows[0];
@@ -176,7 +183,7 @@ router.put('/:id', async (req, res) => {
   const updates = req.body;
 
   // Verify ownership.
-  const check = await query('SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
+  const check = await query('SELECT * FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
   if (!check.rows.length) return res.status(404).json({ error: 'Account not found' });
 
   if ('name' in updates && hasHeaderInjectionChars(updates.name)) {
@@ -189,6 +196,15 @@ router.put('/:id', async (req, res) => {
     return res.status(400).json({ error: 'signature_enabled must be a boolean' });
   }
   const policy = await getConnectionPolicy();
+
+  if (PROXY_FIELDS.some(key => key in updates)) {
+    try {
+      const proxy = await validateMailProxy({ ...check.rows[0], ...updates }, policy, { passwordEncrypted: !('proxy_password' in updates) });
+      for (const key of PROXY_FIELDS) {
+        if (key !== 'proxy_password' || key in updates) updates[key] = proxy[key];
+      }
+    } catch (err) { return res.status(400).json({ error: err.message }); }
+  }
 
   if ('imap_host' in updates && updates.imap_host) {
     const err = await validateHost(updates.imap_host, { allowPrivate: policy.allowPrivateHosts });
@@ -267,7 +283,7 @@ router.put('/:id', async (req, res) => {
   for (const key of ACCOUNT_UPDATE_FIELDS) {
     if (key in updates) {
       sets.push(`${key} = $${i++}`);
-      const value = ((key === 'auth_pass' || key === 'smtp_auth_pass') && updates[key]) ? encrypt(updates[key])
+      const value = ((key === 'auth_pass' || key === 'smtp_auth_pass' || key === 'proxy_password') && updates[key]) ? encrypt(updates[key])
         : (key === 'smtp_auth_user' || key === 'smtp_auth_pass') ? (updates[key] || null)
         : (key === 'signature') ? sanitizeSignature(updates[key]) || null
         : (key === 'include_in_unified_inbox') ? !!updates[key]
@@ -325,6 +341,7 @@ router.put('/:id', async (req, res) => {
     'imap_port' in updates ||
     'imap_tls' in updates ||
     'imap_skip_tls_verify' in updates ||
+    PROXY_FIELDS.some(key => key in updates) ||
     pluginRequiresReconnect
   );
 
@@ -369,7 +386,7 @@ router.delete('/:id', async (req, res) => {
 
 router.post('/:id/reconnect', async (req, res) => {
   const { id } = req.params;
-  const result = await query('SELECT * FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
+  const result = await query('SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
   if (!result.rows.length) return res.status(404).json({ error: 'Account not found' });
 
   // An explicit Reconnect is a human saying "try now", so drop any backoff first. Auth
@@ -473,7 +490,7 @@ router.get('/:id/folders', async (req, res) => {
 router.post('/:id/reindex', async (req, res) => {
   try {
     const result = await query(
-      "SELECT * FROM email_accounts WHERE id = $1 AND user_id = $2 AND enabled = true AND protocol = 'imap'",
+      "SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2 AND enabled = true AND protocol = 'imap'",
       [req.params.id, req.session.userId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Account not found' });

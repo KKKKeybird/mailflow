@@ -950,7 +950,19 @@
       "antispamEnabled": "이 계정에 스팸 방지 활성화",
       "enabledGlobally": "전체에서 활성화됨",
       "trustedAuthservPlaceholder": "mx.example.com",
-      "errorPasswordRequired": "새 계정에는 비밀번호가 필요합니다"
+      "errorPasswordRequired": "새 계정에는 비밀번호가 필요합니다",
+      "proxy": {
+        "section": "메일 연결 프록시",
+        "none": "직접 연결",
+        "host": "프록시 호스트",
+        "port": "포트",
+        "username": "사용자 이름 (선택 사항)",
+        "password": "비밀번호 (선택 사항)",
+        "keepPassword": "저장된 비밀번호를 유지하려면 비워 두세요",
+        "clearPassword": "저장된 비밀번호 삭제",
+        "note": "이 계정의 메일 수신과 발신에 사용됩니다. MailFlow 서버에서 접근할 수 있는 프록시를 입력하세요.",
+        "privateNote": "LAN 프록시를 사용하려면 보안 설정에서 사설 호스트를 허용하세요."
+      }
     },
     "folderMappings": {
       "title": "폴더 매핑",

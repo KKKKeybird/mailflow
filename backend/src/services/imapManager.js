@@ -18,6 +18,7 @@ import { redactEmail } from '../utils/redact.js';
 import { adjustFolderCounts, resolveSpamFolder } from '../utils/mailUtils.js';
 import { getAccountAddresses } from './mailAccess.js';
 import { resolveForConnection, createPinnedLookup } from './hostValidation.js';
+import { resolveMailProxy, proxyTargetHost } from './mailProxy.js';
 import { getConnectionPolicy } from './connectionPolicy.js';
 import { applyInboxRules, applyBlockList } from './inboxRules.js';
 import { classifyAndTagMessage } from './spamPipeline.js';
@@ -33,7 +34,8 @@ const logAccount = (account) => redactEmail(account?.email_address || '');
 const resolveAccountHost = async (account) => {
   const policy = await getConnectionPolicy();
   const resolved = await resolveForConnection(account.imap_host, { allowPrivate: policy.allowPrivateHosts });
-  return { resolved, policy };
+  const proxy = await resolveMailProxy(account, policy);
+  return { resolved: { ...resolved, proxy }, policy };
 };
 
 // Race a promise against a timeout. On timeout the underlying promise keeps running (JS
@@ -1457,7 +1459,8 @@ export function makeClientCfg(account, resolved, { enableIdle = false, policy = 
     tlsOpts.autoSelectFamilyAttemptTimeout = 1000;
   }
   const cfg = {
-    host: resolved.lookup && resolved.servername ? resolved.servername : resolved.host,
+    host: resolved.proxy ? proxyTargetHost(resolved) : resolved.lookup && resolved.servername ? resolved.servername : resolved.host,
+    ...(resolved.proxy ? { proxy: resolved.proxy } : {}),
     port: account.imap_port,
     secure: account.imap_tls,
     auth: { user: account.auth_user, pass: decrypt(account.auth_pass) },

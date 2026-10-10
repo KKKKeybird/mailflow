@@ -5082,3 +5082,19 @@ describe('syncMessages — tells the client when a Drafts folder gained rows', (
     }
   });
 });
+
+
+describe('makeClientCfg — account proxy', () => {
+  const account = { imap_port: 993, imap_tls: true, auth_user: 'user', auth_pass: 'pass' };
+  it('tunnels to the validated IP while retaining the mail hostname for TLS', () => {
+    const cfg = makeClientCfg(account, { host: '203.0.113.1', servername: 'imap.example.com',
+      lookup: () => {}, proxy: 'http://192.0.2.1:8080/' });
+    expect(cfg.host).toBe('203.0.113.1');
+    expect(cfg.proxy).toBe('http://192.0.2.1:8080/');
+    expect(cfg.tls.servername).toBe('imap.example.com');
+    expect(cfg.tls.rejectUnauthorized).toBe(true);
+  });
+  it('refuses unresolved destinations instead of using proxy-side DNS', () => {
+    expect(() => makeClientCfg(account, { host: 'unresolved.example', proxy: 'http://192.0.2.1:8080/' })).toThrow(/DNS/);
+  });
+});
