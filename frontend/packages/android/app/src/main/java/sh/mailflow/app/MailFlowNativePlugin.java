@@ -74,7 +74,7 @@ public class MailFlowNativePlugin extends Plugin {
     private static final String PREF_UPDATE_RELEASE_NAME = "update_release_name";
     private static final String PREF_UPDATE_DIGEST = "update_digest";
     private static final String SETUP_URL = "file:///android_asset/public/index.html";
-    private static final String UPDATE_RELEASE_URL = "https://api.github.com/repos/maathimself/mailflow/releases/latest";
+    private static final String UPDATE_RELEASE_URL = "https://api.github.com/repos/KKKKeybird/mailflow/releases/latest";
     
     /* Old dev fork url
     private static final String UPDATE_RELEASE_URL = "https://api.github.com/repos/dcoffin88/mailflow/releases/latest";

@@ -7,6 +7,7 @@ on:
 
 jobs:
   update:
+    if: github.repository == 'maathimself/mailflow'
     runs-on: ubuntu-latest
     permissions:
       contents: write

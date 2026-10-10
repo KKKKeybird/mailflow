@@ -131,7 +131,7 @@ export default class ErrorBoundary extends React.Component {
           </div>
 
           <p style={{ margin: '16px 0 0', fontSize: 12.5, color: 'var(--text-tertiary, #888)' }}>
-            Copying the details and opening an issue at github.com/maathimself/mailflow helps
+            Copying the details and opening an issue at github.com/KKKKeybird/mailflow helps
             us fix the cause rather than the symptom.
           </p>
         </div>

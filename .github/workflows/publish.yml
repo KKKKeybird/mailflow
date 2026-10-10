@@ -3,7 +3,7 @@ name: Publish to GHCR
 on:
   push:
     tags:
-      - 'v*.*.*'
+      - 'v*.*.*-sender.*'
 
 permissions:
   contents: read
@@ -16,6 +16,12 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+
+      - name: Resolve lowercase image namespace
+        id: namespace
+        env:
+          OWNER: ${{ github.repository_owner }}
+        run: echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -36,14 +42,12 @@ jobs:
         id: meta-backend
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/mailflow-backend
+          images: ghcr.io/${{ steps.namespace.outputs.owner }}/mailflow-backend
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            # Prerelease tags (v3.5.9-beta.1) must never repoint `latest`: everyone on the
-            # stock compose file pulls latest, and a beta exists precisely because it is
-            # not for them yet. The semver patterns already skip prereleases on their own.
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+            # Fork releases use vX.Y.Z-sender.N. Beta/RC builds never update latest.
+            type=raw,value=latest,enable=${{ contains(github.ref_name, '-sender.') && !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-rc') }}
 
       - name: Build and push backend
         uses: docker/build-push-action@v6
@@ -67,14 +71,12 @@ jobs:
         id: meta-frontend
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository_owner }}/mailflow-frontend
+          images: ghcr.io/${{ steps.namespace.outputs.owner }}/mailflow-frontend
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            # Prerelease tags (v3.5.9-beta.1) must never repoint `latest`: everyone on the
-            # stock compose file pulls latest, and a beta exists precisely because it is
-            # not for them yet. The semver patterns already skip prereleases on their own.
-            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
+            # Fork releases use vX.Y.Z-sender.N. Beta/RC builds never update latest.
+            type=raw,value=latest,enable=${{ contains(github.ref_name, '-sender.') && !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-rc') }}
 
       - name: Build and push frontend
         uses: docker/build-push-action@v6

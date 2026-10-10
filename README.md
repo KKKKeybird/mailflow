@@ -1,3 +1,15 @@
+# MailFlow sender-grouping fork
+
+这是 [KKKKeybird/mailflow](https://github.com/KKKKeybird/mailflow) 独立维护的 fork，基于上游 **v3.9.0**，保留按发件人折叠收件箱及索引查询性能优化。它不是上游官方版本。功能操作与边界见 [发件人折叠说明](docs/sender-grouping.md)，维护、同步与验证流程见 [fork 维护说明](docs/fork-maintenance.md)。
+
+在收件箱的邮件菜单选择 **Group emails from this sender（按此发件人折叠）**，不同主题的邮件会合并成一个可展开的发件人分组；偏好保存到服务器并在设备间同步，原有会话模式、邮件操作和未读过滤继续可用。
+
+沿用 ani-rss-openlist 的按需维护流程：**仅在所有者要求时手动合并选定上游正式版本**，解决冲突并验证发件人折叠后再合并主线；不启用定时同步、自动合并或云端轮询。
+
+使用源码部署可运行 `docker compose up -d --build`。预构建镜像地址为 `ghcr.io/kkkkeybird/mailflow-backend` 和 `ghcr.io/kkkkeybird/mailflow-frontend`；只有明确发布 fork 版本后才会提供相应镜像。本次主线维护不自动创建 Release。fork 发布标签采用 `vX.Y.Z-sender.N`（例如 `v3.9.0-sender.1`），不会推送上游标签；稳定 fork 镜像更新 `latest`，原生应用与服务端更新检查均跟踪本 fork。
+
+## 上游项目说明（保留）
+
 <p align="center">
   <img src="media/mailflow-logo.png" width="200" alt="MailFlow Logo">
 </p>
@@ -159,6 +171,7 @@ MailFlow will be available on port 443 (HTTPS, self-signed certificate) and port
 |---|---|---|
 | `APP_PORT` | `443` | HTTPS port |
 | `APP_HTTP_PORT` | `80` | HTTP port |
+| `NGINX_TLS` | `on` | `off` stops serving HTTPS on `APP_PORT` (see below) |
 
 **Optional — automatic HTTPS via Let's Encrypt:** set `DOMAIN` and `ACME_EMAIL` in `.env`, download the HTTPS overlay, then restart:
 
@@ -169,7 +182,7 @@ docker compose -f docker-compose.yml -f docker-compose.https.yml --profile https
 
 This adds a Caddy reverse proxy that handles certificate issuance and renewal automatically. Requires Docker Compose 2.21+, a public domain with DNS pointing at the server, and ports 80/443 open.
 
-**Optional — behind your own reverse proxy:** point your proxy at port 80. Set `APP_HTTP_PORT` in `.env` if you need a different host port. Your proxy should forward `X-Forwarded-Proto: https` so that session cookies are marked Secure correctly.
+**Optional — behind your own reverse proxy:** point your proxy at port 80. Set `APP_HTTP_PORT` in `.env` if you need a different host port. Your proxy should forward `X-Forwarded-Proto: https` so that session cookies are marked Secure correctly. To stop MailFlow's nginx serving HTTPS on port 443 and generating a certificate, set `NGINX_TLS=off` in `.env`. This needs a writable `/etc/nginx/conf.d`, so on a read-only filesystem mount a certificate in `/etc/nginx/ssl` instead. The `--profile https` setup always keeps HTTPS on, because Caddy connects to it.
 
 If clients can reach MailFlow only through your proxy, also set `TRUST_PROXY_HOPS=2` in `.env`, so the login rate limit sees each client's address rather than the proxy's. Docker publishes `APP_PORT` and `APP_HTTP_PORT` on every interface, and firewalls such as ufw do not filter them, so first bind both to an address only your proxy can reach, for example `APP_HTTP_PORT=127.0.0.1:8080` and `APP_PORT=127.0.0.1:8443` for a proxy on the same host. Without that, leave `TRUST_PROXY_HOPS` unset: a client that connects directly could choose the address it is rate-limited and logged under. If your `docker-compose.yml` has no `TRUST_PROXY_HOPS` line, download it again with the first command in step 1, or the setting never reaches the backend.
 
@@ -237,7 +250,7 @@ First build takes 2–3 minutes. MailFlow will be available on port 443 (HTTPS, 
 docker compose -f docker-compose.yml -f docker-compose.https.yml --profile https up -d --build
 ```
 
-**Optional — behind your own reverse proxy:** point your proxy at port 80. Your proxy should forward `X-Forwarded-Proto: https` so that session cookies are marked Secure correctly.
+**Optional — behind your own reverse proxy:** point your proxy at port 80. Your proxy should forward `X-Forwarded-Proto: https` so that session cookies are marked Secure correctly. To stop MailFlow's nginx serving HTTPS on port 443 and generating a certificate, set `NGINX_TLS=off` in `.env`. This needs a writable `/etc/nginx/conf.d`, so on a read-only filesystem mount a certificate in `/etc/nginx/ssl` instead. The `--profile https` setup always keeps HTTPS on, because Caddy connects to it.
 
 If clients can reach MailFlow only through your proxy, also set `TRUST_PROXY_HOPS=2` in `.env`, so the login rate limit sees each client's address rather than the proxy's. Docker publishes `APP_PORT` and `APP_HTTP_PORT` on every interface, and firewalls such as ufw do not filter them, so first bind both to an address only your proxy can reach, for example `APP_HTTP_PORT=127.0.0.1:8080` and `APP_PORT=127.0.0.1:8443` for a proxy on the same host. Without that, leave `TRUST_PROXY_HOPS` unset: a client that connects directly could choose the address it is rate-limited and logged under.
 

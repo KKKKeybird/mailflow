@@ -26,7 +26,7 @@ DB_NAME=mailflow_sender_revision DB_HOST=localhost DB_USER="$USER" BENCH_VALIDAT
 DB_NAME=mailflow_sender_revision DB_HOST=localhost DB_USER="$USER" BENCH_OUTPUT=endpoint-results.json node backend/benchmarks/senderGrouping.mjs
 ```
 
-Set `DB_PORT` and `DB_PASSWORD` as appropriate for the disposable database. `BENCH_BASE_REF` defaults to `origin/main`; fetch it first or set an exact baseline ref.
+Set `DB_PORT` and `DB_PASSWORD` as appropriate for the disposable database. `BENCH_BASE_REF` defaults to `v3.9.0`; fetch it first or set an exact baseline ref.
 
 The driver mounts the **actual `/api/mail/messages` router** and calls it over HTTP. It uses a fixture session but runs normal database authorization, scope resolution, queries and JSON serialization. IMAP body prefetch is stubbed so no external mail server is contacted. The baseline implementation is read from Git and runs against the same database, route and pool. Timings cover flat/threaded mode, grouping off/on, six senders at 90%/99.9% density, and offsets 0/1000, with two warm-ups followed by ten measured requests. The grouping-on parameter is ignored by main because main has no such feature.
 

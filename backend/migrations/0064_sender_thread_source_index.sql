@@ -1,3 +1,4 @@
+-- no-transaction
 CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_messages_sender_thread_source
   ON messages (account_id, folder, thread_key, message_id, date, id)
   INCLUDE (from_email, is_read, category)

@@ -34,6 +34,9 @@ import DiagnosticsReportModal from './DiagnosticsReportModal.jsx';
 import { getEffectiveShortcuts, getGroupedActions, getShortcutConflicts, shortcutActionText, shortcutBindingFromEvent, SPECIAL_KEY_LABELS, parseModKey, modLabel } from '../utils/defaultShortcuts.js';
 import { isValidForwardAddress } from '../utils/ruleActions.js';
 import { folderParentLabel } from '../utils/folderDisplay.js';
+import AdminUserEditor from './AdminUserEditor.jsx';
+import { formatRelativeTime, daysSince } from '../utils/relativeTime.js';
+import { htmlLang } from '../utils/browserLanguage.js';
 import SpamSettings from './SpamSettings.jsx';
 import BackupSettings from './BackupSettings.jsx';
 
@@ -371,6 +374,12 @@ function AccountForm({ initial, onSave, onCancel }) {
         value={form.signature || ''}
         onChange={val => set('signature', val)}
       />
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+        <input type="checkbox" checked={form.signature_enabled !== false}
+          onChange={e => set('signature_enabled', e.target.checked)}
+          style={{ accentColor: 'var(--accent)' }} />
+        {t('admin.accounts.signatureEnabledDefault')}
+      </label>
 
       {isEdit && (
         <>
@@ -602,7 +611,7 @@ function AccountsTab() {
 
   const handleEdit = async (form) => {
     const updates = { name: form.name, sender_name: form.sender_name || null, color: form.color, imap_host: form.imap_host, imap_port: form.imap_port, imap_skip_tls_verify: !!form.imap_skip_tls_verify, smtp_host: form.smtp_host, smtp_port: form.smtp_port, smtp_tls: form.smtp_tls, signature: form.signature || null, categorization_enabled: !!form.categorization_enabled, antispam_enabled: !!form.antispam_enabled, trusted_authserv_id: (form.trusted_authserv_id || '').trim() || null, include_in_unified_inbox: form.include_in_unified_inbox !== false };
-    Object.assign(updates, autoRecipientFields(form));
+    Object.assign(updates, autoRecipientFields(form), { signature_enabled: form.signature_enabled !== false });
     if (form.auth_pass) updates.auth_pass = form.auth_pass;
     if (form.auth_user) updates.auth_user = form.auth_user;
     // Separate SMTP credentials (optional). A username sends both (a blank password on
@@ -1643,7 +1652,7 @@ function SwipeActionIcon({ action, size = 17 }) {
 function LayoutsTab() {
   const { t } = useTranslation();
   const isMobile = useMobile();
-  const { layout, setLayout, pageSize, setPageSize, scrollMode, setScrollMode, swipeActions, setSwipeAction, syncInterval, setSyncInterval, folderSyncInterval, setFolderSyncInterval, conversationMode, setConversationMode, plaintextEmail, setPlaintextEmail, hoverQuickActions, setHoverQuickActions, hoverActionSet, setHoverActionSet, showMobileAvatars, setShowMobileAvatars, gravatarAvatars, setGravatarAvatars, replyDefault, setReplyDefault, markReadBehavior, setMarkReadBehavior, markReadDelay, setMarkReadDelay, senderFavicons, senderFaviconsSaving, setSenderFavicons, showMessagePreviews, setShowMessagePreviews, accounts, defaultSender, setDefaultSender } = useStore();
+  const { layout, setLayout, pageSize, setPageSize, scrollMode, setScrollMode, swipeActions, setSwipeAction, syncInterval, setSyncInterval, folderSyncInterval, setFolderSyncInterval, conversationMode, setConversationMode, autoOpenReplyDrafts, setAutoOpenReplyDrafts, plaintextEmail, setPlaintextEmail, hoverQuickActions, setHoverQuickActions, hoverActionSet, setHoverActionSet, showMobileAvatars, setShowMobileAvatars, gravatarAvatars, setGravatarAvatars, replyDefault, setReplyDefault, markReadBehavior, setMarkReadBehavior, markReadDelay, setMarkReadDelay, senderFavicons, senderFaviconsSaving, setSenderFavicons, showMessagePreviews, setShowMessagePreviews, accounts, defaultSender, setDefaultSender } = useStore();
   const [senderFaviconsError, setSenderFaviconsError] = useState('');
 
   // "Set MailFlow as your default email app": registerProtocolHandler is the
@@ -2157,6 +2166,11 @@ function LayoutsTab() {
           })}
         </div>
       </div>
+
+      <label style={{ display: 'flex', gap: 10, marginTop: 22, alignItems: 'center', fontSize: 13 }}>
+        <input type="checkbox" checked={autoOpenReplyDrafts} onChange={event => setAutoOpenReplyDrafts(event.target.checked)} />
+        <span>{t('admin.messageList.autoOpenReplyDrafts', 'Automatically open saved replies when selecting inbox messages')}</span>
+      </label>
 
       {/* Compose format */}
       <div style={{ marginTop: 28, paddingTop: 22, borderTop: '1px solid var(--border-subtle)' }}>
@@ -5054,9 +5068,10 @@ function UsersTab() {
 }
 
 function UsersAndInvitesPanel() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user: currentUser } = useStore();
   const [users, setUsers] = useState([]);
+  const [editingUser, setEditingUser] = useState(null);
   const [userTotal, setUserTotal] = useState(0);
   const [usersLoadingMore, setUsersLoadingMore] = useState(false);
   const [invites, setInvites] = useState([]);
@@ -5242,7 +5257,25 @@ function UsersAndInvitesPanel() {
               <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
                 {t('admin.users.joined', { date: new Date(u.created_at).toLocaleDateString() })}
               </div>
+              {/* Last request, not last login: sessions roll, so a daily user rarely logs in. */}
+              <div
+                title={u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString() : undefined}
+                style={{
+                  fontSize: 11, marginTop: 1,
+                  color: u.lastSeenAt && daysSince(u.lastSeenAt) > 90 ? 'var(--amber)' : 'var(--text-tertiary)',
+                }}
+              >
+                {u.lastSeenAt
+                  ? t('admin.users.lastSeen', { when: formatRelativeTime(u.lastSeenAt, htmlLang(i18n.language)) })
+                  : t('admin.users.neverSeen')}
+              </div>
             </div>
+
+            <IconBtn onClick={() => setEditingUser(u)} title={t('admin.users.edit')}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+            </IconBtn>
 
             {u.id !== currentUser?.id && (
               <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
@@ -5508,6 +5541,21 @@ function UsersAndInvitesPanel() {
         </button>
       )}
       <ConfirmOverlay dialog={confirmDialog} onClose={() => setConfirmDialog(null)} />
+      {editingUser && (
+        <AdminUserEditor
+          user={editingUser}
+          isSelf={editingUser.id === currentUser?.id}
+          onClose={() => setEditingUser(null)}
+          onChanged={updated => {
+            setUsers(us => us.map(x => (x.id === updated.id ? { ...x, ...updated } : x)));
+            setEditingUser(updated);
+          }}
+          onSaved={updated => {
+            setUsers(us => us.map(x => (x.id === updated.id ? { ...x, ...updated } : x)));
+            setEditingUser(null);
+          }}
+        />
+      )}
     </div>
     </>
   );
@@ -6097,7 +6145,7 @@ function AboutTab() {
   ];
   const generalRows = [
     [t('admin.about.website'),    'https://mailflow.sh'],
-    [t('admin.about.sourceCode'), 'https://github.com/maathimself/mailflow'],
+    [t('admin.about.sourceCode'), 'https://github.com/KKKKeybird/mailflow'],
   ];
   const supportRows = [
     [t('admin.about.kofi'),           'https://ko-fi.com/mailflow'],
@@ -6429,11 +6477,13 @@ function RulesTab() {
   function actionSummary(rule) {
     const acts = Array.isArray(rule.actions) ? rule.actions : [];
     if (!acts.length) return '—';
-    const labels = { mark_read: t('admin.rules.actionMarkRead'), star: t('admin.rules.actionStar'), forward: t('admin.rules.actionForward'), archive: t('admin.rules.actionArchive'), delete: t('admin.rules.actionDelete'), move: t('admin.rules.actionMove') };
-    // Show the move destination so same-named rules are tellable apart at a glance.
-    return acts.map(a => a.type === 'move' && a.value
-      ? `${labels.move} → ${a.value}`
-      : (labels[a.type] || a.type)).join(', ');
+    const labels = { mark_read: t('admin.rules.actionMarkRead'), star: t('admin.rules.actionStar'), forward: t('admin.rules.actionForward'), archive: t('admin.rules.actionArchive'), delete: t('admin.rules.actionDelete'), move: t('admin.rules.actionMove'), set_category: t('admin.rules.actionSetCategory') };
+    // Show the move destination and the category so same-named rules are tellable apart at a glance.
+    return acts.map(a => {
+      if (a.type === 'move' && a.value) return `${labels.move} → ${a.value}`;
+      if (a.type === 'set_category' && a.value) return `${labels.set_category} → ${t(`messageList.categories.${a.value}`)}`;
+      return labels[a.type] || a.type;
+    }).join(', ');
   }
 
   const FIELDS = [
@@ -6453,6 +6503,7 @@ function RulesTab() {
     { value: 'ends_with',    label: t('admin.rules.opEndsWith') },
   ];
   const HEADER_OPERATORS = [...OPERATORS, { value: 'regex', label: t('admin.rules.opRegex') }];
+  const RULE_CATEGORIES = ['primary', 'newsletter', 'promotion', 'automated', 'social'];
   const ACTION_TYPES = [
     { type: 'mark_read', label: t('admin.rules.actionMarkRead') },
     { type: 'star',      label: t('admin.rules.actionStar') },
@@ -6460,6 +6511,7 @@ function RulesTab() {
     { type: 'archive',   label: t('admin.rules.actionArchive') },
     { type: 'delete',    label: t('admin.rules.actionDelete') },
     { type: 'move',      label: t('admin.rules.actionMove') },
+    { type: 'set_category', label: t('admin.rules.actionSetCategory') },
   ];
 
   if (formMode) {
@@ -6668,6 +6720,19 @@ function RulesTab() {
                     />
                   );
                 })()}
+                {type === 'set_category' && checked && (
+                  <select
+                    aria-label={t('admin.rules.actionSetCategory')}
+                    style={{ ...inputStyle, marginTop: 6, marginLeft: 22 }}
+                    value={fd.actions.find(action => action.type === 'set_category')?.value || ''}
+                    onChange={event => setActionValue('set_category', event.target.value)}
+                  >
+                    <option value="">{t('admin.rules.actionSetCategorySelect')}</option>
+                    {RULE_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{t(`messageList.categories.${cat}`)}</option>
+                    ))}
+                  </select>
+                )}
                 {type === 'forward' && checked && (
                   <input
                     type="email"
@@ -7894,6 +7959,10 @@ function SecurityTab() {
       totp_success:  t('admin.security.eventTotpSuccess'),
       totp_fail:     t('admin.security.eventTotpFail'),
       sso_login:     t('admin.security.eventSsoLogin'),
+      admin_password_set: t('admin.security.eventAdminPasswordSet'),
+      admin_user_update:  t('admin.security.eventAdminUserUpdate'),
+      admin_totp_disable: t('admin.security.eventAdminTotpDisable'),
+      admin_user_delete:  t('admin.security.eventAdminUserDelete'),
     };
     return map[type] || type;
   };
@@ -8482,6 +8551,10 @@ function SecurityTab() {
                       </td>
                       <td style={{ padding: '6px 8px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                         {eventLabel(ev.event_type)}
+                        {/* Admin changes to a user: the User column is the account changed, this is who changed it. */}
+                        {ev.actor_username && (
+                          <span style={{ color: 'var(--text-secondary)' }}> {t('admin.security.byActor', { actor: ev.actor_username })}</span>
+                        )}
                       </td>
                       <td style={{ padding: '6px 8px', color: 'var(--text-secondary)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {ev.username || '—'}

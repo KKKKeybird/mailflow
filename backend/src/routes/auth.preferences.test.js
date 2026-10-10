@@ -180,10 +180,10 @@ describe('PATCH /auth/preferences groupedSenders', () => {
   it('persists normalized per-user senders and an explicit empty array', async () => {
     await run([' Alerts@Example.com ', 'alerts@example.com']);
     expect(query.mock.calls[0][1][0]).toBe('user-1');
-    expect(query.mock.calls[0][1][44]).toBe('["alerts@example.com"]');
+    expect(query.mock.calls[0][1][45]).toBe('["alerts@example.com"]');
     query.mockClear();
     await run([]);
-    expect(query.mock.calls[0][1][44]).toBe('[]');
+    expect(query.mock.calls[0][1][45]).toBe('[]');
   });
   it('rejects invalid and unbounded input without a database write', async () => {
     for (const bad of ['alerts@example.com', [null], ['invalid'], ['a b@example.com'], Array(501).fill('a@example.com')]) {
@@ -192,5 +192,37 @@ describe('PATCH /auth/preferences groupedSenders', () => {
       expect(res.status).toHaveBeenCalledWith(400);
       expect(query).not.toHaveBeenCalled();
     }
+  });
+});
+
+
+describe('PATCH /auth/preferences autoOpenReplyDrafts', () => {
+  for (const value of [true, false]) it(`persists explicit ${value}`, async () => {
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await patchPreferences({ session: { userId: 'user-1' }, body: { autoOpenReplyDrafts: value } }, res);
+    expect(query.mock.calls[0][0]).toContain("jsonb_build_object('autoOpenReplyDrafts', $45::boolean)");
+    expect(query.mock.calls[0][1][44]).toBe(value);
+  });
+  it('rejects a nonboolean without a write', async () => {
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await patchPreferences({ session: { userId: 'user-1' }, body: { autoOpenReplyDrafts: 'true' } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(query).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('PATCH /auth/preferences fork and upstream preferences coexist', () => {
+  it('saves sender grouping and automatic reply drafts in distinct SQL parameters', async () => {
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await patchPreferences({ session: { userId: 'user-1' }, body: {
+      autoOpenReplyDrafts: false, groupedSenders: [' Alerts@Example.com '],
+    } }, res);
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toContain("jsonb_build_object('autoOpenReplyDrafts', $45::boolean)");
+    expect(sql).toContain("jsonb_build_object('groupedSenders', $46::jsonb)");
+    expect(params[44]).toBe(false);
+    expect(params[45]).toBe('["alerts@example.com"]');
+    expect(res.json).toHaveBeenCalledWith({ ok: true });
   });
 });
