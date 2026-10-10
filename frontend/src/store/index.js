@@ -771,9 +771,9 @@ export const useStore = create((set, get) => ({
     schedulePrefSave({ hoverActionSet: val });
   },
 
-  // Show sender avatars in the mobile message list (off by default — they cost row width
-  // on a narrow screen; opt-in for users who prefer the scannability). Desktop always shows them.
-  showMobileAvatars: localStorage.getItem('mailflow_show_mobile_avatars') === 'true',
+  // Show sender avatars by default on mobile; keep an explicitly saved hidden preference.
+  // Desktop always shows them.
+  showMobileAvatars: localStorage.getItem('mailflow_show_mobile_avatars') !== 'false',
   setShowMobileAvatars: (val) => {
     localStorage.setItem('mailflow_show_mobile_avatars', String(val));
     set({ showMobileAvatars: val });

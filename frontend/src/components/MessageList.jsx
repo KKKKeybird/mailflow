@@ -4502,7 +4502,7 @@ function ThreadRow({ message, isExpanded, threadMsgs, isLoadingThread, selectedM
   });
 
   const hasAvatar = !isNarrow && !isMobile;
-  // Avatars render on desktop always, and on mobile when the user opts in (#213). Selection/
+  // Avatars render on desktop always, and on mobile unless the user hides them. Selection/
   // checkbox behaviour stays tied to hasAvatar (desktop only) — showAvatar only controls display,
   // so the mobile row keeps its own unread-dot/checkbox layout and the avatar is non-interactive.
   const showAvatar = hasAvatar || (isMobile && showMobileAvatars && !selectionMode);
@@ -4607,7 +4607,7 @@ function ThreadRow({ message, isExpanded, threadMsgs, isLoadingThread, selectedM
           <div
             onClick={selectionMode ? e => { e.stopPropagation(); onToggleSelect(message.id); } : undefined}
             style={{
-              width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+              width: isMobile ? 36 : 30, height: isMobile ? 36 : 30, borderRadius: '50%', flexShrink: 0,
               position: 'relative', overflow: 'hidden',
               background: avatarAsCheckbox
                 ? (isChecked ? 'var(--accent)' : 'var(--bg-tertiary)')
@@ -4830,7 +4830,7 @@ function MessageRow({ message, selected, lastViewed, isChecked, selectionMode, s
 
   // Avatar is interactive (wide layouts, desktop only) — it handles selection entry
   const hasInteractiveAvatar = !isNarrow && !isMobile && !!onAvatarClick;
-  // Display the avatar on desktop, and on mobile when opted in (#213). Interactivity
+  // Display the avatar on desktop, and on mobile unless hidden. Interactivity
   // (click-to-select, hover-to-checkbox) stays tied to hasInteractiveAvatar — desktop only —
   // so on mobile the avatar is a plain, non-interactive sender avatar and the row keeps its
   // own unread-dot / checkbox layout.
@@ -4950,7 +4950,7 @@ function MessageRow({ message, selected, lastViewed, isChecked, selectionMode, s
       )}
 
       <div style={{ paddingLeft: (!hasInteractiveAvatar && selectionMode) ? 22 : 0, display: 'flex', gap: 10, alignItems: 'flex-start' }}>
-        {/* Sender avatar — desktop always, or opted-in on mobile (#213). Interactive (click-to-select,
+        {/* Sender avatar — desktop always, or enabled on mobile. Interactive (click-to-select,
             hover-to-checkbox) on desktop only; a plain display avatar on mobile. */}
         {showAvatar && (
           <div
@@ -4958,7 +4958,7 @@ function MessageRow({ message, selected, lastViewed, isChecked, selectionMode, s
             onMouseEnter={hasInteractiveAvatar ? () => setAvatarHovered(true) : undefined}
             onMouseLeave={hasInteractiveAvatar ? () => setAvatarHovered(false) : undefined}
             style={{
-              width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+              width: isMobile ? 36 : 30, height: isMobile ? 36 : 30, borderRadius: '50%', flexShrink: 0,
               position: 'relative', overflow: 'hidden',
               background: avatarAsCheckbox
                 ? (isChecked ? 'var(--accent)' : 'var(--bg-tertiary)')

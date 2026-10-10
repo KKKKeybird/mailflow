@@ -2,6 +2,8 @@ import unittest
 import os
 import subprocess
 import tempfile
+import fnmatch
+import re
 from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 
@@ -56,6 +58,16 @@ class ReleaseCommitTests(unittest.TestCase):
 
 
 class ReleaseArtifactTests(unittest.TestCase):
+    def test_combined_release_download_excludes_buildx_records(self):
+        workflow = (Path(__file__).resolve().parents[1] / ".github/workflows/publish-apps.yml").read_text()
+        download = workflow.split("- name: Download artifacts", 1)[1].split("- name:", 1)[0]
+        pattern = re.search(r"pattern: (\S+)", download).group(1)
+        artifacts = ["mailflow-electron-windows-latest", "mailflow-electron-macos-latest",
+                     "mailflow-electron-ubuntu-latest", "mailflow-android",
+                     "KKKKeybird~mailflow~J63UP9.dockerbuild", "KKKKeybird~mailflow~KD2L1V.dockerbuild"]
+        selected = [name for name in artifacts if fnmatch.fnmatchcase(name, pattern)]
+        self.assertEqual(selected, artifacts[:4])
+
     def test_asset_completeness_and_upload_state(self):
         spec = spec_from_file_location("assets", Path(__file__).with_name("verify-release-assets.py"))
         assets = module_from_spec(spec)

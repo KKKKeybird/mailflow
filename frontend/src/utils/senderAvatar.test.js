@@ -1,6 +1,8 @@
 import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { senderDomainFromEmail, avatarImageCandidates } from './senderAvatar.js';
+import { SENDER_BRANDS, senderBrandForDomain } from './senderBrands.js';
 
 describe('senderDomainFromEmail', () => {
   it('returns a lowercase ASCII domain only', () => {
@@ -69,5 +71,51 @@ describe('avatarImageCandidates', () => {
     for (const bad of [undefined, null, '', '   ', 42]) {
       assert.deepEqual(avatarImageCandidates({ email: bad, hasContactPhoto: undefined, senderFavicons: true }), [], String(bad));
     }
+  });
+});
+
+
+describe('bundled sender brands', () => {
+  it('ships an inert SVG for every registered brand and matches only bounded official domains', () => {
+    const ids = new Set();
+    const domains = new Set();
+    for (const brand of SENDER_BRANDS) {
+      assert.equal(ids.has(brand.id), false, `duplicate icon ${brand.id}`);
+      ids.add(brand.id);
+      const svg = readFileSync(new URL(`../../public/sender-brands/v1/${brand.id}.svg`, import.meta.url), 'utf8');
+      assert.match(svg, /^<svg[^>]*viewBox="0 0 24 24"/);
+      assert.doesNotMatch(svg, /<(?:script|image|foreignObject)|\bon\w+=|href=|url\(/i);
+      for (const domain of brand.domains) {
+        assert.equal(domains.has(domain), false, `duplicate domain ${domain}`);
+        domains.add(domain);
+        assert.equal(senderBrandForDomain(domain.toUpperCase()).id, brand.id);
+        assert.equal(senderBrandForDomain(`mail.${domain}`).id, brand.id);
+        assert.equal(senderBrandForDomain(`fake${domain}`), null);
+        assert.equal(senderBrandForDomain(`${domain}.evil.example`), null);
+      }
+    }
+  });
+  it('recognizes official domains and bounded subdomains without network opt-ins', () => {
+    for (const [email, brand] of [
+      ['notice@email.apple.com', 'apple'], ['security@accountprotection.microsoft.com', 'microsoft'],
+      ['updates@GOOGLE.COM', 'google'], ['notifications@github.com', 'github'],
+    ]) {
+      assert.deepEqual(avatarImageCandidates({ email, hasContactPhoto: false }), [
+        { kind: 'brand', src: `/sender-brands/v1/${brand}.svg` },
+      ]);
+    }
+  });
+  it('does not brand personal mailboxes, tenant domains or lookalikes', () => {
+    for (const domain of ['gmail.com', 'outlook.com', 'hotmail.com', 'icloud.com', 'me.com', 'qq.com', '163.com', 'proton.me', 'protonmail.com', 'tuta.com', 'tutanota.com',
+      'user.github.io', 'tenant.onmicrosoft.com', 'notapple.com', 'apple.com.evil.example',
+      'microsoft.com.evil.example', 'apple-com.example']) {
+      assert.deepEqual(avatarImageCandidates({ email: `apple@${domain}`, hasContactPhoto: false }), [], domain);
+    }
+  });
+  it('keeps contact photos first and the local brand before external lookups', () => {
+    const candidates = avatarImageCandidates({ email: 'notice@apple.com', hasContactPhoto: true,
+      gravatarAvatars: true, senderFavicons: true });
+    assert.deepEqual(candidates.map(candidate => candidate.kind), ['contact', 'brand', 'gravatar', 'favicon']);
+    assert.equal(candidates[1].src, '/sender-brands/v1/apple.svg');
   });
 });

@@ -1,3 +1,5 @@
+import { senderBrandForDomain } from './senderBrands.js';
+
 export function senderDomainFromEmail(email) {
   if (typeof email !== 'string') return null;
   const value = email.trim();
@@ -22,11 +24,13 @@ export function avatarImageCandidates({ email, hasContactPhoto, gravatarAvatars,
   if (hasContactPhoto !== false) {
     candidates.push({ kind: 'contact', src: `/api/contacts/photo?email=${encodeURIComponent(trimmed)}` });
   }
+  const domain = senderDomainFromEmail(trimmed);
+  const brand = senderBrandForDomain(domain);
+  if (brand) candidates.push({ kind: 'brand', src: `/sender-brands/v1/${brand.id}.svg` });
   if (gravatarAvatars) {
     candidates.push({ kind: 'gravatar', src: `/api/contacts/gravatar?email=${encodeURIComponent(trimmed)}` });
   }
   if (senderFavicons) {
-    const domain = senderDomainFromEmail(trimmed);
     if (domain) candidates.push({ kind: 'favicon', src: `/api/sender-favicons/${encodeURIComponent(domain)}` });
   }
   return candidates;
