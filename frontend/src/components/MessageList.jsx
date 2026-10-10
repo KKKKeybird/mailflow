@@ -3127,6 +3127,10 @@ export default function MessageList() {
               const opening = useStore.getState().senderListGroup !== node.key;
               if (opening) useStore.getState().setSenderViewState(`inbox:${senderContext}`, { scroll: listRef.current?.scrollTop || 0 });
               clearSelection();
+              if (!opening && isMobile && history.state?.mailflow === 'sender-group') {
+                history.back();
+                return;
+              }
               setSenderListGroup(opening ? node.key : null);
               setExpandedSenders(opening ? new Set([node.key]) : new Set());
             }}

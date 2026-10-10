@@ -8,6 +8,7 @@ import { useMobile } from '../hooks/useMobile.js';
 import { LAYOUTS } from '../layouts.js';
 import { updateFaviconBadge } from '../themes.js';
 import { installResumeRefresh } from '../utils/resumeRefresh.js';
+import { backFromMobileMail, installMobileMailHistory } from '../utils/mobileMailHistory.js';
 import { shortcutBus } from '../utils/shortcutBus.js';
 import { dispatchHoveredGtdShortcut } from '../utils/gtdHoveredRow.js';
 import { runMailboxShortcut, canRunMailboxShortcut, browserShortcutFallback } from '../utils/visibleMailboxes.js';
@@ -264,43 +265,10 @@ export default function MailApp() {
     document.addEventListener('mouseup', onMouseUp);
   };
 
-  // Push a history entry when an email is opened on mobile so that the browser's
-  // native back gesture (iOS swipe, Android back button) pops an in-app state
-  // instead of leaving MailFlow entirely.
-  const prevMessageIdRef = useRef(selectedMessageId);
-  const selectedMessageIdRef = useRef(selectedMessageId);
-  useEffect(() => { selectedMessageIdRef.current = selectedMessageId; }, [selectedMessageId]);
-
   useEffect(() => {
     if (!isMobile) return;
-    const prev = prevMessageIdRef.current;
-    prevMessageIdRef.current = selectedMessageId;
-    if (selectedMessageId && !prev) {
-      history.pushState({ mailflow: 'message' }, '', '/');
-    }
-  }, [isMobile, selectedMessageId]);
-
-  useEffect(() => {
-    if (!isMobile) return;
-    // In standalone PWA mode (iOS home-screen install), push a guard entry on
-    // startup so there is always at least one history entry above the baseline.
-    // The handler re-pushes it after every popstate so back swipes always land
-    // inside the app rather than exiting the PWA and showing a blank Safari page.
-    if (window.navigator.standalone && history.state?.mailflow !== 'guard') {
-      history.pushState({ mailflow: 'guard' }, '', '/');
-    }
-    const handler = (event) => {
-      if (selectedMessageIdRef.current) setSelectedMessage(null);
-      // Backing out of a message lands on the existing guard entry. Re-pushing
-      // during that popstate can make iOS PWA history gestures temporarily stop
-      // delivering taps, so only re-arm when the user has backed past the guard.
-      if (window.navigator.standalone && event.state?.mailflow !== 'guard') {
-        history.pushState({ mailflow: 'guard' }, '', '/');
-      }
-    };
-    window.addEventListener('popstate', handler);
-    return () => window.removeEventListener('popstate', handler);
-  }, [isMobile, setSelectedMessage]);
+    return installMobileMailHistory(useStore);
+  }, [isMobile]);
 
   const wsRef = useWebSocket();
 
@@ -542,12 +510,7 @@ export default function MailApp() {
         return true;
       }
 
-      if (selectedMessageIdRef.current) {
-        setSelectedMessage(null);
-        return true;
-      }
-
-      return false;
+      return backFromMobileMail(useStore);
     };
 
     return () => {
