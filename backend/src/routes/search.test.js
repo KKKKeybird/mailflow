@@ -12,7 +12,20 @@ import {
   trashFolderExclusionCondition,
   freeTextTermCondition,
   FTS_BODY_CHAR_CAP,
+  searchMessages,
 } from './search.js';
+import { query } from '../services/db.js';
+
+describe('MCP search account scope', () => {
+  it('does not search another owned mailbox after the authorized account is disabled', async () => {
+    query.mockReset();
+    query.mockResolvedValueOnce({ rows: [{ id: 'another-owned-account' }] });
+    const res = { json: vi.fn() };
+    await searchMessages({ session: { userId: 'user' }, query: { accountId: 'disabled-account', q: 'invoice' }, mcpAccountId: 'disabled-account' }, res);
+    expect(res.json).toHaveBeenCalledWith({ messages: [] });
+    expect(query).toHaveBeenCalledOnce();
+  });
+});
 
 describe('parseSearchQuery', () => {
   it('treats bare words as free-text terms', () => {
