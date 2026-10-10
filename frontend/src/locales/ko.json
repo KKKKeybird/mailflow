@@ -1919,5 +1919,31 @@
     "split": "분리",
     "empty": "메일 메뉴에서 보낸 사람 그룹화를 선택하면 규칙이 추가됩니다.",
     "noMail": "메일 없음"
+  },
+  "mcp": {
+    "title": "AI 도구 연결 / MCP",
+    "description": "Codex, Claude Code 및 다른 MCP 클라이언트를 메일함에 연결하세요.",
+    "permissionNote": "토큰은 기본적으로 읽기 전용입니다. 메일 전송은 별도 권한이 필요하며 새 메일함은 자동으로 추가되지 않습니다.",
+    "name": "토큰 이름",
+    "mailboxes": "허용된 메일함",
+    "allowSend": "메일 전송 허용",
+    "expiry": "유효 기간",
+    "days_one": "{{count}}일",
+    "days_other": "{{count}}일",
+    "create": "토큰 만들기",
+    "once": "지금 토큰을 복사하세요. 한 번만 표시되므로 안전하게 보관하세요.",
+    "token": "MCP 접근 토큰",
+    "hide": "토큰 숨기기",
+    "codexConfig": "Codex 설정",
+    "configHelp": "~/.codex/config.toml에 추가하고 Codex를 실행하는 환경에 MAILFLOW_MCP_TOKEN을 설정하세요.",
+    "noTokens": "아직 연결 토큰이 없습니다.",
+    "readSend": "읽기 및 전송",
+    "readOnly": "읽기 전용",
+    "inactive": "취소되었거나 만료됨",
+    "expires": "{{date}}에 만료",
+    "revoke": "권한 취소",
+    "activity": "최근 도구 호출",
+    "success": "성공",
+    "failed": "실패"
   }
 }

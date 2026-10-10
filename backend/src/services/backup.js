@@ -32,6 +32,8 @@ export const SETUP_TABLES = [
   'inbox_rules',
   'integration_config',
   'invites',
+  'mcp_tokens',
+  'mcp_tool_events',
   'oidc_providers',
   'plugin_account_config',
   'plugin_data',

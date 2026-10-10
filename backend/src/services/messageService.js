@@ -3,7 +3,7 @@ import { senderCandidates } from './senderGrouping.js';
 import { normalizeSenderIdentity, senderIdentitySql, splitSenderIdentity, validSenderGroupMap } from './senderIdentity.js';
 import { resolveAccountScope } from './unifiedInbox.js';
 
-export async function listMessages({ userId, accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category, groupSenders, sender, candidateIds, candidateThreads }) {
+export async function listMessages({ userId, accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category, groupSenders, sender, candidateIds, candidateThreads, strictAccount = false }) {
   const accountsResult = await query(
     'SELECT id, include_in_unified_inbox FROM email_accounts WHERE user_id = $1 AND enabled = true',
     [userId]
@@ -12,7 +12,9 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
     accountIds: scopedAccountIds,
     resolvedAccountId,
   } = resolveAccountScope(accountsResult.rows, accountId);
-  if (!scopedAccountIds.length) return { messages: [], total: 0 };
+  // Integration callers cannot fall back to the unified inbox when their
+  // explicitly authorized account was removed or disabled between queries.
+  if (!scopedAccountIds.length || (strictAccount && resolvedAccountId === null)) return { messages: [], total: 0 };
 
   let whereConditions = ['m.is_deleted = false'];
   const values = [];

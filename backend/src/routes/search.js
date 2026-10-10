@@ -124,7 +124,7 @@ export function freeTextTermCondition(likeIdx, ftsIdx) {
       )`;
 }
 
-router.get('/', searchLimiter, async (req, res) => {
+export async function searchMessages(req, res) {
   const { q, accountId, limit = 50, offset = 0 } = req.query;
   const trimmed = (q || '').trim();
   if (!trimmed) return res.json({ messages: [] });
@@ -135,6 +135,7 @@ router.get('/', searchLimiter, async (req, res) => {
     [req.session.userId]
   );
   const { accountIds: targetIds } = resolveAccountScope(accountsResult.rows, accountId);
+  if (req.mcpAccountId && !accountsResult.rows.some(account => account.id === req.mcpAccountId)) return res.json({ messages: [] });
   if (!targetIds.length) return res.json({ messages: [] });
 
   const cap = Math.max(1, Math.min(parseInt(limit) || 50, 200));
@@ -259,7 +260,9 @@ router.get('/', searchLimiter, async (req, res) => {
     console.error('Search error:', err);
     res.status(500).json({ error: 'Search failed' });
   }
-});
+}
+
+router.get('/', searchLimiter, searchMessages);
 
 // Contact autocomplete — returns up to 10 addresses matching the query.
 // Priority: addresses the user has sent to (contacts table, ranked by send_count)

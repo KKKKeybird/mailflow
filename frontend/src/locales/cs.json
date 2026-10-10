@@ -1938,5 +1938,31 @@
     "split": "Oddělit",
     "empty": "Pravidlo přidáte seskupením odesílatele v nabídce zprávy.",
     "noMail": "Žádné zprávy"
+  },
+  "mcp": {
+    "title": "Nástroje AI / MCP",
+    "description": "Připojte Codex, Claude Code a další klienty MCP ke svým schránkám.",
+    "permissionNote": "Tokeny ve výchozím nastavení umožňují pouze čtení. Odesílání vyžaduje samostatné povolení. Nové schránky se nepřidávají automaticky.",
+    "name": "Název tokenu",
+    "mailboxes": "Povolené schránky",
+    "allowSend": "Povolit odesílání e-mailů",
+    "expiry": "Platnost",
+    "days_one": "{{count}} den",
+    "days_other": "{{count}} dní",
+    "create": "Vytvořit token",
+    "once": "Zkopírujte token nyní. Zobrazí se pouze jednou; uložte jej bezpečně.",
+    "token": "Přístupový token MCP",
+    "hide": "Skrýt token",
+    "codexConfig": "Konfigurace Codexu",
+    "configHelp": "Přidejte toto do ~/.codex/config.toml a nastavte MAILFLOW_MCP_TOKEN v prostředí, které spouští Codex.",
+    "noTokens": "Zatím žádné integrační tokeny.",
+    "readSend": "Čtení a odesílání",
+    "readOnly": "Pouze čtení",
+    "inactive": "Odvolaný nebo vypršel",
+    "expires": "Vyprší {{date}}",
+    "revoke": "Odvolat",
+    "activity": "Poslední volání nástrojů",
+    "success": "Úspěch",
+    "failed": "Selhání"
   }
 }

@@ -137,7 +137,7 @@ const remainingUntil = sendAt => Math.max(0, Date.parse(sendAt) - Date.now());
 // The longest an undo window can be. The client asks for its own (10 s by default).
 const MAX_UNDO_SECONDS = 30;
 
-router.post('/send', async (req, res) => {
+export async function sendMessage(req, res) {
   const { accountId, aliasId, to, cc = [], bcc = [], subject, body, bodyIsHtml = false, quotedBody, quotedBodyHtml, inReplyTo, references, attachments, editedSignature, forwardedAttachments, forwardedMessages, priority, undoSeconds, draft } = req.body;
   const userId = req.session.userId;
   // With an undo window, delivery waits that long on the server (services/sendHold.js).
@@ -686,7 +686,9 @@ router.post('/send', async (req, res) => {
     if (idemKeyRedis && reservationAcquired) redisClient.del(idemKeyRedis).catch(() => {});
     res.status(500).json({ error: sanitizeSmtpError(err) });
   }
-});
+}
+
+router.post('/send', sendMessage);
 
 // Where a held send stands: pending, sending, sent (with the usual send result), failed (with a
 // message), cancelled, lost (held when the server stopped, never delivered) or unknown.

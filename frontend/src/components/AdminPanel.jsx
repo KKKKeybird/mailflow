@@ -1,4 +1,5 @@
 import SenderGroupingSettings from './SenderGroupingSettings.jsx';
+import McpSettings from './McpSettings.jsx';
 import { useCallback, useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/index.js';
@@ -3332,6 +3333,7 @@ function IntegrationsTab() {
 
       {subTab === 'apps' && (
         <div>
+          <McpSettings />
           {/* Todoist */}
           <div style={{
             border: '1px solid var(--border-subtle)', borderRadius: 12,

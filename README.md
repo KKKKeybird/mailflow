@@ -8,6 +8,8 @@
 
 使用源码部署可运行 `docker compose up -d --build`。预构建镜像地址为 `ghcr.io/kkkkeybird/mailflow-backend` 和 `ghcr.io/kkkkeybird/mailflow-frontend`；只有明确发布 fork 版本后才会提供相应镜像。发布由所有者按需发起：在 **Actions → Release → Run workflow** 中选择 `main` 并输入版本号，即可自动检查、构建镜像和安装包、生成说明并更新 latest；失败时保留发布草稿，支持重跑。fork 发布标签采用 `vX.Y.Z-rN`（例如 `v3.9.0-r1`），不会推送上游标签；每次明确发布的 fork 修订镜像更新 `latest`，原生应用与服务端更新检查均跟踪本 fork。
 
+手机邮件列表默认显示头像，并内置 66 种常见品牌图标；联系人照片优先，未匹配的发件人继续使用原有头像来源与姓名首字。AI 客户端可通过 [MCP 接口](docs/mcp.md) 接入，令牌默认只读、可限制邮箱范围并单独授权发送；另附 [MailFlow skill](skills/mailflow/SKILL.md)。
+
 ## 上游项目说明（保留）
 
 <p align="center">

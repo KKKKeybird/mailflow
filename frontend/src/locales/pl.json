@@ -1938,5 +1938,31 @@
     "split": "Rozdziel",
     "empty": "Zgrupuj nadawcę w menu wiadomości, aby dodać regułę.",
     "noMail": "Brak wiadomości"
+  },
+  "mcp": {
+    "title": "Narzędzia AI / MCP",
+    "description": "Połącz Codex, Claude Code i inne klienty MCP ze swoimi skrzynkami.",
+    "permissionNote": "Tokeny domyślnie pozwalają tylko na odczyt. Wysyłanie wymaga osobnej zgody. Nowe skrzynki nie są dodawane automatycznie.",
+    "name": "Nazwa tokenu",
+    "mailboxes": "Dozwolone skrzynki",
+    "allowSend": "Zezwól na wysyłanie wiadomości",
+    "expiry": "Okres ważności",
+    "days_one": "{{count}} dzień",
+    "days_other": "{{count}} dni",
+    "create": "Utwórz token",
+    "once": "Skopiuj teraz token. Jest wyświetlany tylko raz; przechowuj go bezpiecznie.",
+    "token": "Token dostępu MCP",
+    "hide": "Ukryj token",
+    "codexConfig": "Konfiguracja Codex",
+    "configHelp": "Dodaj to do ~/.codex/config.toml i ustaw MAILFLOW_MCP_TOKEN w środowisku uruchamiającym Codex.",
+    "noTokens": "Nie ma jeszcze tokenów integracji.",
+    "readSend": "Odczyt i wysyłanie",
+    "readOnly": "Tylko odczyt",
+    "inactive": "Unieważniony lub wygasły",
+    "expires": "Wygasa {{date}}",
+    "revoke": "Unieważnij",
+    "activity": "Ostatnie wywołania narzędzi",
+    "success": "Powodzenie",
+    "failed": "Niepowodzenie"
   }
 }

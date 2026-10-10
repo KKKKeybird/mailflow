@@ -1919,5 +1919,31 @@
     "split": "拆分",
     "empty": "在邮件菜单中选择聚合发件人，即可添加规则。",
     "noMail": "没有邮件"
+  },
+  "mcp": {
+    "title": "AI 工具接入 / MCP",
+    "description": "让 Codex、Claude Code 等 MCP 客户端读取和搜索你的邮件。",
+    "permissionNote": "令牌默认只读，发送邮件需要单独授权。新添加的邮箱不会自动加入授权范围。",
+    "name": "令牌名称",
+    "mailboxes": "允许访问的邮箱",
+    "allowSend": "允许发送邮件",
+    "expiry": "有效期",
+    "days_one": "{{count}} 天",
+    "days_other": "{{count}} 天",
+    "create": "创建令牌",
+    "once": "请现在复制令牌，只显示这一次，并妥善保存。",
+    "token": "MCP 访问令牌",
+    "hide": "隐藏令牌",
+    "codexConfig": "Codex 配置",
+    "configHelp": "将以下内容加入 ~/.codex/config.toml，并在启动 Codex 的环境中设置 MAILFLOW_MCP_TOKEN。",
+    "noTokens": "还没有接入令牌。",
+    "readSend": "读取和发送",
+    "readOnly": "只读",
+    "inactive": "已撤销或已过期",
+    "expires": "{{date}} 到期",
+    "revoke": "撤销",
+    "activity": "最近的工具调用",
+    "success": "成功",
+    "failed": "失败"
   }
 }
