@@ -1888,5 +1888,24 @@
     "trash": "Lixeira",
     "spam": "Spam",
     "archive": "Arquivo"
+  },
+  "senderGrouping": {
+    "all": "Todas",
+    "unread": "Não lidas",
+    "newMail": "Nova mensagem · Ver",
+    "readAll": "Marcar o grupo inteiro como lido",
+    "archiveAll": "Arquivar o grupo inteiro",
+    "readScheduled": "Marcar {{count}} mensagens como lidas",
+    "archiveScheduled": "Arquivar {{count}} mensagens",
+    "partial": "{{count}} mensagens arquivadas; algumas contas não têm pasta de arquivo.",
+    "failed": "{{count}} mensagens processadas. {{error}}",
+    "settings": "Grupos de remetentes",
+    "description": "Os grupos correspondem ao endereço de e-mail e ao nome do remetente. Você pode renomear um grupo ou unir manualmente os remetentes selecionados. O assunto não afeta o agrupamento.",
+    "label": "Nome de exibição do grupo",
+    "mergeInto": "Unir a…",
+    "merge": "Unir",
+    "split": "Desagrupar",
+    "empty": "Agrupe um remetente pelo menu da mensagem para adicionar uma regra.",
+    "noMail": "Nenhuma mensagem"
   }
 }

@@ -1,3 +1,4 @@
+import { senderGroupTargets } from '../services/senderGroupTargets.js';
 import { STATUS_STALE_MS } from '../services/folderStatus.js';
 import { Router } from 'express';
 import { createRequire } from 'module';
@@ -145,6 +146,14 @@ function notifyMailMutation(rows, userId) {
     }).catch(err => console.warn('onMailMutation hook failed:', err.message));
   }
 }
+
+// The returned snapshot includes unloaded members; mutation endpoints recheck ownership.
+router.get('/sender-group-targets', async (req, res) => {
+  const { accountId, sender, category, threaded, folder = 'INBOX' } = req.query;
+  if (!normalizeSenderIdentity(sender) || folder !== 'INBOX' || (category && !['primary','newsletter','promotion','automated','social'].includes(category))) return res.status(400).json({ error: 'Invalid sender group scope' });
+  const targets = await senderGroupTargets({ userId: req.session.userId, accountId, sender, category, threaded });
+  res.json({ targets, count: targets.length });
+});
 
 // Get messages (unified or per-account/folder)
 router.get('/messages', async (req, res) => {

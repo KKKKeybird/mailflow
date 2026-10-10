@@ -139,7 +139,10 @@ export default function ContextMenu({ x, y, message, onClose, onAction, defaultM
 
   const senderGroupingSaving = useStore(s => s.senderGroupingSaving);
   const groupedSenders = useStore(s => s.groupedSenders);
-  const sender = message.sender_group || senderIdentity(message.from_email, message.from_name);
+  const mappings = useStore(s => s.senderGroupMappings);
+  const pending = useStore(s => s.senderGroupActionPending);
+  const rawSender = message.sender_group || senderIdentity(message.from_email, message.from_name);
+  const sender = mappings[rawSender] || rawSender;
   const items = [
     ...(sender ? [{ group: 'Sender', actions: [{
       disabled: senderGroupingSaving,
@@ -148,7 +151,12 @@ export default function ContextMenu({ x, y, message, onClose, onAction, defaultM
         useStore.getState().toggleSenderGrouping(sender)
           .catch(err => useStore.getState().addNotification({ type: 'error', title: t('common.error'), body: err.message }));
       },
-    }] }] : []),
+    }, ...(message.sender_group ? ['read', 'archive'].map(action => ({
+      label: t(action === 'read' ? 'senderGrouping.readAll' : 'senderGrouping.archiveAll'),
+      disabled: !!pending[sender],
+      action: () => useStore.getState().performSenderGroupAction(sender, message.__sender_params || {}, action)
+        .catch(err => useStore.getState().addNotification({ type: 'error', title: t('common.error'), body: err.message })),
+    })) : [])] }] : []),
     ...(isMessagePane ? [
       {
         group: 'Reading',

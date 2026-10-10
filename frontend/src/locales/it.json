@@ -1888,5 +1888,24 @@
     "trash": "Cestino",
     "spam": "Spam",
     "archive": "Archivio"
+  },
+  "senderGrouping": {
+    "all": "Tutte",
+    "unread": "Non lette",
+    "newMail": "Nuova posta · Visualizza",
+    "readAll": "Segna tutto il gruppo come letto",
+    "archiveAll": "Archivia tutto il gruppo",
+    "readScheduled": "Segna {{count}} messaggi come letti",
+    "archiveScheduled": "Archivia {{count}} messaggi",
+    "partial": "Archiviati {{count}} messaggi; alcuni account non hanno una cartella archivio.",
+    "failed": "Completati {{count}} messaggi. {{error}}",
+    "settings": "Gruppi di mittenti",
+    "description": "I gruppi corrispondono all’indirizzo e-mail e al nome del mittente. Puoi rinominare un gruppo o unire manualmente i mittenti selezionati. L’oggetto non influisce sul raggruppamento.",
+    "label": "Nome visualizzato del gruppo",
+    "mergeInto": "Unisci a…",
+    "merge": "Unisci",
+    "split": "Separa",
+    "empty": "Raggruppa un mittente dal menu del messaggio per aggiungere una regola.",
+    "noMail": "Nessun messaggio"
   }
 }

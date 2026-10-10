@@ -1,3 +1,4 @@
+import { validSenderGroupMap } from '../services/senderIdentity.js';
 import { normalizeGroupedSenders } from '../services/messageService.js';
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
@@ -770,7 +771,7 @@ export async function patchPreferences(req, res) {
           categorizationEnabled, markReadBehavior, markReadDelay, aiActions,
           autoLockMinutes, showMobileAvatars, gravatarAvatars, folderSyncInterval,
           folderOrder, senderFavicons, showMessagePreviews, defaultSender,
-          conversationMode, hoverActionSet, groupedSenders, autoOpenReplyDrafts } = req.body;
+          conversationMode, hoverActionSet, groupedSenders, senderGroupMappings, senderGroupLabels, autoOpenReplyDrafts } = req.body;
   if (autoOpenReplyDrafts !== undefined && typeof autoOpenReplyDrafts !== 'boolean') {
     return res.status(400).json({ error: 'autoOpenReplyDrafts must be a boolean' });
   }
@@ -836,6 +837,7 @@ export async function patchPreferences(req, res) {
   // order as frontend/src/utils/hoverActions.js; unknown keys are dropped rather than stored.
   const HOVER_ACTION_KEYS = ['markRead', 'star', 'archive', 'snooze', 'delete', 'move'];
   if (groupedSenders !== undefined && (!Array.isArray(groupedSenders) || groupedSenders.length > 5000 || normalizeGroupedSenders(groupedSenders).length !== new Set(groupedSenders.map(v => normalizeGroupedSenders([v])[0])).size)) return res.status(400).json({ error: 'Invalid grouped senders' });
+  if ((senderGroupMappings !== undefined && !validSenderGroupMap(senderGroupMappings)) || (senderGroupLabels !== undefined && !validSenderGroupMap(senderGroupLabels, true))) return res.status(400).json({ error: 'Invalid sender group rules' });
   const groupedSendersJson = groupedSenders === undefined ? null : JSON.stringify(normalizeGroupedSenders(groupedSenders));
   const hoverActionSetJson = Array.isArray(hoverActionSet)
     ? JSON.stringify(HOVER_ACTION_KEYS.filter(k => hoverActionSet.includes(k)))
@@ -889,6 +891,8 @@ export async function patchPreferences(req, res) {
       || CASE WHEN $44::jsonb IS NOT NULL THEN jsonb_build_object('hoverActionSet', $44::jsonb) ELSE '{}'::jsonb END
       || CASE WHEN $45::boolean IS NOT NULL THEN jsonb_build_object('autoOpenReplyDrafts', $45::boolean) ELSE '{}'::jsonb END
       || CASE WHEN $46::jsonb IS NOT NULL THEN jsonb_build_object('groupedSenders', $46::jsonb) ELSE '{}'::jsonb END
+      || CASE WHEN $47::jsonb IS NOT NULL THEN jsonb_build_object('senderGroupMappings', $47::jsonb) ELSE '{}'::jsonb END
+      || CASE WHEN $48::jsonb IS NOT NULL THEN jsonb_build_object('senderGroupLabels', $48::jsonb) ELSE '{}'::jsonb END
     WHERE id = $1
   `, [req.session.userId, theme ?? null, font ?? null, layout ?? null, notificationSound ?? null,
       pageSize ?? null, scrollMode ?? null, syncInterval ?? null,
@@ -899,7 +903,7 @@ export async function patchPreferences(req, res) {
       categorizationEnabled ?? null, markReadBehaviorVal, markReadDelayVal, aiActionsJson,
       rightSidebarWidth, rightSidebarHidden, gtdCollapsedSectionsJson, gtdPetSlug, autoLockMinutesVal,
       showMobileAvatars ?? null, gravatarAvatars ?? null, folderSyncIntervalVal, folderOrderJson, senderFaviconsVal,
-      showMessagePreviews ?? null, defaultSenderVal, conversationModeVal, hoverActionSetJson, autoOpenReplyDrafts ?? null, groupedSendersJson]);
+      showMessagePreviews ?? null, defaultSenderVal, conversationModeVal, hoverActionSetJson, autoOpenReplyDrafts ?? null, groupedSendersJson, senderGroupMappings === undefined ? null : JSON.stringify(senderGroupMappings), senderGroupLabels === undefined ? null : JSON.stringify(senderGroupLabels)]);
 
   if (syncInterval != null) {
     const ms = parseInt(syncInterval) * 1000;

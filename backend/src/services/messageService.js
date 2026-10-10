@@ -1,6 +1,6 @@
 import { query } from './db.js';
 import { senderCandidates } from './senderGrouping.js';
-import { normalizeSenderIdentity, senderIdentitySql, splitSenderIdentity } from './senderIdentity.js';
+import { normalizeSenderIdentity, senderIdentitySql, splitSenderIdentity, validSenderGroupMap } from './senderIdentity.js';
 import { resolveAccountScope } from './unifiedInbox.js';
 
 export async function listMessages({ userId, accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category, groupSenders, sender, candidateIds, candidateThreads }) {
@@ -62,18 +62,25 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
   const safeSender = sender ? normalizeSenderIdentity(sender) : null;
   if (sender && !safeSender) return { messages: [], total: 0, threaded: isThreaded, resolvedAccountId };
   let senders = [];
-  if (!sender && folder === 'INBOX' && (groupSenders === true || groupSenders === 'true')) {
+  let preferences = {};
+  let mappingsParam;
+  if (sender || (folder === 'INBOX' && (groupSenders === true || groupSenders === 'true'))) {
     const prefs = await query('SELECT preferences FROM users WHERE id = $1', [userId]);
-    senders = normalizeGroupedSenders(prefs.rows[0]?.preferences?.groupedSenders);
+    preferences = prefs.rows[0]?.preferences || {};
+    if (!sender) senders = normalizeGroupedSenders(preferences.groupedSenders);
+    if (validSenderGroupMap(preferences.senderGroupMappings) && Object.keys(preferences.senderGroupMappings).length) {
+      values.push(JSON.stringify(preferences.senderGroupMappings));
+      mappingsParam = `$${values.length}`;
+    }
   }
   if (senders.length) {
     const present = await query(`SELECT 1 FROM messages m WHERE ${where}
-      AND ${senderIdentitySql('m')} = ANY($${values.length + 1}::text[]) LIMIT 1`, [...values, senders]);
+      AND ${senderIdentitySql('m', mappingsParam)} = ANY($${values.length + 1}::text[]) LIMIT 1`, [...values, senders]);
     if (!present.rows.length) senders = [];
   }
   if (sender || senders.length) {
     const { candidates, total } = await senderCandidates({ where, values, accounts: scopedAccountIds,
-      senders, sender: safeSender,
+      senders, sender: safeSender, mappingsParam,
       threaded: isThreaded, unfiltered: !isUnreadOnly && !safeCategory, limit: safeLimit, offset: safeOffset });
     if (!candidates.length) return { messages: [], total, threaded: isThreaded, resolvedAccountId };
     const hydrated = await listMessages({ userId, accountId, folder, unreadOnly, threaded, category,
@@ -86,11 +93,14 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
       return [c.sender_group ? { ...message, id: `sender:${c.sender_group}`, message_id: null,
         preview_message_id: message.id, sender_group: c.sender_group,
         sender_group_email: splitSenderIdentity(c.sender_group).email, sender_group_name: splitSenderIdentity(c.sender_group).name,
+        sender_group_label: preferences.senderGroupLabels?.[c.sender_group] || '',
         sender_message_count: c.sender_message_count, sender_unread_count: c.sender_unread_count } : message];
     });
     return { messages, total, threaded: isThreaded, resolvedAccountId };
   }
 
+  // Alias parameters belong only to grouping SQL; preserve the ordinary query bindings.
+  if (mappingsParam) values.pop();
   let total = 0;
   try {
     if (isSpecificAccount) {

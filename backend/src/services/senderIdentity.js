@@ -21,4 +21,14 @@ export function normalizeSenderIdentity(value) {
   return senderIdentity(email, name);
 }
 
-export const senderIdentitySql = alias => `(lower(btrim(${alias}.from_email)) || CASE WHEN btrim(COALESCE(${alias}.from_name, '')) = '' THEN '' ELSE chr(10) || btrim(${alias}.from_name) END)`;
+export function senderIdentitySql(alias, mappingsParam) {
+  const identity = `(lower(btrim(${alias}.from_email)) || CASE WHEN btrim(COALESCE(${alias}.from_name, '')) = '' THEN '' ELSE chr(10) || btrim(${alias}.from_name) END)`;
+  return mappingsParam ? `COALESCE(${mappingsParam}::jsonb ->> ${identity}, ${identity})` : identity;
+}
+
+export function validSenderGroupMap(value, labels = false) {
+  if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length > 5000) return false;
+  return Object.entries(value).every(([key, target]) => normalizeSenderIdentity(key) === key
+    && (labels ? typeof target === 'string' && target.trim().length <= 100 && !/[\r\n\0]/.test(target)
+      : normalizeSenderIdentity(target) === target && target !== key && !Object.hasOwn(value, target)));
+}

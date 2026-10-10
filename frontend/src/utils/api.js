@@ -332,6 +332,7 @@ export const api = {
     if (unified) qs.set('unified', 'true');
     return request('GET', `/mail/thread?${qs}`);
   },
+  getSenderGroupTargets: params => request('GET', '/mail/sender-group-targets?' + new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined && value !== null))),
   bulkRead: (ids, read) => request('POST', '/mail/messages/bulk-read', { ids, read }),
   bulkStar: (ids, starred) => request('POST', '/mail/messages/bulk-star', { ids, starred }),
   markStarred: (id, starred) => request('PATCH', `/mail/messages/${id}/star`, { starred }),

@@ -1888,5 +1888,24 @@
     "trash": "Corbeille",
     "spam": "Indésirables",
     "archive": "Archives"
+  },
+  "senderGrouping": {
+    "all": "Tous",
+    "unread": "Non lus",
+    "newMail": "Nouveau courrier · Voir",
+    "readAll": "Marquer tout le groupe comme lu",
+    "archiveAll": "Archiver tout le groupe",
+    "readScheduled": "Marquer {{count}} messages comme lus",
+    "archiveScheduled": "Archiver {{count}} messages",
+    "partial": "{{count}} messages archivés ; certains comptes ne disposent pas de dossier d’archives.",
+    "failed": "{{count}} messages traités. {{error}}",
+    "settings": "Groupes d’expéditeurs",
+    "description": "Les groupes correspondent à l’adresse e-mail et au nom de l’expéditeur. Renommez un groupe ou fusionnez manuellement les expéditeurs choisis. L’objet n’influence pas le regroupement.",
+    "label": "Nom affiché du groupe",
+    "mergeInto": "Fusionner avec…",
+    "merge": "Fusionner",
+    "split": "Séparer",
+    "empty": "Regroupez un expéditeur depuis le menu du message pour ajouter une règle.",
+    "noMail": "Aucun message"
   }
 }

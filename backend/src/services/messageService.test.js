@@ -298,7 +298,7 @@ describe('listMessages — sender grouping', () => {
     });
     const result = await listMessages({ userId: 'user-1', accountId: 'acc-1', sender: ' Alerts@Example.com ', unreadOnly: true, category: 'automated' });
     expect(result.total).toBe(2);
-    const [sql, values] = query.mock.calls[1];
+    const [sql, values] = query.mock.calls.find(([sql]) => sql.includes('SELECT page.*'));
     expect(sql).toContain('m.is_read = false');
     expect(sql).toContain('btrim(COALESCE(m.from_name');
     expect(sql).toContain('= $4');
@@ -324,9 +324,21 @@ describe('listMessages — sender conversation expansion', () => {
     });
     const result = await listMessages({ userId: 'user-1', sender: 'alerts@example.com', threaded: true });
     expect(result.total).toBe(1);
-    expect(query.mock.calls[1][0]).toContain('ORDER BY date ASC, id))[1] AS sender');
+    expect(query.mock.calls.find(([sql]) => sql.includes('SELECT page.*'))[0]).toContain('ORDER BY date ASC, id))[1] AS sender');
     const hydration = query.mock.calls.find(([sql]) => sql.includes('m.to_addresses'));
     expect(hydration[0]).toContain('m.thread_key = ANY');
     expect(hydration[0]).toContain('LIMIT $');
   });
+});
+
+
+it('drops grouping-only alias bindings when all selected groups are absent', async () => {
+  query.mockImplementation(async sql => {
+    if (sql.startsWith('SELECT id, include')) return { rows: [{ id: 'acc-1' }] };
+    if (sql.startsWith('SELECT preferences')) return { rows: [{ preferences: { groupedSenders: ['missing@example.com'], senderGroupMappings: { 'b@example.com': 'a@example.com' } } }] };
+    return { rows: [] };
+  });
+  await listMessages({ userId: 'u', accountId: 'acc-1', groupSenders: true });
+  const [, params] = query.mock.calls.find(([sql]) => sql.includes('m.to_addresses'));
+  expect(params).toEqual(['acc-1', 'INBOX', 50, 0]);
 });

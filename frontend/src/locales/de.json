@@ -1888,5 +1888,24 @@
     "trash": "Papierkorb",
     "spam": "Spam",
     "archive": "Archiv"
+  },
+  "senderGrouping": {
+    "all": "Alle",
+    "unread": "Ungelesen",
+    "newMail": "Neue Post · Anzeigen",
+    "readAll": "Gesamte Gruppe als gelesen markieren",
+    "archiveAll": "Gesamte Gruppe archivieren",
+    "readScheduled": "{{count}} Nachrichten als gelesen markieren",
+    "archiveScheduled": "{{count}} Nachrichten archivieren",
+    "partial": "{{count}} Nachrichten archiviert; einige Konten haben keinen Archivordner.",
+    "failed": "{{count}} Nachrichten verarbeitet. {{error}}",
+    "settings": "Absendergruppen",
+    "description": "Gruppen richten sich nach E-Mail-Adresse und Absendername. Gruppen lassen sich umbenennen und ausgewählte Absender manuell zusammenführen. Der Betreff beeinflusst die Gruppierung nicht.",
+    "label": "Anzeigename der Gruppe",
+    "mergeInto": "Zusammenführen mit…",
+    "merge": "Zusammenführen",
+    "split": "Trennen",
+    "empty": "Gruppiere einen Absender im Nachrichtenmenü, um eine Regel hinzuzufügen.",
+    "noMail": "Keine Nachrichten"
   }
 }

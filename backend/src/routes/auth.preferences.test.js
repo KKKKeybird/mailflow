@@ -243,3 +243,24 @@ describe('PATCH /auth/preferences sender name identities', () => {
     expect(query).not.toHaveBeenCalled();
   });
 });
+
+describe('PATCH /auth/preferences sender group rules', () => {
+  it('persists labels and aliases alongside existing preferences', async () => {
+    const senderGroupMappings = { 'shared@example.com\nBob': 'shared@example.com\nAlice' };
+    const senderGroupLabels = { 'shared@example.com\nAlice': 'Notifications' };
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await patchPreferences({ session: { userId: 'u' }, body: { senderGroupMappings, senderGroupLabels } }, res);
+    expect(query.mock.calls[0][1].slice(-2)).toEqual([JSON.stringify(senderGroupMappings), JSON.stringify(senderGroupLabels)]);
+    expect(res.json).toHaveBeenCalledWith({ ok: true });
+  });
+  it.each([
+    { senderGroupMappings: { 'a@example.com': 'a@example.com' } },
+    { senderGroupMappings: { 'a@example.com': 'b@example.com', 'b@example.com': 'a@example.com' } },
+    { senderGroupLabels: { 'a@example.com': 'x\ny' } },
+    { senderGroupLabels: { 'a@example.com': 'x'.repeat(101) } },
+  ])('rejects invalid rule preferences without writing', async body => {
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await patchPreferences({ session: { userId: 'u' }, body }, res);
+    expect(res.status).toHaveBeenCalledWith(400); expect(query).not.toHaveBeenCalled();
+  });
+});

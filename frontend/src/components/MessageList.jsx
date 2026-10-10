@@ -1426,7 +1426,7 @@ export default function MessageList() {
     setSenderGroupContext(senderContext);
   }, [senderContext, groupedSenders, setExpandedSenders, setSenderGroupContext, setSenderListGroup]);
   const rowState = { messages: listRows, searchResults, searchQuery, threadedView, expandedThreadId,
-    threadMessages, expandedSenders, senderListGroup, senderGroupContext: senderContext };
+    threadMessages, expandedSenders, senderListGroup, senderViewState: useStore.getState().senderViewState, senderGroupContext: senderContext };
   const rowTree = messageRowTree(rowState);
   const displayMessages = uniqueActionRows(actionableMessageRows(rowState), useStore.getState().selectedListRowKey);
 
@@ -3110,6 +3110,7 @@ export default function MessageList() {
             toolbar={selectionToolbar}
             listRef={detail ? listRef : undefined}
             onListKeyDown={handleListKeyDown}
+            onFilterChange={clearSelection}
             message={node.message}
             cacheKey={node.key}
             params={senderParams}
@@ -3119,20 +3120,26 @@ export default function MessageList() {
             showMessagePreviews={showMessagePreviews}
             onContextMenu={(e, message) => {
               e.preventDefault();
-              setContextMenu({ x: e.clientX, y: e.clientY, message });
+              setContextMenu({ x: e.clientX, y: e.clientY, message: { ...message, __sender_params: senderParams } });
             }}
             expanded={expandedSenders.has(node.key)}
             onToggle={() => {
               const opening = useStore.getState().senderListGroup !== node.key;
+              if (opening) useStore.getState().setSenderViewState(`inbox:${senderContext}`, { scroll: listRef.current?.scrollTop || 0 });
               clearSelection();
               setSenderListGroup(opening ? node.key : null);
               setExpandedSenders(opening ? new Set([node.key]) : new Set());
             }}
-            renderRow={(message) => renderListRow(node.children.find(child => child.message.id === message.id)?.message || message)}
+            renderRow={(message) => renderListRow({ ...(node.children.find(child => child.message.id === message.id)?.message || message), __sender_source: !selectedAccountId ? (message.account_email || accounts.find(account => account.id === message.account_id)?.email_address || message.account_name || '') : '' })}
             applyReadGuard={applyReadGuard}
           />
   );
   const openedSender = !searchQuery.trim() && rowTree.find(node => node.kind === 'sender' && node.key === senderListGroup);
+  const wasSenderList = useRef(false);
+  useLayoutEffect(() => {
+    if (wasSenderList.current && !openedSender && listRef.current) listRef.current.scrollTop = useStore.getState().senderViewState[`inbox:${senderContext}`]?.scroll || 0;
+    wasSenderList.current = !!openedSender;
+  }, [openedSender, senderContext]);
   if (openedSender) return (
     <div style={{
       width: isMobile || isColumn ? '100%' : 'var(--list-width)', minWidth: isMobile ? undefined : 180,
@@ -4708,6 +4715,7 @@ function ThreadRow({ message, isExpanded, threadMsgs, isLoadingThread, selectedM
             <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {message.subject || t('common.noSubject')}
             </span>
+            {message.__sender_source && <span title={message.__sender_source} style={{ flexShrink: 0, maxWidth: '35%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 8, fontSize: 10, fontWeight: 400, color: 'var(--text-tertiary)' }}>{message.__sender_source}</span>}
             <ReplyDraftIndicator message={message} />
             <SpamBadge message={message} onClick={onExplainSpam} />
           </div>
@@ -5040,6 +5048,7 @@ function MessageRow({ message, selected, lastViewed, isChecked, selectionMode, s
           <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {message.subject || t('message.noSubject')}
           </span>
+            {message.__sender_source && <span title={message.__sender_source} style={{ flexShrink: 0, maxWidth: '35%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 8, fontSize: 10, fontWeight: 400, color: 'var(--text-tertiary)' }}>{message.__sender_source}</span>}
           <ReplyDraftIndicator message={message} />
           <SpamBadge message={message} onClick={onExplainSpam} />
         </div>

@@ -77,3 +77,23 @@ describe('sender identities sharing one mailbox', () => {
     assert.deepEqual(useStore.getState().groupedSenders, ['shared@example.com\nBob', 'shared@example.com\nalice']);
   });
 });
+
+describe('manual sender group rules', () => {
+  beforeEach(() => useStore.setState({ user: { id: 'user-1' }, groupedSenders: ['a@example.com\nAlice', 'b@example.com\nBob'], senderGroupMappings: { 'c@example.com\nCarol': 'a@example.com\nAlice' }, senderGroupLabels: {}, senderGroupingSaving: false }));
+  afterEach(() => { api.savePreferences = originalSave; });
+  it('merges whole groups without chained aliases and splits an alias back out', async () => {
+    api.savePreferences = async () => {};
+    await useStore.getState().mergeSenderGroups('a@example.com\nAlice', 'b@example.com\nBob');
+    assert.deepEqual(useStore.getState().groupedSenders, ['b@example.com\nBob']);
+    assert.deepEqual(useStore.getState().senderGroupMappings, { 'a@example.com\nAlice': 'b@example.com\nBob', 'c@example.com\nCarol': 'b@example.com\nBob' });
+    await useStore.getState().splitSenderGroup('c@example.com\nCarol');
+    assert.ok(useStore.getState().groupedSenders.includes('c@example.com\nCarol'));
+    assert.equal(useStore.getState().senderGroupMappings['c@example.com\nCarol'], undefined);
+  });
+  it('failed rule saves leave grouping intact', async () => {
+    api.savePreferences = async () => { throw new Error('offline'); };
+    await assert.rejects(useStore.getState().mergeSenderGroups('a@example.com\nAlice', 'b@example.com\nBob'), /offline/);
+    assert.equal(useStore.getState().groupedSenders.length, 2);
+    assert.equal(useStore.getState().senderGroupMappings['a@example.com\nAlice'], undefined);
+  });
+});

@@ -1,4 +1,5 @@
 export const senderCacheKey = (context, sender) => `sender:${context}:${sender}`;
+export const senderMemberCacheKey = (key, unreadOnly) => unreadOnly ? `sender:unread:${JSON.stringify(key)}` : key;
 
 export function messageRowTree(state) {
   let roots = state.searchQuery?.trim() ? state.searchResults : state.messages;
@@ -19,7 +20,7 @@ export function messageRowTree(state) {
     if (!message.sender_group) return mailNode(message);
     const key = senderCacheKey(state.senderGroupContext, message.sender_group);
     return { key, kind: 'sender', message, children: state.expandedSenders?.has(key)
-      ? (state.threadMessages[key] || []).map(m => mailNode(m, key, message.sender_group)) : [] };
+      ? (state.threadMessages[senderMemberCacheKey(key, state.senderViewState?.[key]?.unreadOnly)] || []).map(m => mailNode(m, key, message.sender_group)) : [] };
   });
 }
 

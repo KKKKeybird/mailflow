@@ -147,12 +147,34 @@ try {
     }
     await query('UPDATE users SET preferences=$2 WHERE id=$1', [userId, originalPreferences]);
 
+    // Manual aliases affect cards, expansion and whole-group snapshots identically.
+    await query('UPDATE users SET preferences=$2 WHERE id=$1', [userId, { ...originalPreferences,
+      groupedSenders: originalPreferences.groupedSenders.filter(key => key !== bob),
+      senderGroupMappings: { [bob]: alice }, senderGroupLabels: { [alice]: 'Shared notifications' } }]);
+    for (const threaded of [false, true]) {
+      const page = await request({ threaded, groupSenders: true, limit: 50 });
+      assert.ok(!page.messages.some(row => row.sender_group === bob));
+      assert.equal(page.messages.find(row => row.sender_group === alice).sender_group_label, 'Shared notifications');
+      const members = await request({ threaded, sender: alice, limit: 50 });
+      assert.equal(members.total, threaded ? 4 : 5);
+      const response = await fetch(url.replace('/messages', '/sender-group-targets') + '?' + new URLSearchParams({ threaded, sender: alice }));
+      assert.equal(response.status, 200);
+      const snapshot = await response.json();
+      assert.equal(snapshot.count, 5);
+      assert.ok(snapshot.targets.every(row => row.account_id === '22222222-2222-2222-2222-222222222222'));
+      const foreign = await fetch(url.replace('/messages', '/sender-group-targets') + '?' + new URLSearchParams({ threaded, sender: alice, accountId: '44444444-4444-4444-4444-444444444444' }));
+      assert.equal((await foreign.json()).count, 0);
+    }
+    const large = await fetch(url.replace('/messages', '/sender-group-targets') + '?' + new URLSearchParams({ sender: senderIdentity('sender1@example.com', 'Sender') }));
+    assert.ok((await large.json()).count > 500);
+    await query('UPDATE users SET preferences=$2 WHERE id=$1', [userId, originalPreferences]);
+
     for(const threaded of[false,true]) {
       await query('UPDATE users SET preferences=$2 WHERE id=$1',[userId,originalPreferences]);
       const standard=await request({threaded,groupSenders:true,limit:500});
       await query('UPDATE users SET preferences=$2 WHERE id=$1',[userId,{...originalPreferences,groupedSenders:[...originalPreferences.groupedSenders,...Array.from({length:11},(_,i)=>`missing${i}@example.com`)]}]);
       assert.deepEqual(await request({threaded,groupSenders:true,limit:500}),standard);
-      await query('UPDATE users SET preferences=$2 WHERE id=$1',[userId,{...originalPreferences,groupedSenders:['missing@example.com']}]);
+      await query('UPDATE users SET preferences=$2 WHERE id=$1',[userId,{...originalPreferences,groupedSenders:['missing@example.com'],senderGroupMappings:{[bob]:alice}}]);
       globalThis.__senderBenchmarkImplementation=baseline.listMessages;
       const reference=await request({threaded,limit:500});
       globalThis.__senderBenchmarkImplementation=current.listMessages;
@@ -160,7 +182,7 @@ try {
     }
     await query('UPDATE users SET preferences=$2 WHERE id=$1',[userId,originalPreferences]);
     results.validation=checks;
-    results.additionalValidation=['same mailbox: Alice/Bob/empty/case-distinct names, mixed subjects, individual ungrouping','NULL-date group heads','17 selected senders including absent ones','no selected sender in scope matches main'];
+    results.additionalValidation=['same mailbox: Alice/Bob/empty/case-distinct names, mixed subjects, individual ungrouping','NULL-date group heads','17 selected senders including absent ones','no selected sender in scope matches main','manual merge, display label and complete group target snapshots including unowned account denial'];
   } else {
     const filters=JSON.parse(process.env.BENCH_PARAMS || '{}');
     results.filters=filters;

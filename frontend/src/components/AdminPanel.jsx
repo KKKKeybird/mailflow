@@ -1,3 +1,4 @@
+import SenderGroupingSettings from './SenderGroupingSettings.jsx';
 import { useCallback, useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/index.js';
@@ -1724,6 +1725,7 @@ function LayoutsTab() {
 
   return (
     <div>
+      <SenderGroupingSettings />
       <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
         {t('admin.appearance.layout')}
       </div>
