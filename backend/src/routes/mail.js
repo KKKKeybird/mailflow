@@ -147,7 +147,9 @@ function notifyMailMutation(rows, userId) {
 
 // Get messages (unified or per-account/folder)
 router.get('/messages', async (req, res) => {
-  const { accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category } = req.query;
+  const { accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category, groupSenders, sender } = req.query;
+
+  if (sender !== undefined && (typeof sender !== 'string' || sender.length > 320 || !/^[^\s@]+@[^\s@]+$/.test(sender.trim()))) return res.status(400).json({ error: 'Invalid sender' });
 
   if (!isValidFolderName(folder)) return res.status(400).json({ error: 'Invalid folder name' });
 
@@ -165,10 +167,12 @@ router.get('/messages', async (req, res) => {
     unreadOnly,
     threaded,
     category: safeCategory,
+    groupSenders,
+    sender,
   });
 
   if (resolvedAccountId && messages.length) {
-    imapManager.prefetchFolderBodies(resolvedAccountId, messages.map(r => r.id))
+    imapManager.prefetchFolderBodies(resolvedAccountId, messages.map(r => r.preview_message_id || r.id))
       .catch(err => console.warn('Folder body prefetch error:', err.message));
   }
 
@@ -177,7 +181,7 @@ router.get('/messages', async (req, res) => {
   // the visible #407 symptom; measuring it turns "sometimes there are ghost rows" into a rate.
   if (resolvedAccountId && messages.length) {
     const ghosts = messages.filter(m =>
-      !m.message_id && (!m.subject || m.subject === '(no subject)') && !m.snippet).length;
+      !m.sender_group && !m.message_id && (!m.subject || m.subject === '(no subject)') && !m.snippet).length;
     if (ghosts > 0) recordSyncSignal('ghost_rows_served', { accountId: resolvedAccountId, magnitude: ghosts });
   }
 
@@ -191,7 +195,7 @@ router.get('/messages/:id', async (req, res) => {
     const result = await query(`
       SELECT m.id, m.uid, m.folder, m.message_id, m.subject,
              m.from_name, m.from_email, m.to_addresses, m.cc_addresses,
-             m.reply_to, m.in_reply_to,
+             m.reply_to, m.in_reply_to, m.thread_references,
              m.date, m.snippet, m.is_read, m.is_starred,
              m.has_attachments, m.account_id, m.category,
              m.list_unsubscribe, m.list_unsubscribe_post, m.unsubscribed_at, m.delivery_addresses,
@@ -229,7 +233,7 @@ router.get('/resolve-message', async (req, res) => {
   const accountId = rawAccountId || null;
   const COLS = `m.id, m.uid, m.folder, m.message_id, m.subject,
              m.from_name, m.from_email, m.to_addresses, m.cc_addresses,
-             m.reply_to, m.in_reply_to, m.thread_id,
+             m.reply_to, m.in_reply_to, m.thread_references, m.thread_id,
              m.date, m.snippet, m.is_read, m.is_starred,
              m.has_attachments, m.account_id, m.category,
              m.list_unsubscribe, m.list_unsubscribe_post, m.unsubscribed_at, m.delivery_addresses,
@@ -319,7 +323,7 @@ async function getThread(req, res, threadId) {
         SELECT DISTINCT ON (m.account_id, m.message_id)
                m.id, m.uid, m.folder, m.message_id, m.thread_id, m.subject,
                m.from_name, m.from_email, m.to_addresses, m.cc_addresses,
-               m.reply_to, m.in_reply_to,
+               m.reply_to, m.in_reply_to, m.thread_references,
                m.date, m.snippet, m.is_read, m.is_starred,
                m.has_attachments, m.account_id, m.category,
                m.list_unsubscribe, m.list_unsubscribe_post, m.unsubscribed_at, m.delivery_addresses,
@@ -1970,6 +1974,15 @@ router.post('/messages/bulk-archive', async (req, res) => {
   }
 });
 
+// A snooze record counts only while its message still sits in the folder it was snoozed into.
+// Moving a snoozed message out by hand leaves the record behind until the wake-up sweep removes
+// it, a few minutes after its wake time (imapManager's sweep uses this same test), and until
+// then the message could not be snoozed again (#269). Expects the record aliased as sm.
+export const LIVE_SNOOZE_SQL = `EXISTS (
+  SELECT 1 FROM messages m
+  WHERE m.account_id = sm.account_id AND m.message_id = sm.message_id_header
+    AND m.folder = sm.snoozed_folder AND m.is_deleted = false)`;
+
 // Gather the reply-chain conversation that should be snoozed alongside `msg`.
 //
 // Snoozing a single message doesn't work on Gmail: Gmail groups the inbox by
@@ -2033,7 +2046,8 @@ export async function gatherSnoozeConversation(msg) {
   // any already snoozed. Already-snoozed messages stay valid graph connectors above.
   const already = new Set(
     (await query(
-      'SELECT message_id_header FROM snoozed_messages WHERE account_id = $1 AND message_id_header = ANY($2)',
+      `SELECT sm.message_id_header FROM snoozed_messages sm
+       WHERE sm.account_id = $1 AND sm.message_id_header = ANY($2) AND ${LIVE_SNOOZE_SQL}`,
       [msg.account_id, [...seen]]
     )).rows.map(r => r.message_id_header)
   );
@@ -2089,7 +2103,8 @@ router.post('/messages/:id/snooze', async (req, res) => {
 
   // Check if already snoozed
   const existing = await query(
-    'SELECT id FROM snoozed_messages WHERE account_id = $1 AND message_id_header = $2',
+    `SELECT sm.id FROM snoozed_messages sm
+     WHERE sm.account_id = $1 AND sm.message_id_header = $2 AND ${LIVE_SNOOZE_SQL}`,
     [msg.account_id, msg.message_id]
   );
   if (existing.rows.length) return res.status(400).json({ error: 'Message is already snoozed' });
@@ -2101,6 +2116,14 @@ router.post('/messages/:id/snooze', async (req, res) => {
   // gatherSnoozeConversation for why Gmail requires this and why it's bounded
   // to the header reply chain rather than thread_id).
   const convo = await gatherSnoozeConversation(msg);
+
+  // Drop the leftover records of earlier snoozes of these messages, so the new snooze is the
+  // only one and an old wake time cannot wake the message early.
+  await query(
+    `DELETE FROM snoozed_messages sm
+     WHERE sm.account_id = $1 AND sm.message_id_header = ANY($2) AND NOT ${LIVE_SNOOZE_SQL}`,
+    [msg.account_id, convo.map(m => m.message_id)]
+  );
 
   try {
     await imapManager.ensureFolder(account, snoozedFolder);
@@ -2508,6 +2531,10 @@ router.patch('/messages/:id/category', async (req, res) => {
     return res.status(400).json({ error: 'Invalid category' });
   }
 
+  // A chosen category is stored as itself, 'primary' included. NULL means "not chosen": the
+  // ingest classifier leaves Primary that way, and the Recategorize backfill (which reads only
+  // NULL rows) and a re-synced row (COALESCE onto NULL) may still fill it in. Storing a chosen
+  // Primary as NULL let either one move the message back out of Primary (#489).
   const result = await query(
     `UPDATE messages SET category = $1
      FROM email_accounts a
@@ -2515,7 +2542,7 @@ router.patch('/messages/:id/category', async (req, res) => {
        AND messages.account_id = a.id
        AND a.user_id = $3
      RETURNING messages.id`,
-    [category === 'primary' ? null : category, id, req.session.userId]
+    [category, id, req.session.userId]
   );
   if (!result.rows.length) return res.status(404).json({ error: 'Message not found' });
   res.json({ ok: true, category });

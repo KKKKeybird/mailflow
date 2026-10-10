@@ -17,7 +17,7 @@ const {
 
 const CONFIG_FILE = 'mailflow-host.json';
 const UPDATE_STATUS_CHANNEL = 'mailflow:updates:status';
-const UPDATE_RELEASE_URL = 'https://api.github.com/repos/maathimself/mailflow/releases/latest';
+const UPDATE_RELEASE_URL = 'https://api.github.com/repos/KKKKeybird/mailflow/releases/latest';
 
 /* Old dev fork url
 const UPDATE_RELEASE_URL = 'https://api.github.com/repos/dcoffin88/mailflow/releases/latest';
@@ -1397,7 +1397,7 @@ function helpMenuItems() {
     },
     {
       label: 'Report Issue',
-      click: () => shell.openExternal('https://github.com/maathimself/mailflow/issues'),
+      click: () => shell.openExternal('https://github.com/KKKKeybird/mailflow/issues'),
     },
     { type: 'separator' },
     {

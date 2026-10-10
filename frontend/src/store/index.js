@@ -1,3 +1,5 @@
+import { reconcileSenderHeads, removeSenderMembers, refreshSenderThreadReadState, restoreSenderMembers } from '../utils/senderGroupState.js';
+import { actionableMessageRows } from '../utils/messageRowTree.js';
 import { create } from 'zustand';
 import { resolveConversationMode, groupsMessageList, conversationModeTransition, isConversationMode } from '../utils/conversationMode.js';
 import { api } from '../utils/api.js';
@@ -124,6 +126,7 @@ export const useStore = create((set, get) => ({
       ...(state.user?.id !== user?.id ? {
         serverUnreadCounts: { total: 0, byAccount: {}, snapshots: {} }, pendingCounts: {},
         unreadCounts: { total: 0, byAccount: {}, snapshots: {}, complete: false },
+        groupedSenders: [], senderGroupingSaving: false, threadMessages: {}, expandedSenders: new Set(), senderGroupContext: '', selectedListRowKey: null,
         senderFaviconsLoaded: false,
         senderFavicons: false,
         senderFaviconsSaving: false,
@@ -249,6 +252,7 @@ export const useStore = create((set, get) => ({
         messagesOffset: 0,
         hasMoreMessages: true,
         messagesRefreshToken: state.messagesRefreshToken + 1,
+        replyDrafts: {}, replyDraftRevision: state.replyDraftRevision + 1,
         expandedThreadId: null,
         threadMessages: {},
         showContacts: false,
@@ -276,9 +280,9 @@ export const useStore = create((set, get) => ({
   }),
   updateMessage: (id, updates) => set(state => {
     const apply = (m) => m.id === id ? { ...m, ...updates } : m;
-    const threadMessages = Object.fromEntries(
+    const threadMessages = refreshSenderThreadReadState(Object.fromEntries(
       Object.entries(state.threadMessages).map(([tid, msgs]) => [tid, msgs.map(apply)])
-    );
+    ), id, updates, state);
     // Resync the parent thread row's aggregate read state only when a sub-message was
     // updated. Sub-messages live exclusively in threadMessages, not in the main list.
     // Resyncing on direct thread-row updates would read stale sub-messages and revert
@@ -286,6 +290,7 @@ export const useStore = create((set, get) => ({
     const inMainList = state.messages.some(m => m.id === id);
     const messages = state.messages.map(m => {
       const updated = apply(m);
+      if (m.sender_group) return updated;
       if (inMainList) return updated;
       const tid = m.thread_id || m.id;
       const subs = threadMessages[tid];
@@ -293,13 +298,16 @@ export const useStore = create((set, get) => ({
       const unread_count = subs.filter(s => !s.is_read).length;
       return { ...updated, unread_count, is_read: unread_count === 0 };
     });
-    return { messages, searchResults: state.searchResults.map(apply), threadMessages };
+    return { messages: reconcileSenderHeads(state, threadMessages, messages), searchResults: state.searchResults.map(apply), threadMessages };
   }),
-  removeMessage: (id) => set(state => ({
-    messages: state.messages.filter(m => m.id !== id),
-    searchResults: state.searchResults.filter(m => m.id !== id),
-    selectedMessageId: state.selectedMessageId === id ? null : state.selectedMessageId,
-  })),
+  removeMessage: (id, scope) => set(state => {
+    const removed = removeSenderMembers(state, new Set([id]), scope);
+    return { ...removed,
+      messages: removed.messages.filter(m => m.sender_group || m.id !== id),
+      searchResults: state.searchResults.filter(m => m.id !== id),
+      selectedMessageId: state.selectedMessageId === id ? null : state.selectedMessageId,
+    };
+  }),
   // Remove many messages in a single state update. Bulk triage (e.g. archiving ~40 rows)
   // otherwise calls removeMessage once per id, firing one store update — and, in a
   // non-virtualized list, one re-render — each, which stalls the UI. This collapses them
@@ -307,24 +315,31 @@ export const useStore = create((set, get) => ({
   removeMessages: (ids) => set(state => {
     const idSet = ids instanceof Set ? ids : new Set(ids);
     if (idSet.size === 0) return {};
+    const removed = removeSenderMembers(state, idSet);
     return {
-      messages: state.messages.filter(m => !idSet.has(m.id)),
+      ...removed,
+      messages: removed.messages.filter(m => m.sender_group || !idSet.has(m.id)),
       searchResults: state.searchResults.filter(m => !idSet.has(m.id)),
       selectedMessageId: idSet.has(state.selectedMessageId) ? null : state.selectedMessageId,
     };
   }),
   restoreMessages: (msgs) => set(state => {
-    const list = Array.isArray(msgs) ? msgs : [msgs];
+    const restored = Array.isArray(msgs) ? msgs : [msgs];
+    const restoredState = restoreSenderMembers(state, restored);
+    const threadMessages = restoredState.threadMessages;
+    const list = restored.filter(m => !restoredState.restoredGroupRows.has(m.id));
     const sort = arr => [...arr].sort((a, b) => new Date(b.date) - new Date(a.date));
     // Deduplicate against both the main list and searchResults by stable identity (Message-ID when
     // present, else id): if the message is already present — including re-added by a network
     // refresh under a regenerated id (matched via Message-ID) — skip it. The local copy carries the
     // freshest optimistic state, so we prefer it over the server view. See missingByIdentity.
     const missing = missingByIdentity(state.messages, list);
-    if (missing.length === 0 && !state.searchQuery.trim()) return {};
+    const senderHeads = restoredState.messages;
+    if (missing.length === 0 && !state.searchQuery.trim()) return { threadMessages, messages: senderHeads };
     const missingFromSearch = missingByIdentity(state.searchResults, list);
     return {
-      messages: missing.length ? sort([...state.messages, ...missing]) : state.messages,
+      threadMessages,
+      messages: missing.length ? sort([...senderHeads, ...missing]) : senderHeads,
       searchResults: state.searchQuery.trim() && missingFromSearch.length
         ? sort([...state.searchResults, ...missingFromSearch])
         : state.searchResults,
@@ -340,7 +355,8 @@ export const useStore = create((set, get) => ({
   // Selected message
   selectedMessageId: null,
   lastViewedMessageId: null,
-  setSelectedMessage: (id) => set(id ? { selectedMessageId: id, lastViewedMessageId: id } : { selectedMessageId: null }),
+  selectedListRowKey: null,
+  setSelectedMessage: (id, rowKey = null) => set(id ? { selectedMessageId: id, selectedListRowKey: rowKey, lastViewedMessageId: id } : { selectedMessageId: null, selectedListRowKey: null }),
 
   // Server snapshots are retained separately from a bounded optimistic window.
   serverUnreadCounts: { total: 0, byAccount: {}, snapshots: {} },
@@ -460,10 +476,55 @@ export const useStore = create((set, get) => ({
     }
     set({ customSoundDataUrl: dataUrl });
   },
+  replyDrafts: {},
+  replyDraftRevision: 0,
+  invalidateReplyDrafts: () => set(state => ({ replyDrafts: {}, replyDraftRevision: state.replyDraftRevision + 1 })),
+  setReplyDraftStatus: (id, status, source, revision) => set(state => {
+    if (revision !== undefined && revision !== state.replyDraftRevision) return {};
+    if (source === 'cached' && state.replyDrafts[id]?.source === 'live') return {};
+    return { replyDrafts: { ...state.replyDrafts, [id]: { ...status, source } } };
+  }),
+  autoOpenReplyDrafts: localStorage.getItem('mailflow_auto_open_reply_drafts') === 'true',
+  setAutoOpenReplyDrafts: value => {
+    localStorage.setItem('mailflow_auto_open_reply_drafts', String(Boolean(value)));
+    set({ autoOpenReplyDrafts: Boolean(value) });
+    schedulePrefSave({ autoOpenReplyDrafts: Boolean(value) });
+  },
   composing: false,
   composeData: null,
-  openCompose: (data = null) => set({ composing: true, composeData: data }),
-  closeCompose: () => set({ composing: false, composeData: null }),
+  composeSession: 0,
+  prepareComposeSwitch: null,
+  setPrepareComposeSwitch: prepare => set({ prepareComposeSwitch: prepare }),
+  updateComposePersistedKey: (session, persistedKey) => set(state =>
+    state.composing && state.composeSession === session
+      ? { composeData: { ...state.composeData, persistedKey } } : {}),
+  openCompose: (data = null, { preparedSession } = {}) => {
+    const initial = get();
+    if (initial.composing && data?.persistedKey && data.persistedKey === initial.composeData?.persistedKey) return true;
+    const replace = () => {
+      set(state => ({ composing: true, composeSession: state.composeSession + 1, composeData: data, prepareComposeSwitch: null }));
+      return true;
+    };
+    if (preparedSession !== undefined && preparedSession !== initial.composeSession) return false;
+    // Reply-draft opening already saved this exact editor and revalidated its target.
+    if (!initial.composing || preparedSession === initial.composeSession) return replace();
+    // Every ordinary Compose/Reply/draft-list entry point shares this guard. A
+    // composer still mounting cannot yet prove that its content is safe to replace.
+    if (!initial.prepareComposeSwitch) return false;
+    let ownerChanged = false;
+    const unsubscribe = useStore.subscribe(state => { if (state.user?.id !== initial.user?.id) ownerChanged = true; });
+    return (async () => {
+      try {
+        if (!(await initial.prepareComposeSwitch())) return false;
+        const state = get();
+        if (ownerChanged || state.user?.id !== initial.user?.id || !state.composing
+          || state.composeSession !== initial.composeSession || state.prepareComposeSwitch !== initial.prepareComposeSwitch) return false;
+        return replace();
+      } catch { return false; }
+      finally { unsubscribe(); }
+    })();
+  },
+  closeCompose: () => set({ composing: false, composeData: null, prepareComposeSwitch: null }),
 
   // Detached message windows (#219): floating, draggable/resizable in-app windows
   // that each show one message via a MessagePane instance. Desktop-only; mounted by
@@ -519,7 +580,8 @@ export const useStore = create((set, get) => ({
   })),
   closeAllMessageWindows: () => set({ messageWindows: [] }),
   searchQuery: '',
-  setSearchQuery: (q) => set({ searchQuery: q }),
+  setSearchQuery: (q) => set(state => q === state.searchQuery ? {} : { searchQuery: q,
+    replyDrafts: {}, replyDraftRevision: state.replyDraftRevision + 1 }),
   isSearching: false,
   setIsSearching: (v) => set({ isSearching: v }),
   searchResults: [],
@@ -533,6 +595,9 @@ export const useStore = create((set, get) => ({
   notifications: [],
   addNotification: (n) => set(state => ({
     notifications: [{ ...n, id: crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}` }, ...state.notifications].slice(0, 5)
+  })),
+  dismissUndoNotifications: (matches = () => true) => set(state => ({
+    notifications: state.notifications.filter(n => typeof n.onUndo !== 'function' || !matches(n)),
   })),
   removeNotification: (id) => set(state => ({
     notifications: state.notifications.filter(n => n.id !== id)
@@ -589,12 +654,37 @@ export const useStore = create((set, get) => ({
     if (!next) return;
     localStorage.setItem('mailflow_conversation_mode', next.conversationMode);
     localStorage.setItem('mailflow_threaded_view', String(groupsMessageList(next.conversationMode)));
-    set({ ...next, threadedView: groupsMessageList(next.conversationMode) });
+    set(state => ({ ...next, threadedView: groupsMessageList(next.conversationMode),
+      replyDrafts: {}, replyDraftRevision: state.replyDraftRevision + 1 }));
     schedulePrefSave({ conversationMode: next.conversationMode, threadedView: groupsMessageList(next.conversationMode) });
   },
   setThreadedView: (val) => {
     // Retained for callers that still speak the old boolean.
     get().setConversationMode(val ? 'list' : 'off');
+  },
+
+  senderMembersRevision: 0,
+  refreshSenderMembers: () => set(state => ({ senderMembersRevision: state.senderMembersRevision + 1 })),
+  senderGroupContext: '',
+  setSenderGroupContext: context => set({ senderGroupContext: context }),
+  expandedSenders: new Set(),
+  setExpandedSenders: value => set(state => ({ expandedSenders: typeof value === 'function' ? value(state.expandedSenders) : value })),
+  groupedSenders: [],
+  senderGroupingSaving: false,
+  senderGroupingEpoch: 0,
+  toggleSenderGrouping: async (email) => {
+    const sender = String(email || '').trim().toLowerCase();
+    if (!sender || get().senderGroupingSaving) return;
+    const userId = get().user?.id;
+    set({ senderGroupingSaving: true, senderGroupingEpoch: get().senderGroupingEpoch + 1 });
+    const previous = get().groupedSenders;
+    const groupedSenders = previous.includes(sender) ? previous.filter(v => v !== sender) : [...previous, sender];
+    try {
+      await api.savePreferences({ groupedSenders });
+      if (get().user?.id === userId) set({ groupedSenders, messagesRefreshToken: get().messagesRefreshToken + 1 });
+    } finally {
+      if (get().user?.id === userId) set({ senderGroupingSaving: false });
+    }
   },
 
   // Compose format
@@ -1072,6 +1162,7 @@ export const useStore = create((set, get) => ({
   loadPreferences: async () => {
     const userId = get().user?.id;
     const faviconEpoch = get().senderFaviconsEpoch;
+    const senderGroupingEpoch = get().senderGroupingEpoch;
     try {
       const prefs = await api.getPreferences();
       if (get().user?.id !== userId) return;
@@ -1106,6 +1197,10 @@ export const useStore = create((set, get) => ({
           ? undefined
           : (Number(localStorage.getItem('mailflow_list_width')) || undefined);
         applyLayout(clean, savedListWidth);
+      }
+      if (typeof prefs.autoOpenReplyDrafts === 'boolean') {
+        localStorage.setItem('mailflow_auto_open_reply_drafts', String(prefs.autoOpenReplyDrafts));
+        set({ autoOpenReplyDrafts: prefs.autoOpenReplyDrafts });
       }
       if (prefs.notificationSound) {
         localStorage.setItem('mailflow_notification_sound', prefs.notificationSound);
@@ -1193,6 +1288,7 @@ export const useStore = create((set, get) => ({
         localStorage.setItem('mailflow_threaded_view', String(groupsMessageList(mode)));
         set({ conversationMode: mode, threadedView: groupsMessageList(mode) });
       }
+      if (get().senderGroupingEpoch === senderGroupingEpoch) set({ groupedSenders: Array.isArray(prefs.groupedSenders) ? prefs.groupedSenders : [] });
       if (typeof prefs.plaintextEmail === 'boolean') {
         localStorage.setItem('mailflow_plaintext_email', String(prefs.plaintextEmail));
         set({ plaintextEmail: prefs.plaintextEmail });
@@ -1297,7 +1393,7 @@ export function selectSelectedMessageAccountId(s) {
 function findSelectedMessage(s) {
   const id = s.selectedMessageId;
   if (id == null) return null;
-  const pool = s.searchQuery?.trim() ? s.searchResults : s.messages;
+  const pool = actionableMessageRows(s);
   return pool.find(m => m.id === id)
     ?? Object.values(s.threadMessages).flat().find(m => m.id === id)
     ?? null;

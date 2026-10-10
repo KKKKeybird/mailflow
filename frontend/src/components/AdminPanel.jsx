@@ -9,6 +9,7 @@ import { api } from '../utils/api.js';
 import { spamApi } from '../utils/spamApi.js';
 import { copyToClipboard } from '../utils/clipboard.js';
 import { isValidFromValue } from '../utils/defaultSender.js';
+import { autoRecipientFields } from '../utils/autoRecipients.js';
 import {
   AI_ACCOUNT_PROVIDER_OPTIONS,
   AI_CONNECTION_METHOD_ACCOUNT,
@@ -30,10 +31,14 @@ import { NOTIFICATION_SOUNDS, playNotificationSound, playCustomSound, warmUpAudi
 import { usePushNotifications } from '../hooks/usePushNotifications.js';
 import SignatureEditor from './SignatureEditor.jsx';
 import DiagnosticsReportModal from './DiagnosticsReportModal.jsx';
-import { getEffectiveShortcuts, getGroupedActions, shortcutActionText, SPECIAL_KEY_LABELS, parseModKey, modLabel } from '../utils/defaultShortcuts.js';
+import { getEffectiveShortcuts, getGroupedActions, getShortcutConflicts, shortcutActionText, shortcutBindingFromEvent, SPECIAL_KEY_LABELS, parseModKey, modLabel } from '../utils/defaultShortcuts.js';
 import { isValidForwardAddress } from '../utils/ruleActions.js';
 import { folderParentLabel } from '../utils/folderDisplay.js';
+import AdminUserEditor from './AdminUserEditor.jsx';
+import { formatRelativeTime, daysSince } from '../utils/relativeTime.js';
+import { htmlLang } from '../utils/browserLanguage.js';
 import SpamSettings from './SpamSettings.jsx';
+import BackupSettings from './BackupSettings.jsx';
 
 // ─── Shared field component ───────────────────────────────────────────────────
 function Field({ label, required, children }) {
@@ -369,9 +374,37 @@ function AccountForm({ initial, onSave, onCancel }) {
         value={form.signature || ''}
         onChange={val => set('signature', val)}
       />
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 12, fontSize: 13, color: 'var(--text-secondary)', cursor: 'pointer' }}>
+        <input type="checkbox" checked={form.signature_enabled !== false}
+          onChange={e => set('signature_enabled', e.target.checked)}
+          style={{ accentColor: 'var(--accent)' }} />
+        {t('admin.accounts.signatureEnabledDefault')}
+      </label>
 
       {isEdit && (
         <>
+          <div style={{ height: 1, background: 'var(--border-subtle)', margin: '16px 0' }} />
+          <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+            {t('admin.accounts.autoRecipientsSection')}
+          </div>
+          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 12, lineHeight: 1.5 }}>
+            {t('admin.accounts.autoRecipientsDesc')}
+          </div>
+          <Field label={t('compose.cc')}>
+            <input value={form.auto_cc_text ?? (form.auto_cc_addresses || []).join(', ')}
+              onChange={e => set('auto_cc_text', e.target.value)}
+              placeholder={t('compose.ccPh')} style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          </Field>
+          <Field label={t('compose.bcc')}>
+            <input value={form.auto_bcc_text ?? (form.auto_bcc_addresses || []).join(', ')}
+              onChange={e => set('auto_bcc_text', e.target.value)}
+              placeholder={t('compose.bccPh')} style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+          </Field>
+
           <div style={{ height: 1, background: 'var(--border-subtle)', margin: '16px 0' }} />
           <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
             {t('admin.accounts.unifiedInboxSection')}
@@ -578,6 +611,7 @@ function AccountsTab() {
 
   const handleEdit = async (form) => {
     const updates = { name: form.name, sender_name: form.sender_name || null, color: form.color, imap_host: form.imap_host, imap_port: form.imap_port, imap_skip_tls_verify: !!form.imap_skip_tls_verify, smtp_host: form.smtp_host, smtp_port: form.smtp_port, smtp_tls: form.smtp_tls, signature: form.signature || null, categorization_enabled: !!form.categorization_enabled, antispam_enabled: !!form.antispam_enabled, trusted_authserv_id: (form.trusted_authserv_id || '').trim() || null, include_in_unified_inbox: form.include_in_unified_inbox !== false };
+    Object.assign(updates, autoRecipientFields(form), { signature_enabled: form.signature_enabled !== false });
     if (form.auth_pass) updates.auth_pass = form.auth_pass;
     if (form.auth_user) updates.auth_user = form.auth_user;
     // Separate SMTP credentials (optional). A username sends both (a blank password on
@@ -1618,7 +1652,7 @@ function SwipeActionIcon({ action, size = 17 }) {
 function LayoutsTab() {
   const { t } = useTranslation();
   const isMobile = useMobile();
-  const { layout, setLayout, pageSize, setPageSize, scrollMode, setScrollMode, swipeActions, setSwipeAction, syncInterval, setSyncInterval, folderSyncInterval, setFolderSyncInterval, conversationMode, setConversationMode, plaintextEmail, setPlaintextEmail, hoverQuickActions, setHoverQuickActions, hoverActionSet, setHoverActionSet, showMobileAvatars, setShowMobileAvatars, gravatarAvatars, setGravatarAvatars, replyDefault, setReplyDefault, markReadBehavior, setMarkReadBehavior, markReadDelay, setMarkReadDelay, senderFavicons, senderFaviconsSaving, setSenderFavicons, showMessagePreviews, setShowMessagePreviews, accounts, defaultSender, setDefaultSender } = useStore();
+  const { layout, setLayout, pageSize, setPageSize, scrollMode, setScrollMode, swipeActions, setSwipeAction, syncInterval, setSyncInterval, folderSyncInterval, setFolderSyncInterval, conversationMode, setConversationMode, autoOpenReplyDrafts, setAutoOpenReplyDrafts, plaintextEmail, setPlaintextEmail, hoverQuickActions, setHoverQuickActions, hoverActionSet, setHoverActionSet, showMobileAvatars, setShowMobileAvatars, gravatarAvatars, setGravatarAvatars, replyDefault, setReplyDefault, markReadBehavior, setMarkReadBehavior, markReadDelay, setMarkReadDelay, senderFavicons, senderFaviconsSaving, setSenderFavicons, showMessagePreviews, setShowMessagePreviews, accounts, defaultSender, setDefaultSender } = useStore();
   const [senderFaviconsError, setSenderFaviconsError] = useState('');
 
   // "Set MailFlow as your default email app": registerProtocolHandler is the
@@ -2132,6 +2166,11 @@ function LayoutsTab() {
           })}
         </div>
       </div>
+
+      <label style={{ display: 'flex', gap: 10, marginTop: 22, alignItems: 'center', fontSize: 13 }}>
+        <input type="checkbox" checked={autoOpenReplyDrafts} onChange={event => setAutoOpenReplyDrafts(event.target.checked)} />
+        <span>{t('admin.messageList.autoOpenReplyDrafts', 'Automatically open saved replies when selecting inbox messages')}</span>
+      </label>
 
       {/* Compose format */}
       <div style={{ marginTop: 28, paddingTop: 22, borderTop: '1px solid var(--border-subtle)' }}>
@@ -5029,9 +5068,10 @@ function UsersTab() {
 }
 
 function UsersAndInvitesPanel() {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const { user: currentUser } = useStore();
   const [users, setUsers] = useState([]);
+  const [editingUser, setEditingUser] = useState(null);
   const [userTotal, setUserTotal] = useState(0);
   const [usersLoadingMore, setUsersLoadingMore] = useState(false);
   const [invites, setInvites] = useState([]);
@@ -5217,7 +5257,25 @@ function UsersAndInvitesPanel() {
               <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 1 }}>
                 {t('admin.users.joined', { date: new Date(u.created_at).toLocaleDateString() })}
               </div>
+              {/* Last request, not last login: sessions roll, so a daily user rarely logs in. */}
+              <div
+                title={u.lastSeenAt ? new Date(u.lastSeenAt).toLocaleString() : undefined}
+                style={{
+                  fontSize: 11, marginTop: 1,
+                  color: u.lastSeenAt && daysSince(u.lastSeenAt) > 90 ? 'var(--amber)' : 'var(--text-tertiary)',
+                }}
+              >
+                {u.lastSeenAt
+                  ? t('admin.users.lastSeen', { when: formatRelativeTime(u.lastSeenAt, htmlLang(i18n.language)) })
+                  : t('admin.users.neverSeen')}
+              </div>
             </div>
+
+            <IconBtn onClick={() => setEditingUser(u)} title={t('admin.users.edit')}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 013 3L7 19l-4 1 1-4L16.5 3.5z"/>
+              </svg>
+            </IconBtn>
 
             {u.id !== currentUser?.id && (
               <div style={{ display: 'flex', gap: 5, flexShrink: 0 }}>
@@ -5483,6 +5541,21 @@ function UsersAndInvitesPanel() {
         </button>
       )}
       <ConfirmOverlay dialog={confirmDialog} onClose={() => setConfirmDialog(null)} />
+      {editingUser && (
+        <AdminUserEditor
+          user={editingUser}
+          isSelf={editingUser.id === currentUser?.id}
+          onClose={() => setEditingUser(null)}
+          onChanged={updated => {
+            setUsers(us => us.map(x => (x.id === updated.id ? { ...x, ...updated } : x)));
+            setEditingUser(updated);
+          }}
+          onSaved={updated => {
+            setUsers(us => us.map(x => (x.id === updated.id ? { ...x, ...updated } : x)));
+            setEditingUser(null);
+          }}
+        />
+      )}
     </div>
     </>
   );
@@ -5930,6 +6003,7 @@ const LANGUAGES = [
   { code: 'pl', nativeName: 'Polski' },
   { code: 'cs', nativeName: 'Čeština' },
   { code: 'ptBR', nativeName: 'Português (Brasil)' },
+  { code: 'ko', nativeName: '한국어' },
 ];
 
 function LanguageTab() {
@@ -6071,7 +6145,7 @@ function AboutTab() {
   ];
   const generalRows = [
     [t('admin.about.website'),    'https://mailflow.sh'],
-    [t('admin.about.sourceCode'), 'https://github.com/maathimself/mailflow'],
+    [t('admin.about.sourceCode'), 'https://github.com/KKKKeybird/mailflow'],
   ];
   const supportRows = [
     [t('admin.about.kofi'),           'https://ko-fi.com/mailflow'],
@@ -6403,11 +6477,13 @@ function RulesTab() {
   function actionSummary(rule) {
     const acts = Array.isArray(rule.actions) ? rule.actions : [];
     if (!acts.length) return '—';
-    const labels = { mark_read: t('admin.rules.actionMarkRead'), star: t('admin.rules.actionStar'), forward: t('admin.rules.actionForward'), archive: t('admin.rules.actionArchive'), delete: t('admin.rules.actionDelete'), move: t('admin.rules.actionMove') };
-    // Show the move destination so same-named rules are tellable apart at a glance.
-    return acts.map(a => a.type === 'move' && a.value
-      ? `${labels.move} → ${a.value}`
-      : (labels[a.type] || a.type)).join(', ');
+    const labels = { mark_read: t('admin.rules.actionMarkRead'), star: t('admin.rules.actionStar'), forward: t('admin.rules.actionForward'), archive: t('admin.rules.actionArchive'), delete: t('admin.rules.actionDelete'), move: t('admin.rules.actionMove'), set_category: t('admin.rules.actionSetCategory') };
+    // Show the move destination and the category so same-named rules are tellable apart at a glance.
+    return acts.map(a => {
+      if (a.type === 'move' && a.value) return `${labels.move} → ${a.value}`;
+      if (a.type === 'set_category' && a.value) return `${labels.set_category} → ${t(`messageList.categories.${a.value}`)}`;
+      return labels[a.type] || a.type;
+    }).join(', ');
   }
 
   const FIELDS = [
@@ -6427,6 +6503,7 @@ function RulesTab() {
     { value: 'ends_with',    label: t('admin.rules.opEndsWith') },
   ];
   const HEADER_OPERATORS = [...OPERATORS, { value: 'regex', label: t('admin.rules.opRegex') }];
+  const RULE_CATEGORIES = ['primary', 'newsletter', 'promotion', 'automated', 'social'];
   const ACTION_TYPES = [
     { type: 'mark_read', label: t('admin.rules.actionMarkRead') },
     { type: 'star',      label: t('admin.rules.actionStar') },
@@ -6434,6 +6511,7 @@ function RulesTab() {
     { type: 'archive',   label: t('admin.rules.actionArchive') },
     { type: 'delete',    label: t('admin.rules.actionDelete') },
     { type: 'move',      label: t('admin.rules.actionMove') },
+    { type: 'set_category', label: t('admin.rules.actionSetCategory') },
   ];
 
   if (formMode) {
@@ -6642,6 +6720,19 @@ function RulesTab() {
                     />
                   );
                 })()}
+                {type === 'set_category' && checked && (
+                  <select
+                    aria-label={t('admin.rules.actionSetCategory')}
+                    style={{ ...inputStyle, marginTop: 6, marginLeft: 22 }}
+                    value={fd.actions.find(action => action.type === 'set_category')?.value || ''}
+                    onChange={event => setActionValue('set_category', event.target.value)}
+                  >
+                    <option value="">{t('admin.rules.actionSetCategorySelect')}</option>
+                    {RULE_CATEGORIES.map(cat => (
+                      <option key={cat} value={cat}>{t(`messageList.categories.${cat}`)}</option>
+                    ))}
+                  </select>
+                )}
                 {type === 'forward' && checked && (
                   <input
                     type="email"
@@ -7106,7 +7197,7 @@ const TAB_GROUPS = [
   { id: 'account-mail', labelKey: 'admin.tabs.groupAccountMail', tabIds: ['accounts', 'notifications', 'rules', 'categories', 'cleanup', 'antispam'] },
   { id: 'display', labelKey: 'admin.tabs.groupDisplay', tabIds: ['appearance', 'shortcuts'] },
   { id: 'security-integrations', labelKey: 'admin.tabs.groupSecurityIntegrations', tabIds: ['security', 'integrations', 'ai', 'ai-actions', 'plugins'] },
-  { id: 'admin', labelKey: 'admin.tabs.groupAdmin', tabIds: ['users', 'sso'] },
+  { id: 'admin', labelKey: 'admin.tabs.groupAdmin', tabIds: ['users', 'sso', 'backup'] },
 ];
 
 const TABS = [
@@ -7178,6 +7269,11 @@ const TABS = [
     adminOnly: true,
     icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
   },
+  {
+    id: 'backup', labelKey: 'admin.tabs.backup',
+    adminOnly: true,
+    icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>,
+  },
   // About (ungrouped, pinned to bottom)
   {
     id: 'about', labelKey: 'admin.tabs.about',
@@ -7190,9 +7286,9 @@ function ShortcutsTab() {
   const { t } = useTranslation();
   const { shortcuts, setShortcuts } = useStore();
   const [recording, setRecording] = useState(null); // action name currently being recorded
-  const [pendingConflict, setPendingConflict] = useState(null); // { action: conflictingAction, key }
 
   const effective = getEffectiveShortcuts(shortcuts);
+  const conflicts = getShortcutConflicts(shortcuts);
   const groups = getGroupedActions();
 
   // Listen for key presses while recording
@@ -7205,19 +7301,10 @@ function ShortcutsTab() {
 
       if (e.key === 'Escape') {
         setRecording(null);
-        setPendingConflict(null);
         return;
       }
 
-      const key = (e.ctrlKey || e.metaKey) ? `ctrl+${e.key.toLowerCase()}` : e.key;
-
-      // Detect conflicts with other actions (excluding the one being edited)
-      const conflictEntry = Object.entries(effective).find(([a, k]) => k === key && a !== recording);
-      if (conflictEntry) {
-        setPendingConflict({ action: conflictEntry[0], key });
-      } else {
-        setPendingConflict(null);
-      }
+      const key = shortcutBindingFromEvent(e);
 
       const updated = { ...shortcuts, [recording]: key };
       setShortcuts(updated);
@@ -7225,25 +7312,22 @@ function ShortcutsTab() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, [recording, effective, shortcuts]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [recording, shortcuts, setShortcuts]);
 
   const clearShortcut = (action) => {
     const updated = { ...shortcuts, [action]: null };
     setShortcuts(updated);
-    setPendingConflict(null);
   };
 
   const resetAction = (action) => {
     const updated = { ...shortcuts };
     delete updated[action];
     setShortcuts(updated);
-    setPendingConflict(null);
   };
 
   const resetAll = () => {
     setShortcuts({});
     setRecording(null);
-    setPendingConflict(null);
   };
 
   const kbdStyle = {
@@ -7326,15 +7410,15 @@ function ShortcutsTab() {
         </button>
       </div>
 
-      {pendingConflict && (
-        <div style={{
+      {conflicts.map(({ key, loser, winner }) => (
+        <div key={`${key}:${loser}`} style={{
           marginBottom: 16, padding: '10px 14px',
           background: 'rgba(234, 179, 8, 0.1)', border: '1px solid rgba(234, 179, 8, 0.4)',
           borderRadius: 7, fontSize: 12, color: 'var(--text-secondary)',
         }}>
-          {t('admin.shortcuts.conflict', { key: pendingConflict.key, action: shortcutActionText(t, pendingConflict.action, 'label') })}
+          {t('admin.shortcuts.conflict', { key, action: shortcutActionText(t, winner, 'label') })}
         </div>
-      )}
+      ))}
 
       {Object.entries(groups).map(([groupName, actions]) => (
         <div key={groupName} style={{ marginBottom: 24 }}>
@@ -7875,6 +7959,10 @@ function SecurityTab() {
       totp_success:  t('admin.security.eventTotpSuccess'),
       totp_fail:     t('admin.security.eventTotpFail'),
       sso_login:     t('admin.security.eventSsoLogin'),
+      admin_password_set: t('admin.security.eventAdminPasswordSet'),
+      admin_user_update:  t('admin.security.eventAdminUserUpdate'),
+      admin_totp_disable: t('admin.security.eventAdminTotpDisable'),
+      admin_user_delete:  t('admin.security.eventAdminUserDelete'),
     };
     return map[type] || type;
   };
@@ -8463,6 +8551,10 @@ function SecurityTab() {
                       </td>
                       <td style={{ padding: '6px 8px', color: 'var(--text-primary)', whiteSpace: 'nowrap' }}>
                         {eventLabel(ev.event_type)}
+                        {/* Admin changes to a user: the User column is the account changed, this is who changed it. */}
+                        {ev.actor_username && (
+                          <span style={{ color: 'var(--text-secondary)' }}> {t('admin.security.byActor', { actor: ev.actor_username })}</span>
+                        )}
                       </td>
                       <td style={{ padding: '6px 8px', color: 'var(--text-secondary)', maxWidth: 120, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {ev.username || '—'}
@@ -8616,6 +8708,7 @@ function makeSearchIndex(t) {
     // Accounts
     { label: t('admin.accounts.title'), keywords: ['account', 'email', 'imap', 'smtp', 'gmail', 'yahoo', 'icloud', 'password', 'add account', 'connect'], tab: 'accounts', breadcrumb: tabLabel('accounts') },
     { label: t('admin.accounts.signatureSection'), keywords: ['signature', 'sign off', 'footer', 'alias', 'send as'], tab: 'accounts', breadcrumb: tabLabel('accounts') },
+    { label: t('admin.accounts.autoRecipientsSection'), keywords: ['cc', 'bcc', 'copy', 'carbon copy', 'blind copy', 'always bcc', 'automatic', 'copy to myself'], tab: 'accounts', breadcrumb: tabLabel('accounts') },
     // Rules
     { label: t('admin.rules.title'), keywords: ['rule', 'filter', 'condition', 'action', 'move', 'auto', 'automate', 'inbox rule', 'sort'], tab: 'rules', subtab: 'rules', breadcrumb: `${tabLabel('rules')} › ${t('admin.rules.subTabRules')}` },
     { label: t('admin.rules.subTabBlockList'), keywords: ['block', 'blocked', 'sender', 'blacklist', 'spam', 'domain'], tab: 'rules', subtab: 'block-list', breadcrumb: `${tabLabel('rules')} › ${t('admin.rules.subTabBlockList')}` },
@@ -8639,7 +8732,7 @@ function makeSearchIndex(t) {
     { label: t('admin.messageList.defaultReplyAction'), keywords: ['reply', 'reply all', 'default reply'], tab: 'appearance', subtab: 'layout', breadcrumb: layoutCrumb },
     { label: t('admin.messageList.markReadBehavior'), keywords: ['mark read', 'mark as read', 'read delay', 'auto read', 'manual read', 'unread'], tab: 'appearance', subtab: 'layout', breadcrumb: layoutCrumb },
     // Appearance > Fonts & Language
-    { label: t('admin.appearance.language'), keywords: ['language', 'locale', 'french', 'english', 'spanish', 'german', 'deutsch', 'russian', 'chinese', 'italian', 'czech', 'čeština', 'portuguese', 'português', 'brasil', 'français', 'español'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
+    { label: t('admin.appearance.language'), keywords: ['language', 'locale', 'french', 'english', 'spanish', 'german', 'deutsch', 'russian', 'chinese', 'italian', 'czech', 'čeština', 'portuguese', 'português', 'brasil', 'korean', '한국어', 'français', 'español'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     { label: t('admin.appearance.fontSize'), keywords: ['font size', 'text size', 'zoom', 'scale', 'accessibility', 'larger text'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     { label: t('admin.appearance.typography'), keywords: ['font', 'typography', 'typeface', 'serif', 'sans', 'monospace', 'reading font'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     // Integrations
@@ -8667,6 +8760,7 @@ function makeSearchIndex(t) {
     { label: t('admin.systemEmail.tabUsers'), keywords: ['user', 'invite', 'admin', 'role', 'manage users', 'add user'], tab: 'users', adminOnly: true, breadcrumb: tabLabel('users') },
     { label: t('admin.systemEmail.tabEmail'), keywords: ['system email', 'smtp', 'admin email', 'invite email', 'outgoing email'], tab: 'users', adminOnly: true, breadcrumb: tabLabel('users') },
     { label: t('admin.sso.title'), keywords: ['sso', 'oidc', 'single sign on', 'oauth', 'provider', 'identity provider'], tab: 'sso', adminOnly: true, breadcrumb: tabLabel('sso') },
+    { label: t('admin.backup.title'), keywords: ['backup', 'restore', 'export', 'import', 'migrate', 'move server', 'transfer', 'download settings'], tab: 'backup', adminOnly: true, breadcrumb: tabLabel('backup') },
   ];
 }
 
@@ -8789,6 +8883,7 @@ export default function AdminPanel() {
       {adminTab === 'integrations' && <IntegrationsTab />}
       {adminTab === 'users' && <UsersTab />}
       {adminTab === 'sso' && <SSOTab />}
+      {adminTab === 'backup' && <BackupSettings />}
       {adminTab === 'security' && <SecurityPrivacyTab initialSubTab={pendingSubTab} />}
       {adminTab === 'notifications' && <NotificationsTab />}
       {adminTab === 'shortcuts' && !isMobile && <ShortcutsTab />}

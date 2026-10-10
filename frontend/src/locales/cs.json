@@ -164,6 +164,13 @@
     "updateAvailable": "Je dostupná aktualizace: v{{version}}"
   },
   "messageList": {
+    "replyDraftChanged": "Koncept odpovědi se změnil. Zkuste jej znovu otevřít.",
+    "replyDraftKeepCurrent": "Před otevřením tohoto konceptu uložte aktuální zprávu a vyřešte její přílohy.",
+    "replyDraftUnavailable": "Tento koncept odpovědi již není dostupný.",
+    "replyDraftCancelled": "Otevírání konceptu odpovědi bylo zrušeno, protože se změnil výběr nebo okno zprávy. Zkuste jej otevřít znovu.",
+    "replyDraftRetry": "Znovu vyhledat koncept odpovědi",
+    "openReplyDraft": "Otevřít koncept odpovědi",
+    "replyDraft": "Koncept odpovědi",
     "search": "Hledat…",
     "unread": "Nepřečtené",
     "showAll": "Zobrazit vše",
@@ -279,6 +286,11 @@
       "automated": "Automatické",
       "social": "Sociální sítě"
     },
+    "categoryAlways": {
+      "done": "Pošta od {{value}} teď půjde do: {{category}}",
+      "doneBody": "Uloženo jako pravidlo doručené pošty; aktualizována i již přijatá pošta.",
+      "failed": "Kategorii pro tohoto odesílatele se nepodařilo uložit"
+    },
     "changeLayout": "Změnit rozvržení",
     "layouts": {
       "focused": {
@@ -301,7 +313,9 @@
         "label": "Svislé rozdělení",
         "description": "Seznam zpráv nad čtecím podoknem"
       }
-    }
+    },
+    "senderGroupCounts": "{{unread}} nepřečtených · {{count}} zpráv",
+    "senderGroupLoadError": "E-maily tohoto odesílatele se nepodařilo načíst. Zkuste to znovu."
   },
   "message": {
     "find": {
@@ -398,9 +412,30 @@
       "button": "Zařadit pomocí AI",
       "done": "Zařazeno do kategorie {{category}}",
       "error": "Zařazení pomocí AI se nezdařilo."
+    },
+    "preview": {
+      "open": "Náhled",
+      "label": "Náhled: {{name}}",
+      "position": "{{current}} z {{total}}",
+      "download": "Stáhnout",
+      "print": "Tisk",
+      "preparingPrint": "Příprava… {{done}}/{{total}}",
+      "close": "Zavřít",
+      "zoomIn": "Přiblížit",
+      "zoomOut": "Oddálit",
+      "fit": "Přizpůsobit obrazovce",
+      "previous": "Předchozí příloha",
+      "next": "Další příloha",
+      "failed": "Tento soubor nelze zobrazit.",
+      "unsupported": "Tento soubor nevypadá jako platné PDF nebo obrázek, proto se zde nezobrazuje.",
+      "password": "Toto PDF je chráněno heslem. Zadejte heslo, abyste ho otevřeli.",
+      "passwordLabel": "Heslo k PDF",
+      "passwordSubmit": "Otevřít",
+      "passwordIncorrect": "Nesprávné heslo. Zkuste to znovu."
     }
   },
   "compose": {
+    "unsupportedDraftFrom": "Před uložením nebo odesláním tohoto konceptu vyberte nastaveného odesílatele.",
     "newMessage": "Nová zpráva",
     "reply": "Odpovědět",
     "replyAll": "Odpovědět všem",
@@ -416,6 +451,7 @@
     "bccPh": "skryta-kopie@example.com",
     "bodyPh": "Napište zprávu…",
     "send": "Odeslat",
+    "insertSignature": "Vložit podpis",
     "sendTooltip": "Odeslat (Ctrl+Enter)",
     "sending": "Odesílání…",
     "discard": "Zahodit",
@@ -451,6 +487,18 @@
       "noCopy": "Zpráva byla odeslána, ale neuložila se do složky Odeslané",
       "someRejected": "Poštovní server odmítl doručení na {{addresses}}.",
       "action": "Zobrazit"
+    },
+    "undoSend": {
+      "sending": "Odesílání „{{subject}}“…",
+      "undone": "Odeslání vráceno zpět",
+      "reopenLater": "Znovu se otevře, až zavřete zprávu, kterou právě píšete",
+      "notSent": "Vaše zpráva nebyla odeslána",
+      "lost": "Server se před odesláním restartoval, takže zpráva nebyla doručena.",
+      "unknown": "Nepodařilo se ověřit, zda byla zpráva odeslána",
+      "unknownBody": "Než ji odešlete znovu, zkontrolujte složku Odeslané.",
+      "reopen": "Znovu otevřít",
+      "tooLate": "Na vrácení je pozdě: zpráva se už odesílá",
+      "undoFailed": "Nepodařilo se vrátit zpět: server neodpověděl"
     },
     "toolbar": {
       "removeTable": "Odebrat tabulku",
@@ -546,6 +594,7 @@
     "reply": "Odpovědět",
     "replyAll": "Odpovědět všem",
     "forward": "Přeposlat",
+    "forwardAsAttachment": "Přeposlat jako přílohu",
     "moveToFolder": "Přesunout",
     "archive": "Archivovat",
     "snooze": {
@@ -556,6 +605,9 @@
       "custom": "Vlastní…"
     },
     "categorize": "Zařadit jako…",
+    "categoryAlwaysSender": "Vždy pro tohoto odesílatele",
+    "categoryAlwaysDomain": "Vždy pro tuto doménu",
+    "categoryAlwaysFor": "Vždy pro {{value}}",
     "createRule": "Vytvořit pravidlo ze zprávy",
     "addToBlockList": "Přidat na seznam blokovaných",
     "markAsSpam": "Označit jako spam",
@@ -579,7 +631,9 @@
       "recent": "Nedávné",
       "favorites": "Oblíbené",
       "search": "Hledat složky…"
-    }
+    },
+    "groupSender": "Seskupit e-maily od tohoto odesílatele",
+    "ungroupSender": "Zrušit seskupení e-mailů od tohoto odesílatele"
   },
   "gtd": {
     "title": "GTD",
@@ -598,6 +652,7 @@
     "classifyFailed": "Štítek se nepodařilo použít",
     "removed": "Štítek odebrán",
     "removeFailed": "Štítek se nepodařilo odebrat",
+    "onlyCopy": "Toto je jediná kopie zprávy, odebráním štítku by se smazala. Místo toho ji archivujte nebo přesuňte.",
     "done": "Označit jako hotové",
     "doneFailed": "Nepodařilo se označit jako hotové",
     "doneArchiveFailed": "Označeno jako hotové, ale archivace se nezdařila — zpráva zůstává v Doručené poště",
@@ -734,6 +789,15 @@
       "gtdDelegated": {
         "label": "Označit Delegováno",
         "description": "Zařadit vybranou zprávu jako Delegováno"
+      },
+      "gtdReference": {
+        "description": "Zařadit vybranou zprávu jako Podklady"
+      },
+      "gtdSomeday": {
+        "description": "Zařadit vybranou zprávu jako Někdy"
+      },
+      "gtdDone": {
+        "description": "Dokončit vybranou zprávu GTD"
       },
       "toggleRightSidebar": {
         "label": "Pravý postranní panel",
@@ -928,7 +992,8 @@
       "groupDisplay": "Zobrazení",
       "groupSecurityIntegrations": "Zabezpečení a integrace",
       "groupAdmin": "Správa",
-      "plugins": "Pluginy"
+      "plugins": "Pluginy",
+      "backup": "Záloha"
     },
     "categories": {
       "title": "Kategorie e-mailů",
@@ -1029,6 +1094,9 @@
       "smtpAuthUserPh": "Stejné jako uživatelské jméno výše",
       "smtpAuthPass": "Heslo SMTP",
       "signatureSection": "Podpis",
+      "signatureEnabledDefault": "Zobrazovat podpis ve výchozím nastavení",
+      "autoRecipientsSection": "Automatická kopie a skrytá kopie",
+      "autoRecipientsDesc": "Tyto adresy se přidávají jako běžní příjemci, které můžete odebrat, ke každé nové zprávě, odpovědi a přeposlané zprávě z tohoto účtu nebo jeho aliasů. Adresy oddělte čárkami.",
       "saveChanges": "Uložit změny",
       "addAccount": "Přidat účet",
       "saving": "Ukládání…",
@@ -1154,6 +1222,8 @@
       "actionMove": "Přesunout do složky",
       "actionForward": "Přeposlat na",
       "actionForwardPlaceholder": "prijemce@example.com",
+      "actionSetCategory": "Nastavit kategorii",
+      "actionSetCategorySelect": "Vyberte kategorii…",
       "actionMovePlaceholder": "Přesná cesta ke složce IMAP (např. Práce nebo INBOX/Práce)",
       "actionMoveSelectFolder": "Vyberte složku…",
       "actionMoveRequiresAccount": "Vyžaduje konkrétní účet",
@@ -1223,10 +1293,33 @@
       "description": "Kliknutím na klávesovou zkratku ji změníte. Nahrávání zrušíte stisknutím Esc.",
       "resetAll": "Obnovit vše na výchozí hodnoty",
       "recording": "Stiskněte klávesu…",
-      "conflict": "Klávesa {{key}} už byla přiřazena akci {{action}} — přiřazení bylo změněno.",
+      "conflict": "Klávesa {{key}} je přiřazena více akcím. Přednost má {{action}}.",
       "resetDefault": "Obnovit výchozí",
       "remove": "Odebrat zkratku",
       "footer": "Aktuální přehled zkratek zobrazíte stisknutím ? kdekoliv v aplikaci."
+    },
+    "backup": {
+      "title": "Záloha a obnovení",
+      "intro": "Záloha obsahuje data tohoto MailFlow: uživatele, e-mailové účty, pravidla, kontakty, nastavení, data pluginů a antispamové učení. Pošta z mezipaměti se po obnovení znovu stáhne z vašich poštovních serverů, pokud ji nezahrnete. Soubor neobsahuje to, co je nastavené v .env: nový server potřebuje stejný ENCRYPTION_KEY a, pokud jste je tam nastavili, stejné klíče VAPID a nastavení klienta OAuth.",
+      "sensitive": "Soubor obsahuje otisky hesel, nevyužité odkazy s pozvánkami a přihlašovací údaje vašich účtů. Přihlašovací údaje jsou zašifrované klíčem ENCRYPTION_KEY tohoto serveru; zbytek je čitelný, stejně jako každá zpráva, pokud je zahrnuta pošta z mezipaměti. Uložte soubor na bezpečné místo. Obnovit jej lze jen na serveru se stejným klíčem.",
+      "includeMail": "Zahrnout poštu z mezipaměti",
+      "includeMailDesc": "Uloží také místní kopii každé synchronizované zprávy, takže soubor bude mnohem větší. Bez ní obnovení stáhne poštu znovu a nejnovější nepřečtené zprávy v každé doručené poště dorazí jako nová pošta: pravidla doručené pošty se na ně použijí znovu, včetně přeposílání. Volba platí pro každou zálohu, dokud ji nezměníte.",
+      "includeMailSaveError": "Nastavení se nepodařilo uložit.",
+      "create": "Stáhnout zálohu",
+      "restoreTitle": "Obnovit ze zálohy",
+      "restoreIntro": "Obnovení nahradí všechny uživatele, účty, nastavení a zprávy v mezipaměti na tomto serveru obsahem souboru. MailFlow se poté restartuje. Kdo nemá účet v záloze, bude odhlášen, a platí hesla ze zálohy.",
+      "versionNote": "Zálohu lze obnovit jen ve verzi MailFlow se stejným schématem databáze jako verze, která ji vytvořila. Má-li tato verze novější schéma, obnovte zálohu ve verzi, která ji vytvořila, a potom aktualizujte.",
+      "chooseFile": "Vybrat soubor zálohy",
+      "restore": "Obnovit…",
+      "confirmWarn": "Vše na tomto serveru bude nahrazeno souborem {{name}}. Tuto akci nelze vrátit zpět.",
+      "confirmYes": "Obnovit a restartovat",
+      "restoring": "Obnovuje se… zapsané řádky: {{rows}}",
+      "done": "Obnovení dokončeno. MailFlow se restartuje; tato stránka se znovu načte, jakmile bude opět dostupný.",
+      "restartTimeout": "MailFlow se do dvou minut nevrátil. Spusťte jej znovu a poté tuto stránku znovu načtěte.",
+      "failed": "Obnovení se nezdařilo: {{message}}",
+      "downloadFailed": "Zálohu se nepodařilo spustit.",
+      "connectionLost": "Během obnovení se přerušilo spojení, takže výsledek není znám. Tato stránka se znovu načte, jakmile MailFlow opět odpoví; pak zkontrolujte, zda jsou data obnovená.",
+      "tooLarge": "Soubor je větší, než povoluje proxy před MailFlow."
     },
     "plugins": {
       "title": "Pluginy",
@@ -1238,6 +1331,7 @@
       "configureIn": "Možnosti nastavíte v části {{location}}"
     },
     "messageList": {
+      "autoOpenReplyDrafts": "Automaticky otevírat uložené odpovědi při výběru zpráv v doručené poště",
       "title": "Seznam zpráv",
       "senderFavicons": "Ikony webů odesílatelů",
       "senderFaviconsDesc": "Zobrazovat ikony webů u odesílatelů bez fotografie kontaktu. Službě Twenty Icons se odesílá pouze doména odesílatele, nikdy celá e-mailová adresa.",
@@ -1437,6 +1531,11 @@
       "eventTotpSuccess": "2FA ověřeno",
       "eventTotpFail": "Neúspěšné 2FA",
       "eventSsoLogin": "Přihlášení přes SSO",
+      "eventAdminPasswordSet": "Heslo nastaveno",
+      "eventAdminUserUpdate": "Účet upraven",
+      "eventAdminTotpDisable": "2FA vypnuto",
+      "eventAdminUserDelete": "Účet smazán",
+      "byActor": "uživatelem {{actor}}",
       "qrCodeAlt": "QR kód",
       "mailPolicyTitle": "Zásady připojení k poštovním serverům",
       "mailPolicyDesc": "Určuje, jaké typy připojení mohou uživatelé nastavovat. U instalací dostupných z internetu tyto možnosti vypněte.",
@@ -1518,7 +1617,25 @@
       "deleteConfirmLabel": "Smazat uživatele",
       "disable2faConfirmTitle": "Vypnout 2FA uživateli „{{username}}“?",
       "disable2faConfirmBody": "Tím odeberete požadavek na ověřovací aplikaci. Uživatel si jej může znovu zapnout.",
-      "disable2faConfirmLabel": "Vypnout 2FA"
+      "disable2faConfirmLabel": "Vypnout 2FA",
+      "lastSeen": "Naposledy aktivní {{when}}",
+      "neverSeen": "Nikdy se nepřihlásil",
+      "edit": "Upravit",
+      "editTitle": "Upravit {{username}}",
+      "username": "Uživatelské jméno",
+      "usernameHint": "Slouží k přihlášení do MailFlow.",
+      "recoveryEmail": "Záložní e-mail",
+      "recoveryEmailHint": "Dostává odkaz „Zapomenuté heslo?“. Nechte prázdné pro odebrání.",
+      "newPassword": "Nové heslo",
+      "newPasswordHint": "Nechte prázdné pro zachování současného. Uložením nového se uživatel odhlásí na všech zařízeních.",
+      "newPasswordHintSelf": "Nechte prázdné pro zachování současného. Vaše ostatní zařízení budou odhlášena; toto zůstane přihlášené.",
+      "confirmPassword": "Potvrďte nové heslo",
+      "passwordTooShort": "Heslo musí mít alespoň 8 znaků.",
+      "passwordMismatch": "Hesla se neshodují.",
+      "usernameTaken": "Toto uživatelské jméno je již obsazené.",
+      "invalidEmail": "Tato e-mailová adresa není platná.",
+      "saveFailed": "Uložení se nezdařilo: {{message}}",
+      "passwordNotSet": "Ostatní změny byly uloženy, ale heslo nebylo nastaveno: {{message}}"
     },
     "search": {
       "placeholder": "Hledat v nastavení…",

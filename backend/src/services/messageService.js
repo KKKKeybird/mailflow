@@ -1,7 +1,8 @@
 import { query } from './db.js';
+import { senderCandidates } from './senderGrouping.js';
 import { resolveAccountScope } from './unifiedInbox.js';
 
-export async function listMessages({ userId, accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category }) {
+export async function listMessages({ userId, accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category, groupSenders, sender, candidateIds, candidateThreads }) {
   const accountsResult = await query(
     'SELECT id, include_in_unified_inbox FROM email_accounts WHERE user_id = $1 AND enabled = true',
     [userId]
@@ -49,10 +50,42 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
   // `where`), so pagination and the threaded count stay consistent.
   whereConditions.push(`NOT (m.message_id IS NULL AND (m.subject IS NULL OR m.subject = '(no subject)') AND COALESCE(m.snippet, '') = '')`);
 
+  if (candidateIds) { whereConditions.push(`m.id = ANY($${p++}::uuid[])`); values.push(candidateIds); }
+  if (candidateThreads) { whereConditions.push(`m.thread_key = ANY($${p++}::text[])`); values.push(candidateThreads); }
   const where = whereConditions.join(' AND ');
 
   const safeLimit  = Math.min(Math.max(parseInt(limit)  || 50, 1), 500);
   const safeOffset = Math.max(parseInt(offset) || 0, 0);
+
+  const isThreaded = threaded === 'true' || threaded === true;
+  let senders = [];
+  if (!sender && folder === 'INBOX' && (groupSenders === true || groupSenders === 'true')) {
+    const prefs = await query('SELECT preferences FROM users WHERE id = $1', [userId]);
+    senders = normalizeGroupedSenders(prefs.rows[0]?.preferences?.groupedSenders);
+  }
+  if (senders.length) {
+    const present = await query(`SELECT 1 FROM messages m WHERE ${where}
+      AND lower(btrim(m.from_email)) = ANY($${values.length + 1}::text[]) LIMIT 1`, [...values, senders]);
+    if (!present.rows.length) senders = [];
+  }
+  if (sender || senders.length) {
+    const { candidates, total } = await senderCandidates({ where, values, accounts: scopedAccountIds,
+      senders, sender: typeof sender === 'string' ? sender.trim().toLowerCase() : null,
+      threaded: isThreaded, unfiltered: !isUnreadOnly && !safeCategory, limit: safeLimit, offset: safeOffset });
+    if (!candidates.length) return { messages: [], total, threaded: isThreaded, resolvedAccountId };
+    const hydrated = await listMessages({ userId, accountId, folder, unreadOnly, threaded, category,
+      limit: candidates.length, offset: 0,
+      ...(isThreaded ? { candidateThreads: candidates.map(c => c.thread_key) } : { candidateIds: candidates.map(c => c.id) }) });
+    const byId = new Map(hydrated.messages.map(m => [isThreaded ? m.thread_id : m.id, m]));
+    const messages = candidates.flatMap(c => {
+      const message = byId.get(isThreaded ? c.thread_key : c.id);
+      if (!message) return [];
+      return [c.sender_group ? { ...message, id: `sender:${c.sender_group}`, message_id: null,
+        preview_message_id: message.id, sender_group: c.sender_group,
+        sender_message_count: c.sender_message_count, sender_unread_count: c.sender_unread_count } : message];
+    });
+    return { messages, total, threaded: isThreaded, resolvedAccountId };
+  }
 
   let total = 0;
   try {
@@ -105,7 +138,7 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
                m.id, m.uid, m.folder, m.message_id,
                m.thread_key AS thread_id,
                m.subject, m.from_name, m.from_email,
-               m.to_addresses, m.cc_addresses, m.reply_to, m.in_reply_to,
+               m.to_addresses, m.cc_addresses, m.reply_to, m.in_reply_to, m.thread_references,
                m.date, m.snippet, m.is_read, m.is_starred,
                m.has_attachments, m.account_id, m.category,
                m.list_unsubscribe, m.list_unsubscribe_post, m.delivery_addresses,
@@ -158,7 +191,7 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
       )
       SELECT id, uid, folder, message_id, thread_id, thread_subject AS subject,
              thread_from_name AS from_name, thread_from_email AS from_email,
-             to_addresses, cc_addresses, reply_to, in_reply_to,
+             to_addresses, cc_addresses, reply_to, in_reply_to, thread_references,
              date, snippet, is_starred, is_read, has_attachments, account_id,
              account_name, account_email, account_color,
              category, list_unsubscribe, list_unsubscribe_post, delivery_addresses,
@@ -190,7 +223,7 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
 
   const result = await query(`
     SELECT m.id, m.uid, m.folder, m.message_id, m.subject, m.from_name, m.from_email,
-           m.to_addresses, m.cc_addresses, m.reply_to, m.in_reply_to,
+           m.to_addresses, m.cc_addresses, m.reply_to, m.in_reply_to, m.thread_references,
            m.date, m.snippet, m.is_read, m.is_starred,
            m.has_attachments, m.account_id, m.category,
            m.list_unsubscribe, m.list_unsubscribe_post, m.delivery_addresses,
@@ -215,4 +248,10 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
     total,
     resolvedAccountId,
   };
+}
+
+export function normalizeGroupedSenders(value) {
+  if (!Array.isArray(value)) return [];
+  return [...new Set(value.filter(v => typeof v === 'string' && v.length <= 320 && /^[^\s@]+@[^\s@]+$/.test(v.trim()))
+    .map(v => v.trim().toLowerCase()))].slice(0, 500);
 }

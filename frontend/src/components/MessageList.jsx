@@ -1,3 +1,5 @@
+import { messageRowTree, actionableMessageRows, selectedListMessage, uniqueActionRows, neighborMessageRow, senderCacheKey } from '../utils/messageRowTree.js';
+import SenderGroup from './SenderGroup.jsx';
 import { useEffect, useLayoutEffect, useRef, useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore, selectSelectedMessageMid, selectSelectedMessageAccountId } from '../store/index.js';
@@ -20,13 +22,15 @@ import {
 } from '../utils/gtd.js';
 import { formatDate } from '../utils/formatDate.js';
 import { advanceSelectionAfterRemoval } from '../utils/listSelection.js';
-import { openReplyFromMessage, openForwardFromMessage } from '../utils/composeFromMessage.js';
+import { openReplyFromMessage, openForwardFromMessage, openForwardAsAttachmentFromMessage } from '../utils/composeFromMessage.js';
 import { selectedMessage, markMessageUnread } from '../utils/messageHotkeys.js';
 import { cancelScheduledMarkReadFor } from '../utils/markRead.js';
+import { saveSenderCategory } from '../utils/senderCategory.js';
 import SenderAvatarImage from './SenderAvatarImage.jsx';
 import FolderPathLabel from './FolderPathLabel.jsx';
-import { folderDisplayName, folderMatchesQuery } from '../utils/folderDisplay.js';
+import { folderDisplayName, folderMatchesQuery, favoriteMoveTargets, recentMoveTargets } from '../utils/folderDisplay.js';
 import SpamBadge from './SpamBadge.jsx';
+import ReplyDraftIndicator from './ReplyDraftIndicator.jsx';
 import SpamExplainModal from './SpamExplainModal.jsx';
 import { shortcutBus } from '../utils/shortcutBus.js';
 import { createLatestRequest } from '../utils/latestRequest.js';
@@ -123,11 +127,11 @@ export default function MessageList() {
     searchResults, setSearchResults, openCompose, accountsReady, accounts,
     messagesRefreshToken, layout, setLayout, pageSize, setPageSize, scrollMode,
     setMobileSidebarOpen, unreadCounts, showContacts, setShowContacts,
-    threadedView, expandedThreadId, setExpandedThreadId,
+    groupedSenders, expandedSenders, setExpandedSenders, setSenderGroupContext, threadedView, expandedThreadId, setExpandedThreadId,
     threadMessages, setThreadMessages, clearThreadMessages, loadingThread, setLoadingThread,
     hoverQuickActions, hoverActionSet, showMobileAvatars, showMessagePreviews,
     swipeActions,
-    folders, favoriteFolders, addFavoriteFolder, removeFavoriteFolder, setSelectedAccount,
+    folders, favoriteFolders, recentFolders, addFavoriteFolder, removeFavoriteFolder, setSelectedAccount,
     categorizationEnabled, categoryCounts, setCategoryCounts, adjustCategoryCount,
     markReadBehavior, markReadDelay,
     searchAllFolders,
@@ -410,7 +414,7 @@ export default function MessageList() {
         if (threadedView) params.threaded = 'true';
         if (selectedFolder === 'INBOX' && (categorizationEnabled || selectedAccount?.categorization_enabled)) params.category = activeCategory;
         await refreshRequestRef.current.run(
-          () => api.getMessages(params),
+          () => api.getMessages({ ...params, ...(selectedFolder === 'INBOX' && useStore.getState().groupedSenders.length ? { groupSenders: 'true' } : {}) }),
           (data) => {
             if (cancelled) return;
             setMessagesTotal(data.total);
@@ -468,6 +472,7 @@ export default function MessageList() {
       if (unreadOnly) params.unreadOnly = 'true';
       if (useStore.getState().threadedView) params.threaded = 'true';
       if (selectedFolder === 'INBOX' && (categorizationEnabled || selectedAccount?.categorization_enabled)) params.category = activeCategory;
+      if (selectedFolder === 'INBOX' && useStore.getState().groupedSenders.length) params.groupSenders = 'true';
       const data = await api.getMessages(params);
       appendMessages(applyReadGuard(data.messages));
       setMessagesOffset(currentOffset + data.messages.length);
@@ -501,7 +506,7 @@ export default function MessageList() {
         if (state.threadedView) params.threaded = 'true';
         if (selectedFolder === 'INBOX' && (categorizationEnabled || selectedAccount?.categorization_enabled)) params.category = activeCategory;
         await refreshRequestRef.current.run(
-          () => api.getMessages(params),
+          () => api.getMessages({ ...params, ...(selectedFolder === 'INBOX' && useStore.getState().groupedSenders.length ? { groupSenders: 'true' } : {}) }),
           (data) => {
             setMessagesTotal(data.total);
             // If the unread filter is on and the currently open message was just marked
@@ -513,6 +518,7 @@ export default function MessageList() {
               if (kept) msgs = [kept, ...msgs];
             }
             setMessages(msgs);
+            if (useStore.getState().groupedSenders.length) useStore.getState().refreshSenderMembers();
             if (sm === 'paginated') {
               setHasMoreMessages(false);
             } else {
@@ -535,9 +541,12 @@ export default function MessageList() {
         }
       }
     };
+    const groupHandler = () => { if (useStore.getState().groupedSenders.length && selectedFolder === 'INBOX') handler(); };
     window.addEventListener('mailflow:refresh', handler);
+    window.addEventListener('mailflow:sender_refresh', groupHandler);
     return () => {
       window.removeEventListener('mailflow:refresh', handler);
+      window.removeEventListener('mailflow:sender_refresh', groupHandler);
       clearTimeout(deferredRefreshTimerRef.current);
     };
   }, [selectedAccountId, selectedFolder, unreadOnly, activeCategory, searchQuery, categorizationEnabled, selectedAccount?.categorization_enabled, applyReadGuard, setHasMoreMessages, setMessages, setMessagesOffset, setMessagesTotal]);
@@ -668,7 +677,7 @@ export default function MessageList() {
       if (threadedView) params.threaded = 'true';
       if (selectedFolder === 'INBOX' && (categorizationEnabled || selectedAccount?.categorization_enabled)) params.category = activeCategory;
       await refreshRequestRef.current.run(
-        () => api.getMessages(params),
+        () => api.getMessages({ ...params, ...(selectedFolder === 'INBOX' && useStore.getState().groupedSenders.length ? { groupSenders: 'true' } : {}) }),
         (data) => {
           setMessagesTotal(data.total);
           setMessages(applyReadGuard(data.messages));
@@ -789,7 +798,7 @@ export default function MessageList() {
 
   const isThreadListRow = useCallback((message) => {
     const messageCount = Number.parseInt(message.message_count, 10);
-    return threadedView && !searchQuery.trim() && message.thread_id && messageCount > 1;
+    return message.__list_kind !== 'message' && threadedView && !searchQuery.trim() && message.thread_id && messageCount > 1;
   }, [threadedView, searchQuery]);
 
   // Resolves the sub-messages a thread-wide action applies to. Defaults to the server rather
@@ -1006,14 +1015,16 @@ export default function MessageList() {
 
     // Advance selection to the next visible message before removing this one
     const { selectedMessageId, setSelectedMessage } = useStore.getState();
-    if (selectedMessageId === visibleMessage.id) {
-      const displayMsgs = scRef.current.displayMessages || [];
-      const idx = displayMsgs.findIndex(m => m.id === visibleMessage.id);
-      const next = displayMsgs[idx + 1] || displayMsgs[idx - 1] || null;
-      setSelectedMessage(next?.id ?? null);
+    if (ids.includes(selectedMessageId)) {
+      const displayMsgs = actionableMessageRows(useStore.getState());
+      const keyedIndex = displayMsgs.findIndex(m => m.id === selectedMessageId && m.__list_key === useStore.getState().selectedListRowKey);
+      const idx = keyedIndex >= 0 ? keyedIndex : displayMsgs.findIndex(m => m.id === selectedMessageId);
+      const next = displayMsgs.slice(idx + 1).find(m => !ids.includes(m.id)) || displayMsgs.slice(0, idx).reverse().find(m => !ids.includes(m.id)) || null;
+      setSelectedMessage(next?.id ?? null, next?.__list_key);
     }
 
-    removeMessage(visibleMessage.id);
+    removeMessage(visibleMessage.id, visibleMessage);
+    if (ids.length > 1) useStore.getState().removeMessages(ids.filter(id => id !== visibleMessage.id));
     if (expandedThreadId === tid) setExpandedThreadId(null);
 
     const unreadCount = Number.parseInt(message.unread_count, 10);
@@ -1098,7 +1109,7 @@ export default function MessageList() {
     // Optimistic local update: remove from view + drop unread badge.
     const unreadCount = messages.reduce((sum, m) => sum + (m.is_read ? 0 : 1), 0);
     const accountId = messages[0].account_id;
-    messages.forEach(m => removeMessage(m.id));
+    messages.forEach(m => removeMessage(m.id, m));
     if (unreadCount > 0) decrementUnread(accountId, unreadCount);
 
     // Sidebar folder badges are not adjusted here. They render the counts the IMAP server
@@ -1248,7 +1259,7 @@ export default function MessageList() {
     refreshRequestRef.current.invalidate();
     guards.forEach(setPendingDelete);
     advanceSelectionAfterRemoval(message.id);
-    removeMessage(message.id);
+    removeMessage(message.id, message);
     if (threadRow && expandedThreadId === threadId) setExpandedThreadId(null);
     const aggregateUnread = Number.parseInt(message.unread_count, 10);
     const optimisticUnread = threadRow && Number.isFinite(aggregateUnread)
@@ -1399,7 +1410,23 @@ export default function MessageList() {
   }, []);
 
   // Derived from store — must be declared before callbacks that use it in dependency arrays
-  const displayMessages = searchQuery.trim() ? searchResults : messages;
+  const listRows = searchQuery.trim() ? searchResults : messages;
+  const senderParams = {
+    ...(selectedAccountId ? { accountId: selectedAccountId, folder: selectedFolder } : {}),
+    ...(unreadOnly ? { unreadOnly: 'true' } : {}),
+    ...(threadedView ? { threaded: 'true' } : {}),
+    ...(selectedFolder === 'INBOX' && categorizationActive ? { category: activeCategory } : {}),
+  };
+  const senderContext = JSON.stringify(senderParams);
+  useEffect(() => {
+    if (useStore.getState().senderGroupContext !== senderContext) setExpandedSenders(new Set());
+    else setExpandedSenders(previous => new Set([...previous].filter(key => groupedSenders.some(sender => key === senderCacheKey(senderContext, sender)))));
+    setSenderGroupContext(senderContext);
+  }, [senderContext, groupedSenders, setExpandedSenders, setSenderGroupContext]);
+  const rowState = { messages: listRows, searchResults, searchQuery, threadedView, expandedThreadId,
+    threadMessages, expandedSenders, senderGroupContext: senderContext };
+  const rowTree = messageRowTree(rowState);
+  const displayMessages = uniqueActionRows(actionableMessageRows(rowState), useStore.getState().selectedListRowKey);
 
   // Folder search results — shown at the top when searching with a plain query
   // (no special operator prefixes like from:, to:, subject:, has:, is:)
@@ -1788,7 +1815,7 @@ export default function MessageList() {
     initialGuards.forEach(setPendingDelete);
     if (!alreadyRemoved) {
       advanceSelectionAfterRemoval(message.id, true);
-      removeMessage(message.id);
+      removeMessage(message.id, message);
       if (threadRow && expandedThreadId === threadId) setExpandedThreadId(null);
     }
 
@@ -1967,29 +1994,23 @@ export default function MessageList() {
     };
 
     const onNext = () => {
-      const { messages, searchResults, searchQuery, selectedMessageId, setSelectedMessage } = getState();
-      const pool = searchQuery.trim() ? searchResults : messages;
-      if (!pool.length) return;
-      const idx = pool.findIndex(m => m.id === selectedMessageId);
-      const next = pool[idx + 1] ?? pool[0];
-      setSelectedMessage(next.id);
+      const next = neighborMessageRow(getState(), 1);
+      if (!next) return;
+      getState().setSelectedMessage(next.id, next.__list_key);
       markRead(next);
     };
-
     const onPrev = () => {
-      const { messages, searchResults, searchQuery, selectedMessageId, setSelectedMessage } = getState();
-      const pool = searchQuery.trim() ? searchResults : messages;
-      if (!pool.length) return;
-      const idx = pool.findIndex(m => m.id === selectedMessageId);
-      const prev = idx <= 0 ? pool[pool.length - 1] : pool[idx - 1];
-      setSelectedMessage(prev.id);
-      markRead(prev);
+      const previous = neighborMessageRow(getState(), -1);
+      if (!previous) return;
+      getState().setSelectedMessage(previous.id, previous.__list_key);
+      markRead(previous);
     };
 
     const onOpen = () => {
-      const { messages, selectedMessageId, setSelectedMessage } = getState();
-      if (selectedMessageId || !messages.length) return;
-      setSelectedMessage(messages[0].id);
+      const { selectedMessageId, setSelectedMessage } = getState();
+      const pool = actionableMessageRows(getState());
+      if (selectedMessageId || !pool.length) return;
+      setSelectedMessage(pool[0].id, pool[0].__list_key);
     };
 
     const onSelect = () => {
@@ -2004,14 +2025,14 @@ export default function MessageList() {
     };
 
     const onArchive = () => {
-      const { messages, searchResults, searchQuery, selectedMessageId, threadMessages } = getState();
-      const pool = searchQuery.trim() ? searchResults : messages;
+      const { selectedMessageId, threadMessages } = getState();
+      const pool = actionableMessageRows(getState());
       const ids = [...scRef.current.selectedIds];
       if (ids.length > 0) {
-        const msgs = pool.filter(m => ids.includes(m.id));
+        const msgs = uniqueActionRows(pool.filter(m => ids.includes(m.id)), getState().selectedListRowKey);
         bulkArchiveRef.current(ids, msgs);
       } else if (selectedMessageId) {
-        const msg = findVisibleArchiveMessage(pool, selectedMessageId, threadMessages);
+        const msg = selectedListMessage(getState()) || findVisibleArchiveMessage(pool, selectedMessageId, threadMessages);
         if (!msg) return;
         // #449: through the context-action path, whose undoable wrapper delays the real
         // archive and shows the undo toast — calling archiveVisibleMessage directly
@@ -2023,24 +2044,28 @@ export default function MessageList() {
     };
 
     const onDelete = () => {
-      const { messages, searchResults, searchQuery, selectedMessageId } = getState();
-      const pool = searchQuery.trim() ? searchResults : messages;
+      const { selectedMessageId } = getState();
+      const pool = actionableMessageRows(getState());
       const ids = [...scRef.current.selectedIds];
       if (ids.length > 0) {
-        const msgs = pool.filter(m => ids.includes(m.id));
+        const msgs = uniqueActionRows(pool.filter(m => ids.includes(m.id)), getState().selectedListRowKey);
         bulkDeleteRef.current(ids, msgs);
       } else if (selectedMessageId) {
-        const msg = pool.find(m => m.id === selectedMessageId);
+        const msg = selectedListMessage(getState());
         if (!msg) return;
         scheduleDeleteRef.current(msg);
       }
     };
 
     const onToggleRead = () => {
-      const { messages, selectedMessageId, updateMessage, decrementUnread, incrementUnread, adjustCategoryCount } = getState();
+      const { selectedMessageId, updateMessage, decrementUnread, incrementUnread, adjustCategoryCount } = getState();
       if (!selectedMessageId) return;
-      const msg = messages.find(m => m.id === selectedMessageId);
+      const msg = selectedListMessage(getState());
       if (!msg) return;
+      if (scRef.current.isThreadListRow(msg)) {
+        contextActionRef.current(Number(msg.unread_count) > 0 ? 'markRead' : 'markUnread', msg);
+        return;
+      }
       const newRead = !msg.is_read;
       updateMessage(selectedMessageId, { is_read: newRead });
       if (newRead) {
@@ -2069,6 +2094,7 @@ export default function MessageList() {
     const onMarkUnread = () => {
       const state = getState();
       const message = selectedMessage(state);
+      if (message && scRef.current.isThreadListRow(message)) { contextActionRef.current('markUnread', message); return; }
       markMessageUnread(message, {
         cancel: () => {
           if (message) {
@@ -2237,6 +2263,9 @@ export default function MessageList() {
           getMessageBody: api.getMessageBody,
         });
         break;
+      case 'forwardAsAttachment':
+        openForwardAsAttachmentFromMessage(message, { openCompose });
+        break;
       case 'bulkSelect':
         setSelectedIds(new Set([message.id]));
         break;
@@ -2256,7 +2285,7 @@ export default function MessageList() {
         refreshRequestRef.current.invalidate();
         guards.forEach(setPendingDelete);
         advanceSelectionAfterRemoval(archived.id);
-        removeMessage(archived.id);
+        removeMessage(archived.id, archived);
         if (threadRow && expandedThreadId === threadId) setExpandedThreadId(null);
         const aggregateUnread = Number.parseInt(archived.unread_count, 10);
         const optimisticUnread = threadRow && Number.isFinite(aggregateUnread)
@@ -2309,7 +2338,7 @@ export default function MessageList() {
         moveMessages = moveMessages.filter(msg => msg?.account_id === moved.account_id);
         const moveIds = [...new Set(moveMessages.map(msg => msg.id).filter(Boolean))];
         if (!moveIds.length) moveIds.push(moved.id);
-        removeMessage(moved.id);
+        removeMessage(moved.id, moved);
         if (!moved.is_read) decrementUnread(moved.account_id);
         // Remove the moved message from the selection so the action bar doesn't
         // stay around claiming "X selected" for messages that are no longer here.
@@ -2361,7 +2390,7 @@ export default function MessageList() {
         const snoozedMsg = message;
         const untilIso = data;
         if (!untilIso) break;
-        removeMessage(snoozedMsg.id);
+        removeMessage(snoozedMsg.id, snoozedMsg);
         if (!snoozedMsg.is_read) decrementUnread(snoozedMsg.account_id);
         if (selectedIds.has(snoozedMsg.id)) {
           const next = new Set(selectedIds);
@@ -2426,21 +2455,38 @@ export default function MessageList() {
         break;
       }
       case 'setCategory': {
+        // Stored as chosen, 'primary' included, as the server does (#489).
         const newCategory = data || 'primary';
-        const dbCategory = newCategory === 'primary' ? null : newCategory;
         try {
           await api.setMessageCategory(message.id, newCategory);
           const inFilteredView = categorizationActive && activeCategory && activeCategory !== (newCategory || 'primary');
           if (inFilteredView) {
-            removeMessage(message.id);
+            removeMessage(message.id, message);
           } else {
-            updateMessage(message.id, { category: dbCategory });
+            updateMessage(message.id, { category: newCategory });
           }
           // Refresh category counts badge
           const countParams = selectedAccountId ? { accountId: selectedAccountId } : {};
           api.getCategoryCounts(countParams).then(d => setCategoryCounts(d.counts || {})).catch(() => {});
         } catch (err) {
           console.error('setCategory failed:', err?.message);
+        }
+        break;
+      }
+      case 'setCategoryAlways': {
+        // "Always for this sender/domain" (#490): every loaded inbox message from that sender moves
+        // with it, and leaves a category tab it no longer belongs to.
+        const category = data?.category;
+        const saved = await saveSenderCategory(message, data?.scope, category, {
+          t, api, getState: useStore.getState,
+          onMatch: loaded => {
+            if (categorizationActive && activeCategory && activeCategory !== category) removeMessage(loaded.id);
+            else updateMessage(loaded.id, { category });
+          },
+        });
+        if (saved) {
+          const countParams = selectedAccountId ? { accountId: selectedAccountId } : {};
+          api.getCategoryCounts(countParams).then(d => setCategoryCounts(d.counts || {})).catch(() => {});
         }
         break;
       }
@@ -2489,7 +2535,7 @@ export default function MessageList() {
         // cannot be read the draft opens read-only instead.
         if (!Array.isArray(bcc)) {
           addNotification({ type: 'error', title: t('messageList.draftBcc.failTitle'), body: t('messageList.draftBcc.failBody') });
-          setSelectedMessage(message.id);
+          setSelectedMessage(message.id, message.__list_key);
           return;
         }
         // A saved draft is one document: body, signature, then any quoted text. Handing all of
@@ -2512,17 +2558,19 @@ export default function MessageList() {
           subject: message.subject || '',
           body,
           bodyIsHtml: !!bodyData.html,
+          inReplyTo: message.in_reply_to || undefined,
+          references: message.thread_references || undefined,
           ...(signature !== null ? { signature } : inline ? { signature: '' } : {}),
         });
       } catch (err) {
         console.error('Failed to open draft:', err.message);
-        setSelectedMessage(message.id);
+        setSelectedMessage(message.id, message.__list_key);
       }
       return;
     }
     recentMessageOpenUntilRef.current = Date.now() + 1500;
     api.getMessageBody(message.id).catch(() => {});
-    setSelectedMessage(message.id);
+    setSelectedMessage(message.id, message.__list_key);
     listRef.current?.focus({ preventScroll: true });
     markMessageReadOnOpen(message);
   };
@@ -2638,6 +2686,102 @@ export default function MessageList() {
   const canMove = selectedAccountIds.length === 1;
   const bulkMarkAsRead = selectedMsgs.some(m => !m.is_read);
   const bulkMarkAsStarred = selectedMsgs.some(m => !m.is_starred);
+
+  const renderListRow = (message) => {
+    if (threadedView && !searchQuery.trim()) {
+      const tid = message.thread_id || message.id;
+      const swipeLeftAction = swipeActions?.left || 'archive';
+      const swipeRightAction = swipeActions?.right || 'markRead';
+      return (
+        <ThreadRow
+          key={tid}
+          message={message}
+          isExpanded={expandedThreadId === tid}
+          threadMsgs={(threadMessages[tid] || []).map(m => ({ ...m, __list_kind: 'message', __list_key: `${message.__list_key}/child:${m.id}`, __list_thread: tid, __list_sender: message.__list_sender }))}
+          isLoadingThread={loadingThread === tid}
+          selectedMessageId={selectedMessageId}
+          selectedMid={selectedMid}
+          selectedAcct={selectedAcct}
+          lastViewedMessageId={lastViewedMessageId}
+          showAccount={false} /* No per-account dot on unified rows: it added noise beside the unread indicator; the account is visible in the message pane header. */
+          isNarrow={isNarrow}
+          onThreadClick={() => handleThreadClick(message)}
+          onThreadToggle={() => handleThreadToggle(message)}
+          showMobileAvatars={showMobileAvatars}
+          showMessagePreviews={showMessagePreviews}
+          onSelect={handleSelect}
+          onOpenWindow={!isMobile ? handleOpenInWindow : undefined}
+          onMarkRead={handleThreadMarkRead}
+          onStar={handleStar}
+          onDelete={handleDelete}
+          hoverQuickActions={hoverQuickActions}
+          hoverActionSet={hoverActionSet}
+          onArchive={handleHoverArchive}
+          onSnooze={handleHoverSnooze}
+          onContextMenu={(e, msg) => {
+            e.preventDefault();
+            setContextMenu({ x: e.clientX, y: e.clientY, message: msg });
+          }}
+          onMove={handleRowMove}
+          onDragStart={handleRowDragStart}
+          isMobile={isMobile}
+          swipeLeftAction={swipeLeftAction}
+          swipeRightAction={swipeRightAction}
+          onSwipeLeft={selectionMode || swipeLeftAction === 'disabled' ? undefined : (msg) => runSwipeAction(swipeLeftAction, msg)}
+          onSwipeRight={selectionMode || swipeRightAction === 'disabled' ? undefined : (msg) => runSwipeAction(swipeRightAction, msg)}
+          isChecked={selectedIds.has(message.id)}
+          selectionMode={selectionMode}
+          onToggleSelect={handleRowToggleSelect}
+          onRangeSelect={handleRangeSelect}
+          onModifierSelect={handleModifierSelect}
+          onLongPress={isMobile ? (id) => { setSelectionModeActive(true); toggleSelect(id); } : undefined}
+          onExplainSpam={(msg) => setSpamExplainMessageId(msg.id)}
+        />
+      );
+    }
+      const swipeLeftAction = swipeActions?.left || 'archive';
+      const swipeRightAction = swipeActions?.right || 'markRead';
+      return (
+        <MessageRow
+          key={message.id}
+          message={message}
+          selected={isSelectedRow(message, selectedMessageId, selectedMid, selectedAcct)}
+          lastViewed={lastViewedMessageId === message.id && selectedMessageId !== message.id}
+          isChecked={selectedIds.has(message.id)}
+          selectionMode={selectionMode}
+          showAccount={false} /* No per-account dot on unified rows: it added noise beside the unread indicator; the account is visible in the message pane header. */
+          isNarrow={isNarrow}
+          onSelect={handleSelect}
+          onOpenWindow={!isMobile ? handleOpenInWindow : undefined}
+          onToggleSelect={handleRowToggleSelect}
+          onRangeSelect={handleRangeSelect}
+          onModifierSelect={handleModifierSelect}
+          onAvatarClick={!isMobile ? handleAvatarClick : undefined}
+          showMobileAvatars={showMobileAvatars}
+          showMessagePreviews={showMessagePreviews}
+          onMarkRead={handleMarkRead}
+          onStar={handleStar}
+          onDelete={handleDelete}
+          hoverQuickActions={hoverQuickActions}
+          hoverActionSet={hoverActionSet}
+          onArchive={handleHoverArchive}
+          onSnooze={handleHoverSnooze}
+          onContextMenu={(e, msg) => {
+            e.preventDefault();
+            setContextMenu({ x: e.clientX, y: e.clientY, message: msg });
+          }}
+          onMove={handleRowMove}
+          onDragStart={handleRowDragStart}
+          isMobile={isMobile}
+          swipeLeftAction={swipeLeftAction}
+          swipeRightAction={swipeRightAction}
+          onSwipeLeft={selectionMode || swipeLeftAction === 'disabled' ? undefined : (msg) => runSwipeAction(swipeLeftAction, msg)}
+          onSwipeRight={selectionMode || swipeRightAction === 'disabled' ? undefined : (msg) => runSwipeAction(swipeRightAction, msg)}
+          onLongPress={isMobile ? (id) => { setSelectionModeActive(true); toggleSelect(id); } : undefined}
+          onExplainSpam={(msg) => setSpamExplainMessageId(msg.id)}
+        />
+      );
+  };
 
   return (
     <div style={{
@@ -3502,7 +3646,7 @@ export default function MessageList() {
           </div>
         )}
 
-        {loadingMessages && displayMessages.length === 0 && (
+        {loadingMessages && listRows.length === 0 && (
           <div>
             {Array.from({ length: 7 }).map((_, i) => (
               <div key={i} style={{
@@ -3521,7 +3665,7 @@ export default function MessageList() {
           </div>
         )}
 
-        {!loadingMessages && displayMessages.length === 0 && (
+        {!loadingMessages && listRows.length === 0 && (
           <EmptyState
             folderSyncing={folderSyncing}
             searchQuery={searchQuery}
@@ -3668,38 +3812,56 @@ export default function MessageList() {
                         const q = pickerSearch.trim().toLowerCase();
                         const displayed = pickerFolders
                           .filter(f => f.path !== selectedFolder && (!q || folderMatchesQuery(f, q)));
+                        // Recent and favorite targets above the full list, as in the single-message
+                        // pickers (#551). The bulk picker only opens for one account's messages.
+                        const target = { accountId: selectedMsgs[0]?.account_id, currentFolder: selectedFolder };
+                        const recent = q ? [] : recentMoveTargets(recentFolders, pickerFolders, target);
+                        const favorites = q ? [] : favoriteMoveTargets(favoriteFolders, pickerFolders, { ...target, exclude: recent });
+                        const heading = label => (
+                          <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            {label}
+                          </div>
+                        );
+                        const divider = <div style={{ height: 1, background: 'var(--border-subtle)', margin: '3px 0' }} />;
+                        const item = (f, key) => (
+                          <button
+                            key={key}
+                            onClick={() => handleBulkMove([...selectedIds], selectedMsgs, f.path)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8,
+                              width: '100%', padding: '8px 12px',
+                              background: 'none', border: 'none',
+                              color: 'var(--text-primary)', fontSize: 13,
+                              cursor: 'pointer', textAlign: 'left',
+                              transition: 'background 0.1s',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                          >
+                            <span style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                              <FolderIcon specialUse={f.special_use} />
+                            </span>
+                            <FolderPathLabel folder={f} label={f.favoriteLabel} />
+                          </button>
+                        );
                         return displayed.length === 0 ? (
                           <div style={{ padding: '12px 12px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>
                             {t('contextMenu.folders.empty')}
                           </div>
                         ) : (
                           <>
-                            {!q && (
-                              <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                                {t('messageList.moveToFolder')}
-                              </div>
-                            )}
-                            {displayed.map(f => (
-                              <button
-                                key={f.path}
-                                onClick={() => handleBulkMove([...selectedIds], selectedMsgs, f.path)}
-                                style={{
-                                  display: 'flex', alignItems: 'center', gap: 8,
-                                  width: '100%', padding: '8px 12px',
-                                  background: 'none', border: 'none',
-                                  color: 'var(--text-primary)', fontSize: 13,
-                                  cursor: 'pointer', textAlign: 'left',
-                                  transition: 'background 0.1s',
-                                }}
-                                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
-                                onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                              >
-                                <span style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>
-                                  <FolderIcon specialUse={f.special_use} />
-                                </span>
-                                <FolderPathLabel folder={f} />
-                              </button>
-                            ))}
+                            {recent.length > 0 && (<>
+                              {heading(t('contextMenu.folders.recent'))}
+                              {recent.map(f => item(f, `recent-${f.path}`))}
+                              {divider}
+                            </>)}
+                            {favorites.length > 0 && (<>
+                              {heading(t('contextMenu.folders.favorites'))}
+                              {favorites.map(f => item(f, `fav-${f.path}`))}
+                              {divider}
+                            </>)}
+                            {!q && heading(t('messageList.moveToFolder'))}
+                            {displayed.map(f => item(f, f.path))}
                           </>
                         );
                       })()}
@@ -3763,13 +3925,17 @@ export default function MessageList() {
                         const q = pickerSearch.trim().toLowerCase();
                         const displayed = pickerFolders
                           .filter(f => f.path !== selectedFolder && (!q || folderMatchesQuery(f, q)));
-                        return displayed.length === 0 ? (
-                          <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
-                            {t('contextMenu.folders.empty')}
+                        const target = { accountId: selectedMsgs[0]?.account_id, currentFolder: selectedFolder };
+                        const recent = q ? [] : recentMoveTargets(recentFolders, pickerFolders, target);
+                        const favorites = q ? [] : favoriteMoveTargets(favoriteFolders, pickerFolders, { ...target, exclude: recent });
+                        const heading = label => (
+                          <div style={{ padding: '12px 20px 6px', fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid var(--border-subtle)' }}>
+                            {label}
                           </div>
-                        ) : displayed.map(f => (
+                        );
+                        const item = (f, key) => (
                           <button
-                            key={f.path}
+                            key={key}
                             onClick={() => { handleBulkMove([...selectedIds], selectedMsgs, f.path); setShowFolderPicker(false); }}
                             style={{
                               display: 'flex', alignItems: 'center', gap: 14,
@@ -3784,9 +3950,29 @@ export default function MessageList() {
                             <span style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>
                               <FolderIcon specialUse={f.special_use} />
                             </span>
-                            <FolderPathLabel folder={f} />
+                            <FolderPathLabel folder={f} label={f.favoriteLabel} />
                           </button>
-                        ));
+                        );
+                        if (displayed.length === 0) {
+                          return (
+                            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
+                              {t('contextMenu.folders.empty')}
+                            </div>
+                          );
+                        }
+                        const sectioned = recent.length > 0 || favorites.length > 0;
+                        return (<>
+                          {recent.length > 0 && (<>
+                            {heading(t('contextMenu.folders.recent'))}
+                            {recent.map(f => item(f, `recent-${f.path}`))}
+                          </>)}
+                          {favorites.length > 0 && (<>
+                            {heading(t('contextMenu.folders.favorites'))}
+                            {favorites.map(f => item(f, `fav-${f.path}`))}
+                          </>)}
+                          {sectioned && heading(t('messageList.foldersHeading'))}
+                          {displayed.map(f => item(f, f.path))}
+                        </>);
                       })()}
                     </div>
                   </div>
@@ -3813,104 +3999,24 @@ export default function MessageList() {
           </div>
         )}
 
-        {threadedView && !searchQuery.trim() ? (
-          displayMessages.map(message => {
-            const tid = message.thread_id || message.id;
-            const swipeLeftAction = swipeActions?.left || 'archive';
-            const swipeRightAction = swipeActions?.right || 'markRead';
-            return (
-              <ThreadRow
-                key={tid}
-                message={message}
-                isExpanded={expandedThreadId === tid}
-                threadMsgs={threadMessages[tid] || null}
-                isLoadingThread={loadingThread === tid}
-                selectedMessageId={selectedMessageId}
-                selectedMid={selectedMid}
-                selectedAcct={selectedAcct}
-                lastViewedMessageId={lastViewedMessageId}
-                showAccount={false} /* No per-account dot on unified rows: it added noise beside the unread indicator; the account is visible in the message pane header. */
-                isNarrow={isNarrow}
-                onThreadClick={() => handleThreadClick(message)}
-                onThreadToggle={() => handleThreadToggle(message)}
-                showMobileAvatars={showMobileAvatars}
-                showMessagePreviews={showMessagePreviews}
-                onSelect={handleSelect}
-                onOpenWindow={!isMobile ? handleOpenInWindow : undefined}
-                onMarkRead={handleThreadMarkRead}
-                onStar={handleStar}
-                onDelete={handleDelete}
-                hoverQuickActions={hoverQuickActions}
-                hoverActionSet={hoverActionSet}
-                onArchive={handleHoverArchive}
-                onSnooze={handleHoverSnooze}
-                onContextMenu={(e, msg) => {
-                  e.preventDefault();
-                  setContextMenu({ x: e.clientX, y: e.clientY, message: msg });
-                }}
-                onMove={handleRowMove}
-                onDragStart={handleRowDragStart}
-                isMobile={isMobile}
-                swipeLeftAction={swipeLeftAction}
-                swipeRightAction={swipeRightAction}
-                onSwipeLeft={selectionMode || swipeLeftAction === 'disabled' ? undefined : (msg) => runSwipeAction(swipeLeftAction, msg)}
-                onSwipeRight={selectionMode || swipeRightAction === 'disabled' ? undefined : (msg) => runSwipeAction(swipeRightAction, msg)}
-                isChecked={selectedIds.has(message.id)}
-                selectionMode={selectionMode}
-                onToggleSelect={handleRowToggleSelect}
-                onRangeSelect={handleRangeSelect}
-                onModifierSelect={handleModifierSelect}
-                onLongPress={isMobile ? (id) => { setSelectionModeActive(true); toggleSelect(id); } : undefined}
-                onExplainSpam={(msg) => setSpamExplainMessageId(msg.id)}
-              />
-            );
-          })
-        ) : (
-          displayMessages.map(message => {
-            const swipeLeftAction = swipeActions?.left || 'archive';
-            const swipeRightAction = swipeActions?.right || 'markRead';
-            return (
-              <MessageRow
-                key={message.id}
-                message={message}
-                selected={isSelectedRow(message, selectedMessageId, selectedMid, selectedAcct)}
-                lastViewed={lastViewedMessageId === message.id && selectedMessageId !== message.id}
-                isChecked={selectedIds.has(message.id)}
-                selectionMode={selectionMode}
-                showAccount={false} /* No per-account dot on unified rows: it added noise beside the unread indicator; the account is visible in the message pane header. */
-                isNarrow={isNarrow}
-                onSelect={handleSelect}
-                onOpenWindow={!isMobile ? handleOpenInWindow : undefined}
-                onToggleSelect={handleRowToggleSelect}
-                onRangeSelect={handleRangeSelect}
-                onModifierSelect={handleModifierSelect}
-                onAvatarClick={!isMobile ? handleAvatarClick : undefined}
-                showMobileAvatars={showMobileAvatars}
-                showMessagePreviews={showMessagePreviews}
-                onMarkRead={handleMarkRead}
-                onStar={handleStar}
-                onDelete={handleDelete}
-                hoverQuickActions={hoverQuickActions}
-                hoverActionSet={hoverActionSet}
-                onArchive={handleHoverArchive}
-                onSnooze={handleHoverSnooze}
-                onContextMenu={(e, msg) => {
-                  e.preventDefault();
-                  setContextMenu({ x: e.clientX, y: e.clientY, message: msg });
-                }}
-                onMove={handleRowMove}
-                onDragStart={handleRowDragStart}
-                isMobile={isMobile}
-                swipeLeftAction={swipeLeftAction}
-                swipeRightAction={swipeRightAction}
-                onSwipeLeft={selectionMode || swipeLeftAction === 'disabled' ? undefined : (msg) => runSwipeAction(swipeLeftAction, msg)}
-                onSwipeRight={selectionMode || swipeRightAction === 'disabled' ? undefined : (msg) => runSwipeAction(swipeRightAction, msg)}
-                onLongPress={isMobile ? (id) => { setSelectionModeActive(true); toggleSelect(id); } : undefined}
-                onExplainSpam={(msg) => setSpamExplainMessageId(msg.id)}
-              />
-            );
-          })
-        )}
+        {rowTree.map(node => node.kind === 'sender' ? (
+          <SenderGroup
+            key={node.key}
+            message={node.message}
+            cacheKey={node.key}
+            params={senderParams}
+            expanded={expandedSenders.has(node.key)}
+            onToggle={() => setExpandedSenders(prev => {
+              const next = new Set(prev);
+              const key = node.key;
+              next.has(key) ? next.delete(key) : next.add(key);
+              return next;
+            })}
+            renderRow={(message) => renderListRow(node.children.find(child => child.message.id === message.id)?.message || message)}
+            applyReadGuard={applyReadGuard}
+          />
+        ) : renderListRow(node.message))}
+
 
         {contextMenu && (
           <ContextMenu
@@ -3945,7 +4051,7 @@ export default function MessageList() {
                 <div>{t('common.loading')}</div>
               </div>
             )}
-            {!searchLoadingMore && searchHasMore && displayMessages.length > 0 && (
+            {!searchLoadingMore && searchHasMore && listRows.length > 0 && (
               <div style={{ padding: '12px 16px', textAlign: 'center' }}>
                 <button
                   onClick={loadMoreSearch}
@@ -3962,14 +4068,14 @@ export default function MessageList() {
                 </button>
               </div>
             )}
-            {!searchLoadingMore && !searchHasMore && displayMessages.length > 0 && (
+            {!searchLoadingMore && !searchHasMore && listRows.length > 0 && (
               <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 11 }}>
                 {t('messageList.noMoreMessages')}
               </div>
             )}
           </>) : (<>
             {/* Regular message list: load more normal messages */}
-            {loadingMessages && displayMessages.length > 0 && (
+            {loadingMessages && listRows.length > 0 && (
               <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>
                 <div style={{
                   width: 16, height: 16, margin: '0 auto 6px',
@@ -3979,7 +4085,7 @@ export default function MessageList() {
                 <div>{t('common.loading')}</div>
               </div>
             )}
-            {!loadingMessages && hasMoreMessages && displayMessages.length > 0 && (
+            {!loadingMessages && hasMoreMessages && listRows.length > 0 && (
               <div style={{ padding: '12px 16px', textAlign: 'center' }}>
                 <button
                   onClick={loadMore}
@@ -3996,7 +4102,7 @@ export default function MessageList() {
                 </button>
               </div>
             )}
-            {!loadingMessages && !hasMoreMessages && displayMessages.length > 0 && (
+            {!loadingMessages && !hasMoreMessages && listRows.length > 0 && (
               <div style={{ padding: '16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 11 }}>
                 {t('messageList.noMoreMessages')}
               </div>
@@ -4153,8 +4259,10 @@ function UndoBar({ notification, onDismiss, showTopBorder }) {
     dismiss();
   };
 
+  // Undo send brings its own window; everything else uses the standard one.
+  const windowMs = notification.undoMs ?? UNDO_WINDOW_MS;
   useEffect(() => {
-    const timer = setTimeout(dismiss, UNDO_WINDOW_MS);
+    const timer = setTimeout(dismiss, windowMs);
     return () => clearTimeout(timer);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -4174,7 +4282,7 @@ function UndoBar({ notification, onDismiss, showTopBorder }) {
       <div style={{
         position: 'absolute', bottom: 0, left: 0,
         height: 2, background: 'var(--accent)',
-        animation: `action-bar-progress ${UNDO_WINDOW_MS}ms linear forwards`,
+        animation: `action-bar-progress ${windowMs}ms linear forwards`,
       }} />
       <span style={{
         flex: 1, minWidth: 0,
@@ -4564,6 +4672,7 @@ function ThreadRow({ message, isExpanded, threadMsgs, isLoadingThread, selectedM
             <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {message.subject || t('common.noSubject')}
             </span>
+            <ReplyDraftIndicator message={message} />
             <SpamBadge message={message} onClick={onExplainSpam} />
           </div>
           {/* Row 3: snippet */}
@@ -4895,6 +5004,7 @@ function MessageRow({ message, selected, lastViewed, isChecked, selectionMode, s
           <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {message.subject || t('message.noSubject')}
           </span>
+          <ReplyDraftIndicator message={message} />
           <SpamBadge message={message} onClick={onExplainSpam} />
         </div>
 

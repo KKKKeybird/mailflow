@@ -94,6 +94,7 @@
     "hidePassword": "隐藏密码"
   },
   "compose": {
+    "unsupportedDraftFrom": "保存或发送此草稿前，请选择已配置的发件人。",
     "newMessage": "新邮件",
     "reply": "回复",
     "replyAll": "回复全部",
@@ -109,6 +110,7 @@
     "bccPh": "bcc@example.com",
     "bodyPh": "请输入正文…",
     "send": "发送",
+    "insertSignature": "插入签名",
     "sendTooltip": "发送（Ctrl+Enter）",
     "sending": "发送中…",
     "discard": "丢弃",
@@ -144,6 +146,18 @@
       "noCopy": "已发送，但未保存到已发送文件夹",
       "someRejected": "邮件服务器拒绝投递到 {{addresses}}。",
       "action": "查看"
+    },
+    "undoSend": {
+      "sending": "正在发送“{{subject}}”…",
+      "undone": "已撤销发送",
+      "reopenLater": "关闭正在编写的邮件后，它会重新打开",
+      "notSent": "您的邮件未发送",
+      "lost": "服务器在发送前重启，邮件未送达。",
+      "unknown": "无法确认邮件是否已发送",
+      "unknownBody": "再次发送前，请先检查“已发送”文件夹。",
+      "reopen": "重新打开",
+      "tooLate": "来不及撤销：邮件已在发送中",
+      "undoFailed": "无法撤销：服务器没有响应"
     },
     "toolbar": {
       "removeTable": "删除表格",
@@ -278,9 +292,36 @@
       "button": "AI 分类",
       "done": "已分类为 {{category}}",
       "error": "AI 分类失败。"
+    },
+    "preview": {
+      "open": "预览",
+      "label": "预览：{{name}}",
+      "position": "{{current}} / {{total}}",
+      "download": "下载",
+      "print": "打印",
+      "preparingPrint": "正在准备… {{done}}/{{total}}",
+      "close": "关闭",
+      "zoomIn": "放大",
+      "zoomOut": "缩小",
+      "fit": "适应屏幕",
+      "previous": "上一个附件",
+      "next": "下一个附件",
+      "failed": "无法显示此文件。",
+      "unsupported": "此文件似乎不是有效的 PDF 或图片，因此不在此处显示。",
+      "password": "此 PDF 受密码保护。请输入密码以打开。",
+      "passwordLabel": "PDF 密码",
+      "passwordSubmit": "打开",
+      "passwordIncorrect": "密码错误，请重试。"
     }
   },
   "messageList": {
+    "replyDraftChanged": "回复草稿已更改。请尝试重新打开。",
+    "replyDraftKeepCurrent": "打开此草稿前，请保存当前邮件并处理其附件。",
+    "replyDraftUnavailable": "此回复草稿已不可用。",
+    "replyDraftCancelled": "所选邮件或编辑窗口已更改，因此已取消打开回复草稿。请尝试再次打开。",
+    "replyDraftRetry": "重新查找回复草稿",
+    "openReplyDraft": "打开回复草稿",
+    "replyDraft": "回复草稿",
     "search": "搜索…",
     "unread": "未读",
     "showAll": "显示全部",
@@ -384,6 +425,11 @@
       "automated": "自动邮件",
       "social": "社交"
     },
+    "categoryAlways": {
+      "done": "来自 {{value}} 的邮件现在归入{{category}}",
+      "doneBody": "已保存为收件箱规则；已收到的收件箱邮件也已更新。",
+      "failed": "无法保存此发件人的分类"
+    },
     "changeLayout": "更改布局",
     "layouts": {
       "focused": {
@@ -406,7 +452,9 @@
         "label": "上下分栏",
         "description": "邮件列表位于阅读窗格上方"
       }
-    }
+    },
+    "senderGroupCounts": "{{unread}} 封未读 · {{count}} 封邮件",
+    "senderGroupLoadError": "无法加载聚合邮件，请重试。"
   },
   "lockScreen": {
     "subtitle": "输入 PIN 码以解锁",
@@ -478,6 +526,7 @@
     "reply": "回复",
     "replyAll": "回复全部",
     "forward": "转发",
+    "forwardAsAttachment": "作为附件转发",
     "moveToFolder": "移动",
     "archive": "归档",
     "snooze": {
@@ -488,6 +537,9 @@
       "custom": "自定义……"
     },
     "categorize": "分类为…",
+    "categoryAlwaysSender": "始终用于此发件人",
+    "categoryAlwaysDomain": "始终用于此域名",
+    "categoryAlwaysFor": "始终用于 {{value}}",
     "createRule": "根据此邮件创建规则",
     "addToBlockList": "添加到黑名单",
     "markAsSpam": "标记为垃圾邮件",
@@ -511,7 +563,9 @@
       "recent": "最近",
       "favorites": "收藏夹",
       "search": "搜索文件夹…"
-    }
+    },
+    "groupSender": "聚合此发件人的邮件",
+    "ungroupSender": "取消此发件人的聚合"
   },
   "commandPalette": {
     "labelPicker": {
@@ -656,6 +710,15 @@
         "label": "标记为已委派",
         "description": "将所选邮件归类为已委派"
       },
+      "gtdReference": {
+        "description": "将所选邮件归类为参考资料"
+      },
+      "gtdSomeday": {
+        "description": "将所选邮件归类为将来再办"
+      },
+      "gtdDone": {
+        "description": "将所选 GTD 邮件标记为完成"
+      },
       "toggleRightSidebar": {
         "label": "切换右侧边栏",
         "description": "隐藏或显示右侧边栏"
@@ -739,7 +802,8 @@
       "groupDisplay": "显示",
       "groupSecurityIntegrations": "安全与集成",
       "groupAdmin": "管理",
-      "plugins": "插件"
+      "plugins": "插件",
+      "backup": "备份"
     },
     "rules": {
       "title": "收件箱规则",
@@ -780,6 +844,8 @@
       "actionMove": "移动到文件夹",
       "actionForward": "转发至",
       "actionForwardPlaceholder": "shoujianren@example.com",
+      "actionSetCategory": "设置分类",
+      "actionSetCategorySelect": "选择分类…",
       "actionMovePlaceholder": "文件夹名称",
       "actionMoveSelectFolder": "选择文件夹…",
       "actionMoveRequiresAccount": "需要指定账户",
@@ -849,6 +915,9 @@
       "smtpAuthUserPh": "与上面的用户名相同",
       "smtpAuthPass": "SMTP 密码",
       "signatureSection": "签名",
+      "signatureEnabledDefault": "默认显示签名",
+      "autoRecipientsSection": "自动抄送和密送",
+      "autoRecipientsDesc": "这些地址会作为普通收件人添加到您通过此账户或其别名撰写的每封新邮件、回复和转发中，您可以将其移除。多个地址请以英文逗号分隔。",
       "saveChanges": "保存更改",
       "addAccount": "添加账户",
       "saving": "保存中…",
@@ -943,6 +1012,7 @@
       "customCssSaved": "已保存"
     },
     "messageList": {
+      "autoOpenReplyDrafts": "选择收件箱邮件时自动打开已保存的回复",
       "title": "邮件列表",
       "senderFavicons": "发件人网站图标",
       "senderFaviconsDesc": "为没有联系人照片的发件人显示网站图标。只会将发件人的域名发送到 Twenty Icons，绝不会发送完整的电子邮件地址。",
@@ -1117,6 +1187,11 @@
       "activityBlocked": "已拦截",
       "savingProtection": "保存中…",
       "eventSsoLogin": "SSO 登录",
+      "eventAdminPasswordSet": "已设置密码",
+      "eventAdminUserUpdate": "已编辑账户",
+      "eventAdminTotpDisable": "已关闭双重认证",
+      "eventAdminUserDelete": "已删除账户",
+      "byActor": "（由 {{actor}} 操作）",
       "activityTitle": "登录活动",
       "loginProtectionTitle": "登录保护",
       "qrCodeAlt": "QR码",
@@ -1162,7 +1237,7 @@
       "description": "点击某个按键绑定即可重新分配。按 Esc 取消录制。",
       "resetAll": "全部恢复默认",
       "recording": "请按下一个按键…",
-      "conflict": "按键 {{key}} 原已分配给「{{action}}」，现已重新分配。",
+      "conflict": "按键 {{key}} 分配给了多个操作。{{action}} 优先执行。",
       "resetDefault": "恢复默认",
       "remove": "移除快捷键",
       "footer": "在应用任意位置按 ? 即可查看当前快捷键参考。"
@@ -1204,7 +1279,25 @@
       "deleteConfirmLabel": "删除用户",
       "disable2faConfirmTitle": "为「{{username}}」停用双重验证？",
       "disable2faConfirmBody": "此操作将解除其身份验证器应用要求。该用户可自行重新启用。",
-      "disable2faConfirmLabel": "停用双重验证"
+      "disable2faConfirmLabel": "停用双重验证",
+      "lastSeen": "最近访问：{{when}}",
+      "neverSeen": "从未登录",
+      "edit": "编辑",
+      "editTitle": "编辑 {{username}}",
+      "username": "用户名",
+      "usernameHint": "用于登录 MailFlow。",
+      "recoveryEmail": "恢复邮箱",
+      "recoveryEmailHint": "接收“忘记密码？”链接。留空即可移除。",
+      "newPassword": "新密码",
+      "newPasswordHint": "留空则保留当前密码。保存新密码后，该用户将在所有设备上退出登录。",
+      "newPasswordHintSelf": "留空则保留当前密码。你的其他设备将退出登录；此设备保持登录。",
+      "confirmPassword": "确认新密码",
+      "passwordTooShort": "密码至少需要 8 个字符。",
+      "passwordMismatch": "两次输入的密码不一致。",
+      "usernameTaken": "该用户名已被占用。",
+      "invalidEmail": "该邮箱地址无效。",
+      "saveFailed": "无法保存：{{message}}",
+      "passwordNotSet": "其他更改已保存，但未设置密码：{{message}}"
     },
     "ai": {
       "title": "AI 助手",
@@ -1568,6 +1661,29 @@
       "autoLockOff": "关闭",
       "autoLockMin": "{{n}} 分钟"
     },
+    "backup": {
+      "title": "备份与恢复",
+      "intro": "备份文件包含此 MailFlow 的数据：用户、邮件账户、规则、联系人、设置、插件数据和反垃圾邮件训练数据。除非选择包含，缓存的邮件会在恢复后从你的邮件服务器重新下载。文件不包含 .env 中的设置：新服务器需要相同的 ENCRYPTION_KEY；如果你在 .env 中设置了 VAPID 密钥和 OAuth 客户端设置，也需要相同的值。",
+      "sensitive": "该文件包含密码哈希、尚未使用的邀请链接以及各账户的登录凭据。其中登录凭据已使用本服务器的 ENCRYPTION_KEY 加密，其余内容均可直接读取；如果包含缓存邮件，所有邮件内容同样可读。请妥善保管该文件。它只能在使用相同密钥的服务器上恢复。",
+      "includeMail": "包含缓存的邮件",
+      "includeMailDesc": "同时保存每封已同步邮件的本地副本，文件会因此大很多。如果不包含，恢复后会重新下载邮件，且每个收件箱中最新的未读邮件会作为新邮件再次到达：收件箱规则会再次作用于它们，包括转发。此选择将用于之后的每次备份，直到你更改为止。",
+      "includeMailSaveError": "无法保存该设置。",
+      "create": "下载备份",
+      "restoreTitle": "恢复备份",
+      "restoreIntro": "恢复会用文件中的内容替换本服务器上的所有用户、账户、设置和缓存邮件。随后 MailFlow 会重启。账户不在备份中的用户会被登出，密码以备份中的为准。",
+      "versionNote": "备份只能在数据库结构与创建它的版本相同的 MailFlow 版本上恢复。如果当前版本的数据库结构较新，请先在创建备份的版本上恢复，然后再升级。",
+      "chooseFile": "选择备份文件",
+      "restore": "恢复…",
+      "confirmWarn": "本服务器上的全部内容将被 {{name}} 替换。此操作无法撤销。",
+      "confirmYes": "恢复并重启",
+      "restoring": "正在恢复… 已写入行数：{{rows}}",
+      "done": "恢复完成。MailFlow 正在重启，恢复可用后本页面会自动重新加载。",
+      "restartTimeout": "MailFlow 在两分钟内未能恢复运行。请重新启动它，然后重新加载本页面。",
+      "failed": "恢复失败：{{message}}",
+      "downloadFailed": "无法开始备份。",
+      "connectionLost": "恢复过程中连接中断，因此结果未知。MailFlow 恢复响应后本页面会重新加载；届时请确认数据是否已恢复。",
+      "tooLarge": "文件大小超过了 MailFlow 前面的反向代理所允许的上限。"
+    },
     "plugins": {
       "title": "插件",
       "description": "为你的账户开启或关闭可选功能。启用插件后会添加其自身的设置和界面。",
@@ -1736,6 +1852,7 @@
     "undoFailed": "无法撤销标签",
     "removed": "已移除标签",
     "removeFailed": "无法移除标签",
+    "onlyCopy": "这是该邮件的唯一副本，移除标签会将其删除。请改为归档或移动。",
     "done": "标记为完成",
     "doneFailed": "无法标记为完成",
     "doneArchiveFailed": "已标记为完成，但归档失败——邮件仍在收件箱中",

@@ -1,3 +1,4 @@
+import { actionableMessageRows, selectedListMessage, neighborMessageRow } from '../utils/messageRowTree.js';
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/index.js';
@@ -12,10 +13,11 @@ import { pendingMarkReadMap, completedMarkReadMap, setPending } from '../utils/p
 import { applyMarkRead, scheduleMarkRead, cancelScheduledMarkRead, cancelScheduledMarkReadFor } from '../utils/markRead.js';
 import { markMessageUnread } from '../utils/messageHotkeys.js';
 import { BUILTIN_SUMMARIZE } from '../aiActions.js';
-import { openReplyFromMessage, openForwardFromMessage } from '../utils/composeFromMessage.js';
+import { openReplyFromMessage, openForwardFromMessage, openForwardAsAttachmentFromMessage } from '../utils/composeFromMessage.js';
 import MessageBodyView from './MessageBodyView.jsx';
 import { copyToClipboard } from '../utils/clipboard.js';
-import { folderMatchesQuery, favoriteMoveTargets } from '../utils/folderDisplay.js';
+import { saveSenderCategory } from '../utils/senderCategory.js';
+import { folderMatchesQuery, favoriteMoveTargets, recentMoveTargets } from '../utils/folderDisplay.js';
 import FolderPathLabel from './FolderPathLabel.jsx';
 import SpamBadge from './SpamBadge.jsx';
 import SpamExplainModal from './SpamExplainModal.jsx';
@@ -24,6 +26,8 @@ import { downloadEml } from '../utils/downloadEml.js';
 import { buildPrintDocument, openPrintWindow, printInWindow } from '../utils/printMessage.js';
 import AiResultBox from './AiResultBox.jsx';
 import { useAiActions } from '../hooks/useAiActions.js';
+import { previewKind } from '../utils/attachmentPreview.js';
+import AttachmentViewer from './AttachmentViewer.jsx';
 const USE_DIV_RENDER = import.meta.env.VITE_EMAIL_DIV_RENDER === 'true';
 const MESSAGE_OPENING_EVENT = 'mailflow:message-opening';
 // riskArmed value for the "Download all" link. A Symbol, so no attachment part can ever equal it.
@@ -99,7 +103,7 @@ function fileIcon(type) {
 export default function MessagePane({ windowMessageId = null, onWindowClose = null } = {}) {
   const { t } = useTranslation();
   const {
-    messages, searchResults, searchQuery, selectedMessageId: globalSelectedId, setSelectedMessage,
+    selectedMessageId: globalSelectedId, setSelectedMessage,
     updateMessage, removeMessage, decrementUnread, incrementUnread, openCompose, accounts, addNotification,
     imageWhitelist, addToImageWhitelist, blockRemoteImages, threadMessages,
     replyDefault, shortcuts, recentFolders, favoriteFolders, todoistConnected,
@@ -135,7 +139,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   const selectAndMarkRead = useCallback((msg) => {
     window.dispatchEvent(new CustomEvent(MESSAGE_OPENING_EVENT));
     api.getMessageBody(msg.id).catch(() => {});
-    setSelectedMessage(msg.id);
+    setSelectedMessage(msg.id, msg.__list_key);
     cancelScheduledMarkRead(autoMarkReadTimerRef.current);
     autoMarkReadTimerRef.current = scheduleMarkRead(msg);
   }, [setSelectedMessage]);
@@ -188,9 +192,11 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
     setShowAiMenu(false);
   }, [selectedMessageId]);
 
-  const allMessages = searchQuery.trim() ? searchResults : messages;
-  const message = allMessages.find(m => m.id === selectedMessageId)
+  const navigationState = windowMode ? { ...useStore.getState(), selectedMessageId, selectedListRowKey: null } : useStore.getState();
+  const allMessages = actionableMessageRows(navigationState);
+  const selected = selectedListMessage(navigationState) ?? allMessages.find(m => m.id === selectedMessageId)
     ?? Object.values(threadMessages).flat().find(m => m.id === selectedMessageId);
+  const message = useMemo(() => selected ? { ...selected, __list_kind: 'message', __list_thread: selected.__list_thread || selected.thread_id, message_count: undefined, unread_count: undefined } : selected, [selected]);
 
   useEffect(() => {
     setResolvedSubject(null);
@@ -227,7 +233,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   const performSingleSpamLabel = useCallback(async (label) => {
     if (!message) return;
     const wasUnread = !message.is_read;
-    removeMessage(message.id);
+    removeMessage(message.id, { ...message, __list_kind: 'message', __list_thread: message.__list_thread || message.thread_id, message_count: undefined, unread_count: undefined });
     closeWindowIfWindowed();
     if (wasUnread) decrementUnread(message.account_id);
     let settled = false;
@@ -258,9 +264,10 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
     });
   }, [message, removeMessage, decrementUnread, incrementUnread, addNotification, t, closeWindowIfWindowed]);
 
-  const currentIdx = allMessages.findIndex(m => m.id === selectedMessageId);
-  const hasPrev = currentIdx > 0;
-  const hasNext = currentIdx >= 0 && currentIdx < allMessages.length - 1;
+  const previousMessage = neighborMessageRow(navigationState, -1, false);
+  const nextMessage = neighborMessageRow(navigationState, 1, false);
+  const hasPrev = !!previousMessage;
+  const hasNext = !!nextMessage;
 
   const [body, setBody] = useState(null);
   const [bodyError, setBodyError] = useState(null);
@@ -696,19 +703,13 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
           el.style.transform = 'translateX(0)';
         }
       } else {
-        const { messages: msgs, searchResults: sr, searchQuery: sq, selectedMessageId: selId, setSelectedMessage: setSel, updateMessage: updMsg, decrementUnread: decUnread, incrementUnread: incUnread, adjustCategoryCount: adjCat } = useStore.getState();
-        const list = sq.trim() ? sr : msgs;
-        const idx = list.findIndex(m => m.id === selId);
-        let target = null;
-        if (dx < -60 && idx >= 0 && idx < list.length - 1) {
-          target = list[idx + 1];
-        } else if (dx > 60 && idx > 0) {
-          target = list[idx - 1];
-        }
+        const state = useStore.getState();
+        const { setSelectedMessage: setSel, updateMessage: updMsg, decrementUnread: decUnread, incrementUnread: incUnread, adjustCategoryCount: adjCat } = state;
+        const target = Math.abs(dx) > 60 ? neighborMessageRow(state, dx < 0 ? 1 : -1, false) : null;
         if (target) {
           window.dispatchEvent(new CustomEvent(MESSAGE_OPENING_EVENT));
           api.getMessageBody(target.id).catch(() => {});
-          setSel(target.id);
+          setSel(target.id, target.__list_key);
           cancelScheduledMarkRead(autoMarkReadTimerRef.current);
           autoMarkReadTimerRef.current = null;
           if (!target.is_read) {
@@ -871,7 +872,9 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   // riskArmed: a risky attachment needs a second click to download; the first
   // arms the button and shows why. Holds the attachment's part, or DOWNLOAD_ALL.
   const [riskArmed, setRiskArmed] = useState(null);
-  useEffect(() => { setRiskArmed(null); }, [selectedMessageId]);
+  // viewerStart: index into the previewable attachments the viewer opened on, or null.
+  const [viewerStart, setViewerStart] = useState(null);
+  useEffect(() => { setRiskArmed(null); setViewerStart(null); }, [selectedMessageId]);
 
   const handleDownload = async (messageId, part, filename) => {
     setDownloadingPart(part);
@@ -1030,7 +1033,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
     if (!message) return;
     setShowMovePicker(false);
     const moved = message;
-    removeMessage(moved.id);
+    removeMessage(moved.id, { ...moved, __list_kind: 'message', __list_thread: moved.__list_thread || moved.thread_id, message_count: undefined, unread_count: undefined });
     closeWindowIfWindowed();
     if (!moved.is_read) decrementUnread(moved.account_id);
     let undone = false;
@@ -1080,10 +1083,9 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   }, [showMovePicker]);
 
   const recentForMove = message
-    ? recentFolders
-        .filter(r => r.accountId === message.account_id && r.path !== message.folder)
-        .map(r => movePickerFolders.find(f => f.path === r.path))
-        .filter(Boolean)
+    ? recentMoveTargets(recentFolders, movePickerFolders, {
+        accountId: message.account_id, currentFolder: message.folder,
+      })
     : [];
   const favoritesForMove = message
     ? favoriteMoveTargets(favoriteFolders, movePickerFolders, {
@@ -1146,7 +1148,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   const handleDelete = () => {
     const deleted = message;
     setPendingDelete(deleted.id);
-    removeMessage(deleted.id);
+    removeMessage(deleted.id, { ...deleted, __list_kind: 'message', __list_thread: deleted.__list_thread || deleted.thread_id, message_count: undefined, unread_count: undefined });
     closeWindowIfWindowed();
     if (!deleted.is_read) decrementUnread(deleted.account_id);
     let undone = false;
@@ -1177,7 +1179,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
 
   const handleArchive = () => {
     const archived = message;
-    removeMessage(archived.id);
+    removeMessage(archived.id, { ...archived, __list_kind: 'message', __list_thread: archived.__list_thread || archived.thread_id, message_count: undefined, unread_count: undefined });
     closeWindowIfWindowed();
     if (!archived.is_read) decrementUnread(archived.account_id);
     let undone = false;
@@ -1262,6 +1264,9 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
       case 'forward':
         handleForward();
         break;
+      case 'forwardAsAttachment':
+        if (message) openForwardAsAttachmentFromMessage(message, { openCompose });
+        break;
       case 'archive':
         handleArchive();
         break;
@@ -1280,7 +1285,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
       case 'snooze':
         if (data) {
           const snoozedMsg = message;
-          removeMessage(snoozedMsg.id);
+          removeMessage(snoozedMsg.id, { ...snoozedMsg, __list_kind: 'message', __list_thread: snoozedMsg.__list_thread || snoozedMsg.thread_id, message_count: undefined, unread_count: undefined });
           closeWindowIfWindowed();
           if (!snoozedMsg.is_read) decrementUnread(snoozedMsg.account_id);
           addNotification({ title: t('message.snoozed.title'), body: snoozedMsg.subject || t('common.noSubject') });
@@ -1310,15 +1315,28 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
         break;
       }
       case 'setCategory': {
+        // Stored as chosen, 'primary' included, as the server does (#489).
         const newCategory = data || 'primary';
-        const dbCategory = newCategory === 'primary' ? null : newCategory;
         try {
           await api.setMessageCategory(message.id, newCategory);
-          updateMessage(message.id, { category: dbCategory });
+          updateMessage(message.id, { category: newCategory });
           const params = message.account_id ? { accountId: message.account_id } : {};
           api.getCategoryCounts(params).then(d => setCategoryCounts(d.counts || {})).catch(() => {});
         } catch (err) {
           console.error('setCategory failed:', err?.message);
+        }
+        break;
+      }
+      case 'setCategoryAlways': {
+        // "Always for this sender/domain" (#490).
+        const category = data?.category;
+        const saved = await saveSenderCategory(message, data?.scope, category, {
+          t, api, getState: useStore.getState, onMatch: loaded => updateMessage(loaded.id, { category }),
+        });
+        if (saved) {
+          updateMessage(message.id, { category });
+          const params = message.account_id ? { accountId: message.account_id } : {};
+          api.getCategoryCounts(params).then(d => setCategoryCounts(d.counts || {})).catch(() => {});
         }
         break;
       }
@@ -1368,7 +1386,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
         actionLabel: t('message.unsubscribe.moveToTrash'),
         onAction: () => {
           const { removeMessage, decrementUnread, restoreMessages, incrementUnread } = useStore.getState();
-          removeMessage(msg.id);
+          removeMessage(msg.id, { ...msg, __list_kind: 'message', __list_thread: msg.__list_thread || msg.thread_id, message_count: undefined, unread_count: undefined });
           if (!msg.is_read) decrementUnread(msg.account_id);
           api.deleteMessage(msg.id).catch(() => {
             restoreMessages([msg]);
@@ -1441,6 +1459,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   })();
 
   const attachments = body?.attachments || [];
+  const previewable = attachments.filter(att => previewKind(att));
   // "Download all" hands over every file at once, so it asks first whenever one of them would. While
   // it does, the link has no href, so a right-click "Save link as", a middle click or a long press has
   // nothing to fetch; the confirming click starts the download itself.
@@ -1503,7 +1522,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
           </div>
           <button
             disabled={!hasPrev}
-            onClick={() => selectAndMarkRead(allMessages[currentIdx - 1])}
+            onClick={() => selectAndMarkRead(previousMessage)}
             title={t('message.previousMessage')}
             style={{
               background: 'none', border: 'none', flexShrink: 0,
@@ -1518,7 +1537,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
           </button>
           <button
             disabled={!hasNext}
-            onClick={() => selectAndMarkRead(allMessages[currentIdx + 1])}
+            onClick={() => selectAndMarkRead(nextMessage)}
             title={t('message.nextMessage')}
             style={{
               background: 'none', border: 'none', flexShrink: 0,
@@ -2212,15 +2231,18 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
                 const risky = risk.level === 'block' || risk.level === 'warn';
                 const riskColor = risk.level === 'block' ? 'var(--red)' : risk.level === 'warn' ? 'var(--amber)' : 'var(--text-tertiary)';
                 const armed = riskArmed === att.part;
+                const canPreview = previewable.includes(att);
                 const riskText = risk.level === 'ok' ? '' : risk.doubleExt
                   ? t('message.attachmentRisk.doubleExt', { ext: risk.doubleExt })
                   : t(`message.attachmentRisk.${risk.level}`, { ext: risk.ext });
                 return (
                 <button
                   key={i}
+                  title={canPreview ? t('message.preview.open') : undefined}
                   onClick={() => {
                     if (risky && !armed) { setRiskArmed(att.part); return; }
                     setRiskArmed(null);
+                    if (canPreview) { setViewerStart(previewable.indexOf(att)); return; }
                     handleDownload(message.id, att.part, att.filename);
                   }}
                   disabled={downloadingPart === att.part}
@@ -2256,15 +2278,35 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
                   </div>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
                     stroke="var(--text-tertiary)" strokeWidth="2" style={{ flexShrink: 0 }}>
-                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
-                    <polyline points="7 10 12 15 17 10"/>
-                    <line x1="12" y1="15" x2="12" y2="3"/>
+                    {canPreview ? (
+                      <>
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                      </>
+                    ) : (
+                      <>
+                        <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/>
+                        <polyline points="7 10 12 15 17 10"/>
+                        <line x1="12" y1="15" x2="12" y2="3"/>
+                      </>
+                    )}
                   </svg>
                 </button>
                 );
               })}
             </div>
           </div>
+        )}
+
+        {viewerStart !== null && message && previewable.length > 0 && (
+          <AttachmentViewer
+            key={`${message.id}:${viewerStart}`}
+            messageId={message.id}
+            attachments={previewable}
+            startIndex={viewerStart}
+            onClose={() => setViewerStart(null)}
+            onDownloadFallback={att => handleDownload(message.id, att.part, att.filename)}
+          />
         )}
 
         {/* AI action results — pinned boxes above the message (#204) */}

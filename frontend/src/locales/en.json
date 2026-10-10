@@ -94,6 +94,7 @@
     "hidePassword": "Hide password"
   },
   "compose": {
+    "unsupportedDraftFrom": "Choose a configured sender before saving or sending this draft.",
     "newMessage": "New Message",
     "reply": "Reply",
     "replyAll": "Reply All",
@@ -109,6 +110,7 @@
     "bccPh": "bcc@example.com",
     "bodyPh": "Write your message…",
     "send": "Send",
+    "insertSignature": "Insert Signature",
     "sendTooltip": "Send (Ctrl+Enter)",
     "sending": "Sending…",
     "discard": "Discard",
@@ -144,6 +146,18 @@
       "noCopy": "Sent, but not saved to your Sent folder",
       "someRejected": "The mail server refused delivery to {{addresses}}.",
       "action": "View"
+    },
+    "undoSend": {
+      "sending": "Sending \"{{subject}}\"…",
+      "undone": "Sending undone",
+      "reopenLater": "It will reopen when you close the message you're writing",
+      "notSent": "Your message was not sent",
+      "lost": "The server restarted before sending it, so it was not delivered.",
+      "unknown": "Could not confirm that your message was sent",
+      "unknownBody": "Check your Sent folder before sending it again.",
+      "reopen": "Reopen",
+      "tooLate": "Too late to undo: the message is already being sent",
+      "undoFailed": "Could not undo: no response from the server"
     },
     "toolbar": {
       "removeTable": "Remove table",
@@ -278,9 +292,36 @@
       "button": "Classify with AI",
       "done": "Classified as {{category}}",
       "error": "AI classification failed."
+    },
+    "preview": {
+      "open": "Preview",
+      "label": "Preview of {{name}}",
+      "position": "{{current}} of {{total}}",
+      "download": "Download",
+      "print": "Print",
+      "preparingPrint": "Preparing… {{done}}/{{total}}",
+      "close": "Close",
+      "zoomIn": "Zoom in",
+      "zoomOut": "Zoom out",
+      "fit": "Fit to screen",
+      "previous": "Previous attachment",
+      "next": "Next attachment",
+      "failed": "This file could not be displayed.",
+      "unsupported": "This file does not look like a valid PDF or image, so it is not shown here.",
+      "password": "This PDF is password-protected. Enter its password to open it.",
+      "passwordLabel": "PDF password",
+      "passwordSubmit": "Open",
+      "passwordIncorrect": "Incorrect password. Try again."
     }
   },
   "messageList": {
+    "replyDraftChanged": "The reply draft changed. Try opening it again.",
+    "replyDraftKeepCurrent": "Save the current message and resolve its attachments before opening this draft.",
+    "replyDraftUnavailable": "This reply draft is no longer available.",
+    "replyDraftCancelled": "Reply draft opening was cancelled because the selection or composer changed. Try opening it again.",
+    "replyDraftRetry": "Retry reply draft lookup",
+    "openReplyDraft": "Open reply draft",
+    "replyDraft": "Reply draft",
     "search": "Search…",
     "unread": "Unread",
     "showAll": "Show all",
@@ -384,6 +425,11 @@
       "automated": "Automated",
       "social": "Social"
     },
+    "categoryAlways": {
+      "done": "Mail from {{value}} now goes to {{category}}",
+      "doneBody": "Saved as an inbox rule; inbox mail already received was updated too.",
+      "failed": "Couldn't save the category for this sender"
+    },
     "changeLayout": "Change layout",
     "layouts": {
       "focused": {
@@ -406,7 +452,9 @@
         "label": "Vertical Split",
         "description": "Message list stacked above the reading pane"
       }
-    }
+    },
+    "senderGroupCounts": "{{unread}} unread · {{count}} messages",
+    "senderGroupLoadError": "Could not load this sender’s emails. Please retry."
   },
   "lockScreen": {
     "subtitle": "Enter your PIN to unlock",
@@ -478,6 +526,7 @@
     "reply": "Reply",
     "replyAll": "Reply all",
     "forward": "Forward",
+    "forwardAsAttachment": "Forward as attachment",
     "moveToFolder": "Move",
     "archive": "Archive",
     "snooze": {
@@ -488,6 +537,9 @@
       "custom": "Custom..."
     },
     "categorize": "Categorize as…",
+    "categoryAlwaysSender": "Always for this sender",
+    "categoryAlwaysDomain": "Always for this domain",
+    "categoryAlwaysFor": "Always for {{value}}",
     "createRule": "Create rule from message",
     "addToBlockList": "Add to block list",
     "markAsSpam": "Mark as Spam",
@@ -511,7 +563,9 @@
       "recent": "Recent",
       "favorites": "Favorites",
       "search": "Search folders…"
-    }
+    },
+    "groupSender": "Group emails from this sender",
+    "ungroupSender": "Ungroup emails from this sender"
   },
   "commandPalette": {
     "labelPicker": {
@@ -656,6 +710,15 @@
         "label": "Mark Delegated",
         "description": "Classify the selected message as Delegated"
       },
+      "gtdReference": {
+        "description": "Classify the selected message as Reference"
+      },
+      "gtdSomeday": {
+        "description": "Classify the selected message as Someday"
+      },
+      "gtdDone": {
+        "description": "Mark the selected GTD message done"
+      },
       "toggleRightSidebar": {
         "label": "Toggle right sidebar",
         "description": "Hide or show the right sidebar"
@@ -739,7 +802,8 @@
       "groupDisplay": "Display",
       "groupSecurityIntegrations": "Security & Integrations",
       "groupAdmin": "Administration",
-      "plugins": "Plugins"
+      "plugins": "Plugins",
+      "backup": "Backup"
     },
     "rules": {
       "title": "Inbox rules",
@@ -787,6 +851,8 @@
       "actionMove": "Move to folder",
       "actionForward": "Forward to",
       "actionForwardPlaceholder": "recipient@example.com",
+      "actionSetCategory": "Set category",
+      "actionSetCategorySelect": "Select a category…",
       "actionMovePlaceholder": "Exact IMAP folder path (e.g. Work or INBOX/Work)",
       "actionMoveSelectFolder": "Select a folder…",
       "actionMoveRequiresAccount": "Requires a specific account",
@@ -849,6 +915,9 @@
       "smtpAuthUserPh": "Same as username above",
       "smtpAuthPass": "SMTP password",
       "signatureSection": "Signature",
+      "signatureEnabledDefault": "Show signature by default",
+      "autoRecipientsSection": "Automatic Cc and Bcc",
+      "autoRecipientsDesc": "Added as normal recipients, which you can remove, to every new message, reply and forward you write from this account or its aliases. Separate addresses with commas.",
       "saveChanges": "Save changes",
       "addAccount": "Add account",
       "saving": "Saving…",
@@ -943,6 +1012,7 @@
       "customCssSaved": "Saved"
     },
     "messageList": {
+      "autoOpenReplyDrafts": "Automatically open saved replies when selecting inbox messages",
       "title": "Message List",
       "senderFavicons": "Sender favicons",
       "senderFaviconsDesc": "Show website icons for senders without a contact photo. Only the sender's domain, never their full email address, is sent to Twenty Icons.",
@@ -1119,6 +1189,11 @@
       "eventTotpSuccess": "2FA verified",
       "eventTotpFail": "Failed 2FA",
       "eventSsoLogin": "SSO login",
+      "eventAdminPasswordSet": "Password set",
+      "eventAdminUserUpdate": "Account edited",
+      "eventAdminTotpDisable": "2FA turned off",
+      "eventAdminUserDelete": "Account deleted",
+      "byActor": "by {{actor}}",
       "qrCodeAlt": "QR code",
       "mailPolicyTitle": "Mail Server Connection Policy",
       "mailPolicyDesc": "Controls which connection types users are permitted to configure. Disable these for internet-facing deployments.",
@@ -1162,7 +1237,7 @@
       "description": "Click a key binding to reassign it. Press Esc to cancel recording.",
       "resetAll": "Reset all to defaults",
       "recording": "Press a key…",
-      "conflict": "Key {{key}} was already assigned to {{action}} — it has been reassigned.",
+      "conflict": "Key {{key}} is assigned to multiple actions. {{action}} takes priority.",
       "resetDefault": "Reset to default",
       "remove": "Remove shortcut",
       "footer": "Press ? anywhere in the app to see the current shortcut reference."
@@ -1204,7 +1279,25 @@
       "deleteConfirmLabel": "Delete user",
       "disable2faConfirmTitle": "Disable 2FA for \"{{username}}\"?",
       "disable2faConfirmBody": "This will remove their authenticator app requirement. They can re-enable it themselves.",
-      "disable2faConfirmLabel": "Disable 2FA"
+      "disable2faConfirmLabel": "Disable 2FA",
+      "lastSeen": "Last seen {{when}}",
+      "neverSeen": "Never signed in",
+      "edit": "Edit",
+      "editTitle": "Edit {{username}}",
+      "username": "Username",
+      "usernameHint": "Used to sign in to MailFlow.",
+      "recoveryEmail": "Recovery email",
+      "recoveryEmailHint": "Receives the \"Forgot password?\" link. Leave empty to remove it.",
+      "newPassword": "New password",
+      "newPasswordHint": "Leave empty to keep the current one. Saving a new one signs the user out on every device.",
+      "newPasswordHintSelf": "Leave empty to keep the current one. Your other devices are signed out; this one stays signed in.",
+      "confirmPassword": "Confirm new password",
+      "passwordTooShort": "The password must be at least 8 characters.",
+      "passwordMismatch": "The passwords do not match.",
+      "usernameTaken": "That username is already taken.",
+      "invalidEmail": "That email address is not valid.",
+      "saveFailed": "Could not save: {{message}}",
+      "passwordNotSet": "The other changes were saved, but the password was not set: {{message}}"
     },
     "ai": {
       "title": "AI Assistant",
@@ -1568,6 +1661,29 @@
       "autoLockOff": "Off",
       "autoLockMin": "{{n}} min"
     },
+    "backup": {
+      "title": "Backup and restore",
+      "intro": "A backup holds this MailFlow's data: users, email accounts, rules, contacts, settings, plugin data and antispam training. Cached mail is downloaded again from your mail servers after a restore, unless you include it. The file does not hold what is set in .env: a new server needs the same ENCRYPTION_KEY, and the same VAPID keys and OAuth client settings if you set them there.",
+      "sensitive": "The file holds password hashes, pending invite links and your accounts' credentials. The credentials are encrypted with this server's ENCRYPTION_KEY; the rest is readable, and so is every message when cached mail is included. Keep the file somewhere safe. It can only be restored on a server that uses the same key.",
+      "includeMail": "Include cached mail",
+      "includeMailDesc": "Also saves the local copy of every synced message, which makes the file much larger. Without it, a restore downloads the mail again, and the newest unread messages in each inbox arrive as new mail: inbox rules run on them again, forwarding included. The choice is kept for every backup until you change it.",
+      "includeMailSaveError": "The setting could not be saved.",
+      "create": "Download backup",
+      "restoreTitle": "Restore a backup",
+      "restoreIntro": "Restoring replaces every user, account, setting and cached message on this server with the contents of the file. MailFlow then restarts. Anyone whose account is not in the backup is signed out, and the passwords are the ones in the backup.",
+      "versionNote": "A backup restores only on a MailFlow version with the same database schema as the one that made it. If this version's schema is newer, restore the backup on the version that made it, then update.",
+      "chooseFile": "Choose a backup file",
+      "restore": "Restore…",
+      "confirmWarn": "Everything on this server is replaced by {{name}}. This cannot be undone.",
+      "confirmYes": "Restore and restart",
+      "restoring": "Restoring… rows written: {{rows}}",
+      "done": "Restore complete. MailFlow is restarting; this page reloads when it is back.",
+      "restartTimeout": "MailFlow has not come back after two minutes. Start it again, then reload this page.",
+      "failed": "Restore failed: {{message}}",
+      "downloadFailed": "The backup could not be started.",
+      "connectionLost": "The connection was lost during the restore, so its outcome is unknown. This page reloads once MailFlow answers again; then check that your data is the restored one.",
+      "tooLarge": "The file is larger than the proxy in front of MailFlow allows."
+    },
     "plugins": {
       "title": "Plugins",
       "description": "Turn optional features on or off for your account. Enabling a plugin adds its own settings and interface.",
@@ -1736,6 +1852,7 @@
     "undoFailed": "Couldn't undo label",
     "removed": "Label removed",
     "removeFailed": "Couldn't remove label",
+    "onlyCopy": "This is the only copy of the message, so removing the label would delete it. Archive or move it instead.",
     "done": "Mark done",
     "doneFailed": "Couldn't mark done",
     "doneArchiveFailed": "Marked done, but archiving failed — still in your Inbox",

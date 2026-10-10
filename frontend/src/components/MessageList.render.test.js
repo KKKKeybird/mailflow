@@ -67,8 +67,12 @@ globalThis.__VITE_ENV__ = { MODE: 'test', DEV: false, PROD: true };
 // needs a real shape; everything else can be an empty object, unless a test serves a path
 // through ROUTES as [status, body].
 let SERVED = [];
+let SENDER_ROWS = [];
+let REQUESTS = [];
 let ROUTES = {};
-globalThis.fetch = async (url) => {
+globalThis.fetch = async (url, options = {}) => {
+  REQUESTS.push({ url: String(url), method: options.method || 'GET' });
+  if (String(url).includes('sender=')) return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ messages: SENDER_ROWS, total: SENDER_ROWS.length }) };
   const path = String(url);
   const [status, body] = Object.entries(ROUTES).find(([p]) => path.endsWith(p))?.[1]
     ?? [200, path.includes('/mail/messages?') ? { messages: SERVED, total: SERVED.length } : {}];
@@ -104,7 +108,7 @@ async function mount({ rows, threadedView, folder = 'INBOX' }) {
     accounts: [ACCOUNT], accountsReady: true,
     selectedAccountId: 'acct-1', selectedFolder: folder,
     messages: rows, messagesTotal: rows.length, hasMoreMessages: false, loadingMessages: false,
-    searchQuery: '', threadedView,
+    searchQuery: '', threadedView, groupedSenders: rows.filter(m=>m.sender_group).map(m=>m.sender_group), threadMessages: {}, selectedMessageId: null, selectedListRowKey: null, markReadBehavior: 'manual', notifications: [],
     folders: { 'acct-1': [{ path: 'INBOX', name: 'INBOX' }, { path: 'Archive', name: 'Archive' }, { path: 'Drafts', name: 'Drafts', special_use: '\\Drafts' }] },
   });
   await React.act(async () => {
@@ -255,6 +259,24 @@ describe('MessageList — Ctrl+Z undo shortcut (#449)', () => {
   });
 });
 
+describe('MessageList — undo bar length', () => {
+  // Undo send holds a message for 10 s, longer than the standard window, and its bar must stay
+  // up (and its progress run) for exactly that long, or Undo vanishes while it would still work.
+  test('a bar lasts as long as its notification asks, the rest the standard window', async () => {
+    await mount({ rows: [MESSAGE], threadedView: false });
+    await React.act(async () => {
+      useStore.setState({ notifications: [] });
+      useStore.getState().addNotification({ title: 'standard', onUndo: () => {} });
+      useStore.getState().addNotification({ title: 'held send', onUndo: () => {}, undoMs: 9876 });
+    });
+    const progress = [...container.querySelectorAll('div')]
+      .map(el => el.style.animation)
+      .filter(a => a.startsWith('action-bar-progress'));
+    assert.deepEqual(progress.sort(), ['action-bar-progress 4500ms linear forwards', 'action-bar-progress 9876ms linear forwards']);
+    await React.act(async () => { useStore.setState({ notifications: [] }); });
+  });
+});
+
 describe('MessageList — configurable hover quick actions (#440)', () => {
   // The stubbed t() returns key paths, so button titles ARE their i18n keys here.
   const TITLES = {
@@ -290,7 +312,8 @@ describe('MessageList — reopening a saved draft keeps its Bcc', () => {
   // The Bcc lives only in the draft on the server, and saving a reopened draft replaces that copy.
   // Compose used to open with an empty Bcc, so the next save erased the recipients for good.
   const DRAFT = { ...MESSAGE, id: 'draft-1', folder: 'Drafts', uid: 7, is_read: true, subject: 'Draft subject',
-    to_addresses: [{ name: '', email: 'alice@example.com' }], cc_addresses: [] };
+    to_addresses: [{ name: '', email: 'alice@example.com' }], cc_addresses: [],
+    in_reply_to: '<parent@example.com>', thread_references: '<root@example.com> <parent@example.com>' };
 
   const openDraft = async ({ bcc }) => {
     ROUTES = { '/mail/messages/draft-1/body': [200, { html: '<p>hello</p>', text: 'hello' }], '/mail/messages/draft-1/bcc': bcc };
@@ -313,6 +336,8 @@ describe('MessageList — reopening a saved draft keeps its Bcc', () => {
     assert.equal(opened.length, 1);
     assert.equal(opened[0].draftUid, 7);
     assert.deepEqual(opened[0].bcc, bcc);
+    assert.equal(opened[0].inReplyTo, DRAFT.in_reply_to);
+    assert.equal(opened[0].references, DRAFT.thread_references);
   });
 
   test('a draft whose Bcc cannot be read opens read-only, with an error, never in compose', async () => {
@@ -321,5 +346,157 @@ describe('MessageList — reopening a saved draft keeps its Bcc', () => {
     assert.equal(useStore.getState().selectedMessageId, 'draft-1');
     assert.ok(useStore.getState().notifications.some(n => n.type === 'error' && n.title === 'messageList.draftBcc.failTitle'));
     await React.act(async () => { useStore.setState({ selectedMessageId: null, notifications: [] }); });
+  });
+});
+
+
+describe('MessageList — sender grouping', () => {
+  test('expansion is read-only and exposes messages across different subjects', async () => {
+    const latest = { ...MESSAGE, from_email: 'alerts@example.com', sender_group: 'alerts@example.com', sender_message_count: 2, sender_unread_count: 2 };
+    SENDER_ROWS = [
+      { ...MESSAGE, id: 'alert-1', from_email: 'alerts@example.com', subject: 'Build failed' },
+      { ...MESSAGE, id: 'alert-2', from_email: 'alerts@example.com', subject: 'New release' },
+    ];
+    await mount({ rows: [latest], threadedView: false });
+    const group = container.querySelector('[data-sender-group="alerts@example.com"]');
+    assert.ok(group);
+    assert.equal(group.querySelector('button').getAttribute('aria-expanded'), 'false');
+    assert.equal(container.querySelector('[data-msgid="alert-1"]'), null);
+    REQUESTS = [];
+    await React.act(async () => group.querySelector('button').click());
+    assert.ok(container.querySelector('[data-msgid="alert-1"]'));
+    assert.ok(container.querySelector('[data-msgid="alert-2"]'));
+    assert.equal(useStore.getState().selectedMessageId, null);
+    assert.ok(REQUESTS.some(r => r.url.includes('sender=alerts%40example.com')));
+    assert.ok(REQUESTS.every(r => r.method === 'GET'), 'expansion must not mutate mail flags or folders');
+    await React.act(async () => group.querySelector('button').click());
+    assert.equal(container.querySelector('[data-msgid="alert-1"]'), null);
+  });
+
+  test('conversations inside a sender group retain their thread controls', async () => {
+    const head = { ...MESSAGE, from_email: 'alerts@example.com', sender_group: 'alerts@example.com', sender_message_count: 3, sender_unread_count: 2 };
+    SENDER_ROWS = [{ ...THREAD, from_email: 'alerts@example.com' }];
+    await mount({ rows: [head], threadedView: true });
+    const button = container.querySelector('[data-sender-group] button');
+    await React.act(async () => button.click());
+    assert.ok(draggableIn(THREAD.id));
+    assert.equal(button.getAttribute('aria-expanded'), 'true');
+  });
+});
+
+
+describe('sender grouping — actual list actions', () => {
+  test('keyboard navigation reaches members, deletion advances and undo restores the count', async () => {
+    const head = { ...MESSAGE, id: 'sender:alerts@example.com', message_id: null, preview_message_id: 'alert-1', from_email: 'alerts@example.com', sender_group: 'alerts@example.com', sender_message_count: 2, sender_unread_count: 2 };
+    SENDER_ROWS = [{ ...MESSAGE, id: 'alert-1', from_email: 'alerts@example.com', subject: 'First alert' }, { ...MESSAGE, id: 'alert-2', from_email: 'alerts@example.com', subject: 'Second alert' }];
+    await mount({ rows: [head, { ...MESSAGE, id: 'outside' }], threadedView: false });
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    await React.act(async () => shortcutBus.emit('nextMessage'));
+    assert.equal(useStore.getState().selectedMessageId, 'alert-1');
+    await React.act(async () => shortcutBus.emit('nextMessage'));
+    assert.equal(useStore.getState().selectedMessageId, 'alert-2');
+    await React.act(async () => shortcutBus.emit('prevMessage'));
+    assert.equal(useStore.getState().selectedMessageId, 'alert-1');
+    await React.act(async () => { shortcutBus.emit('delete'); await new Promise(r => setTimeout(r, 10)); });
+    assert.equal(useStore.getState().selectedMessageId, 'alert-2');
+    assert.equal(useStore.getState().messages[0].sender_message_count, 1);
+    const notice = useStore.getState().notifications.find(n => typeof n.onUndo === 'function');
+    assert.ok(notice);
+    await React.act(async () => notice.onUndo());
+    assert.equal(useStore.getState().messages[0].sender_message_count, 2);
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    await React.act(async () => shortcutBus.emit('nextMessage'));
+    assert.equal(useStore.getState().selectedMessageId, 'outside');
+  });
+});
+
+describe('MessageList — bulk move picker offers Recent and Favorites (#551)', () => {
+  // The single-message pickers list recent and favorite folders above the full list; the bulk
+  // picker listed only the full list. Both now read the same helpers.
+  const M2 = { ...MESSAGE, id: 'msg-b', uid: 2, message_id: '<m2@example.com>', subject: 'Second' };
+  const FOLDERS = [
+    { path: 'INBOX', name: 'INBOX' },
+    { path: 'Archive', name: 'Archive' },
+    { path: 'Work/Receipts', name: 'Receipts' },
+    { path: 'Clients', name: 'Clients' },
+  ];
+
+  // Selection by modifier-click is desktop-only, so a phone test selects first and then
+  // narrows the window through the matchMedia listener useMobile subscribes to.
+  const openBulkPicker = async ({ phone = false } = {}) => {
+    const listeners = new Set();
+    const desktopMatchMedia = dom.window.matchMedia;
+    dom.window.matchMedia = () => ({ matches: false, addEventListener: (_, h) => listeners.add(h), removeEventListener: (_, h) => listeners.delete(h), addListener() {}, removeListener() {} });
+    try {
+      await mount({ rows: [MESSAGE, M2], threadedView: false });
+    } finally {
+      dom.window.matchMedia = desktopMatchMedia;
+    }
+    useStore.setState({
+      recentFolders: [{ accountId: 'acct-1', path: 'Archive' }, { accountId: 'other', path: 'Clients' }],
+      favoriteFolders: [{ accountId: 'acct-1', path: 'Work/Receipts', label: 'Tax 2026' }, { accountId: 'acct-1', path: 'Archive' }],
+    });
+    ROUTES = { '/accounts/acct-1/folders': [200, FOLDERS] };
+    await React.act(async () => { useStore.getState().setSelectedMessage('msg-1'); });
+    const row = container.querySelector('[data-msgid="msg-b"]');
+    await React.act(async () => {
+      (row.querySelector('[draggable]') || row).dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true, cancelable: true, ctrlKey: true }));
+    });
+    if (phone) await React.act(async () => { for (const h of listeners) h({ matches: true }); });
+    const moveBtn = container.querySelector('[title="messageList.moveToFolder"]');
+    assert.ok(moveBtn, 'expected the bulk Move button');
+    await React.act(async () => { moveBtn.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
+  };
+  // The picker's rows in order: section headings as "# key", folders by their label text.
+  const pickerLines = () => {
+    const input = [...container.ownerDocument.querySelectorAll('input')].find(i => i.placeholder === 'contextMenu.folders.search');
+    assert.ok(input, 'expected the picker search box');
+    const list = input.parentElement.nextElementSibling;
+    return [...list.children].map(el => el.tagName === 'BUTTON' ? el.textContent.trim()
+      : el.textContent.trim() ? `# ${el.textContent.trim()}` : '---');
+  };
+
+  test('lists Recent, then Favorites without repeats, then every folder but the current one', async () => {
+    await openBulkPicker();
+    assert.deepEqual(pickerLines(), [
+      '# contextMenu.folders.recent', 'Archive', '---',
+      '# contextMenu.folders.favorites', 'Tax 2026', '---',
+      '# messageList.moveToFolder', 'Archive', 'Work / Receipts', 'Clients',
+    ]);
+  });
+
+  test('the phone bottom sheet lists the same sections, then the full list under Folders', async () => {
+    await openBulkPicker({ phone: true });
+    assert.deepEqual(pickerLines(), [
+      '# contextMenu.folders.recent', 'Archive',
+      '# contextMenu.folders.favorites', 'Tax 2026',
+      '# messageList.foldersHeading', 'Archive', 'Work / Receipts', 'Clients',
+    ]);
+  });
+
+  test('a search shows only the matching folders, without the sections', async () => {
+    await openBulkPicker();
+    const input = [...container.ownerDocument.querySelectorAll('input')].find(i => i.placeholder === 'contextMenu.folders.search');
+    await React.act(async () => {
+      Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set.call(input, 'arch');
+      input.dispatchEvent(new dom.window.Event('input', { bubbles: true }));
+    });
+    assert.deepEqual(pickerLines(), ['Archive']);
+  });
+});
+
+describe('MessageList reply draft indicators', () => {
+  test('renders the action in both message and collapsed conversation rows', async () => {
+    for (const [row, threadedView] of [[MESSAGE, false], [THREAD, true]]) {
+      useStore.setState({ replyDrafts: { [row.id]: { exists: true } } });
+      await mount({ rows: [row], threadedView });
+      assert.ok(container.querySelector(`[data-msgid="${row.id}"] [aria-label="Open reply draft"]`));
+    }
+  });
+  test('hides indicators outside the inbox', async () => {
+    useStore.setState({ replyDrafts: { [MESSAGE.id]: { exists: true } } });
+    await mount({ rows: [{ ...MESSAGE, folder: 'Archive' }], threadedView: false, folder: 'Archive' });
+    assert.equal(container.querySelector('[aria-label="Open reply draft"]'), null);
+
   });
 });
