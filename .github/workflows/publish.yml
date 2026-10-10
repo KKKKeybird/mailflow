@@ -22,6 +22,9 @@ permissions:
 
 jobs:
   resolve:
+    # Required to see existing drafts when resuming a failed release.
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.version.outputs.tag }}
@@ -48,15 +51,23 @@ jobs:
           # An API failure must not be mistaken for an absent latest release.
           latest=$(gh api "repos/$GH_REPO/releases/latest" --jq .tag_name)
           tag=$(python3 scripts/release-policy.py "$REQUESTED_VERSION" --latest "$latest")
-          if [[ "$EVENT" == workflow_dispatch ]] && git show-ref --verify --quiet "refs/tags/$tag"; then
-            [[ "$(git rev-parse "refs/tags/$tag^{commit}")" == "$GITHUB_SHA" ]] || { echo 'Existing tag points to another commit' >&2; exit 1; }
+          tag_commit=''
+          if git show-ref --verify --quiet "refs/tags/$tag"; then
+            tag_commit=$(git rev-parse "refs/tags/$tag^{commit}")
+            git merge-base --is-ancestor "$tag_commit" origin/main
           fi
+          existing=$(gh api "repos/$GH_REPO/releases" --paginate --jq ".[] | select(.tag_name == \"$tag\") | .draft")
+          # A repaired workflow may run at newer main while all payloads keep the
+          # existing draft's original tag commit. Published releases remain immutable.
+          commit=$(python3 scripts/resolve-release-commit.py --head "$GITHUB_SHA" --tag-commit "$tag_commit" --draft "${existing:-missing}")
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
-          echo "commit=$GITHUB_SHA" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
 
   checks:
     needs: resolve
     uses: ./.github/workflows/ci.yml
+    with:
+      ref: ${{ needs.resolve.outputs.commit }}
 
   prepare:
     needs: [resolve, checks]

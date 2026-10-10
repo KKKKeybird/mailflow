@@ -34,6 +34,9 @@ jobs:
   # here because the secrets context is not available in a job-level `if`.
   setup:
     name: Resolve build scope
+    # GitHub only exposes draft releases to tokens with contents: write.
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.os }}
