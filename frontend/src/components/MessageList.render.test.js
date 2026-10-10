@@ -388,6 +388,7 @@ describe('MessageList — sender grouping', () => {
     assert.ok(bobCard.querySelector('button').textContent.includes('Bob'));
     assert.ok(aliceCard.textContent.includes('Latest invoice'));
     assert.ok(aliceCard.textContent.includes('Latest invoice preview'));
+    assert.equal(aliceCard.querySelector('[data-sender-count]').textContent, '2');
     assert.ok(!aliceCard.textContent.includes('messageList.senderGroupCounts'));
     REQUESTS = [];
     await React.act(async () => aliceCard.querySelector('button').click());

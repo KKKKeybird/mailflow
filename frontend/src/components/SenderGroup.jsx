@@ -105,10 +105,19 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
             </span>
           </span>
           <span style={{
-            display: 'block', fontSize: 13, fontWeight: hasUnread ? 500 : 400, marginBottom: 3,
+            display: 'flex', alignItems: 'center', gap: 8,
+            fontSize: 13, fontWeight: hasUnread ? 500 : 400, marginBottom: 3,
             color: hasUnread ? 'var(--text-primary)' : 'var(--text-secondary)',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>{message.subject || t('message.noSubject')}</span>
+          }}>
+            <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {message.subject || t('message.noSubject')}
+            </span>
+            <span data-sender-count style={{
+              flexShrink: 0, minWidth: 16, padding: '0 3px', borderRadius: 3,
+              border: '1px solid var(--border-subtle)', color: 'var(--text-tertiary)',
+              fontSize: 10, fontWeight: 400, lineHeight: '14px', textAlign: 'center',
+            }}>{message.sender_message_count}</span>
+          </span>
           {showMessagePreviews && <span style={{
             display: 'block', fontSize: 12, color: 'var(--text-tertiary)',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
