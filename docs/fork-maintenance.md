@@ -51,3 +51,5 @@ Node 22.23.3 and PostgreSQL 16: backend lint, plugin boundary and syntax checks 
 All 67 migrations applied successfully on an empty database, and a second migration run reported the schema up to date. The real mail-list endpoint validation passed with 84,000 fixture messages: flat/threaded views, unread/category combinations, complete paging and sender expansion, NULL-date heads, absent selected senders and the grouping-off baseline. Benchmark fixtures now include upstream's thread references and last-seen columns.
 
 If a release fails because its workflow needs a fix, merge the workflow fix on main and dispatch the same unpublished version again. Release resolves an existing draft to its original tag commit and validates/builds that exact commit with the repaired workflow. It does not move the tag. Without a draft, a tag pointing to another commit is rejected; published releases are never overwritten. The draft discovery and desktop setup jobs need contents: write because GitHub hides drafts from read-only tokens.
+
+Manual Publish Apps repairs preserve whether the existing release is a draft; attaching assets must not publish an unfinished draft.
