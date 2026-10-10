@@ -1,48 +1,27 @@
 name: Publish Apps
 
-# Builds the native apps for a published release and attaches them to it.
-#
-# Signing is optional on every platform, so the same file works before and after any
-# certificate is bought. Without a certificate Windows and macOS both ship unsigned, and
-# both cost the user an install-time warning.
-#
-# An unsigned macOS build has been installed on an Apple Silicon M1 from a browser
-# download, so genuinely quarantined: the first launch is refused, and allowing it once
-# under System Settings > Privacy & Security runs it normally thereafter. That build
-# (dcoffin88's v3.5.1-beta8) skipped signing with `-c.mac.identity=null`; no ad-hoc
-# signed build has been installed anywhere yet.
-#
-# An install that cannot verify a download declines to auto-update, because
-# verifyPlatformSignature cannot pin the download to a publisher it does not have. Those
-# installs get a notification linking to the release. See canAutoInstallUpdates in
-# packages/electron/main.cjs.
-#
-# Linux always ships and verifies updates by SHA-256 digest. Android ships when a keystore
-# is configured, and is skipped rather than failing the whole run when it is not.
-#
-# This runs on `release: published`, not on the tag push, so it attaches to the release
-# after its notes exist. Triggering on the tag would race the release being created and
-# leave an empty one behind.
-#
-# The native security items from #301 landed in #323 and #346.
+# Called by the release pipeline after its draft exists. Manual dispatch repairs
+# assets for an existing release. Always build the exact supplied tag.
 on:
-  release:
-    types: [published]
+  workflow_call:
+    inputs:
+      version:
+        required: true
+        type: string
+      draft:
+        default: false
+        type: boolean
   workflow_dispatch:
     inputs:
       version:
-        description: "Release tag to build and attach to. It must already include this workflow's updater changes."
+        description: "Existing release tag whose app assets should be rebuilt"
         required: true
         type: string
 
-# One build per release. A re-run supersedes an in-flight one rather than racing it to
-# upload assets to the same release.
 concurrency:
-  group: publish-apps-${{ github.event.release.tag_name || github.event.inputs.version }}
-  cancel-in-progress: true
+  group: publish-apps-${{ inputs.version }}
+  cancel-in-progress: false
 
-# Least-privilege (#301 item 7): only the release job needs to write to the repo.
-# The build jobs just check out code and upload artifacts, so they get read.
 permissions:
   contents: read
 
@@ -73,7 +52,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-          VERSION: ${{ github.event.release.tag_name || github.event.inputs.version }}
+          VERSION: ${{ inputs.version }}
         run: |
           set -euo pipefail
           if ! gh release view "$VERSION" --repo "$GH_REPO" >/dev/null; then
@@ -126,7 +105,7 @@ jobs:
       # release's assets.
       - uses: actions/checkout@v6
         with:
-          ref: refs/tags/${{ github.event.release.tag_name || github.event.inputs.version }}
+          ref: refs/tags/${{ inputs.version }}
 
       - uses: actions/setup-node@v6
         with:
@@ -143,7 +122,7 @@ jobs:
         shell: bash
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-          DISPATCH_VERSION: ${{ github.event.inputs.version }}
+          DISPATCH_VERSION: ${{ inputs.version }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           VERSION="${RELEASE_TAG:-${DISPATCH_VERSION:-$REF_NAME}}"
@@ -314,7 +293,7 @@ jobs:
       # release's assets.
       - uses: actions/checkout@v6
         with:
-          ref: refs/tags/${{ github.event.release.tag_name || github.event.inputs.version }}
+          ref: refs/tags/${{ inputs.version }}
 
       - uses: actions/setup-node@v6
         with:
@@ -341,7 +320,7 @@ jobs:
         shell: bash
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-          DISPATCH_VERSION: ${{ github.event.inputs.version }}
+          DISPATCH_VERSION: ${{ inputs.version }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           VERSION="${RELEASE_TAG:-${DISPATCH_VERSION:-$REF_NAME}}"
@@ -422,7 +401,7 @@ jobs:
         shell: bash
         env:
           RELEASE_TAG: ${{ github.event.release.tag_name }}
-          DISPATCH_VERSION: ${{ github.event.inputs.version }}
+          DISPATCH_VERSION: ${{ inputs.version }}
           REF_NAME: ${{ github.ref_name }}
         run: |
           VERSION="${RELEASE_TAG:-${DISPATCH_VERSION:-$REF_NAME}}"
@@ -437,6 +416,8 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.app-version.outputs.version }}
+          draft: ${{ inputs.draft || false }}
+          make_latest: false
           # Parallel uploads hit "Error creating asset temp dir" on two of dcoffin88's fork
           # runs and left releases missing installers. Sequential uploads are slower by a
           # minute and not exposed to that.

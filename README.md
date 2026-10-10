@@ -6,7 +6,7 @@
 
 **仅在所有者要求时手动合并选定上游正式版本**，解决冲突并验证发件人折叠后再合并主线；不启用定时同步、自动合并或云端轮询。
 
-使用源码部署可运行 `docker compose up -d --build`。预构建镜像地址为 `ghcr.io/kkkkeybird/mailflow-backend` 和 `ghcr.io/kkkkeybird/mailflow-frontend`；只有明确发布 fork 版本后才会提供相应镜像。发布由所有者按需发起。fork 发布标签采用 `vX.Y.Z-rN`（例如 `v3.9.0-r1`），不会推送上游标签；每次明确发布的 fork 修订镜像更新 `latest`，原生应用与服务端更新检查均跟踪本 fork。
+使用源码部署可运行 `docker compose up -d --build`。预构建镜像地址为 `ghcr.io/kkkkeybird/mailflow-backend` 和 `ghcr.io/kkkkeybird/mailflow-frontend`；只有明确发布 fork 版本后才会提供相应镜像。发布由所有者按需发起：在 **Actions → Release → Run workflow** 中选择 `main` 并输入版本号，即可自动检查、构建镜像和安装包、生成说明并更新 latest；失败时保留发布草稿，支持重跑。fork 发布标签采用 `vX.Y.Z-rN`（例如 `v3.9.0-r1`），不会推送上游标签；每次明确发布的 fork 修订镜像更新 `latest`，原生应用与服务端更新检查均跟踪本 fork。
 
 ## 上游项目说明（保留）
 

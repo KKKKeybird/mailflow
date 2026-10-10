@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_call:
   push:
     branches: ["main"]
   pull_request:
@@ -10,6 +11,20 @@ permissions:
   contents: read
 
 jobs:
+  release-policy:
+    name: Release policy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Lint release workflows
+        uses: docker://rhysd/actionlint:1.7.7
+        with:
+          args: -shellcheck= .github/workflows/ci.yml .github/workflows/publish.yml .github/workflows/publish-apps.yml
+      - name: Validate release policy
+        run: |
+          bash -n scripts/release.sh
+          python3 scripts/test_release_policy.py
+
   backend:
     name: Backend
     runs-on: ubuntu-latest
