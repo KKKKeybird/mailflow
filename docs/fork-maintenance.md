@@ -29,7 +29,13 @@ Run all migrations on an empty database and again on the same database. Both sen
 
 ## Publishing
 
-Publishing is separate from syncing and requires an owner request. Use a fork tag `vX.Y.Z-rN`, with an explicitly chosen revision, pointing at the tested main commit. Do not push all fetched tags. A fork tag triggers `.github/workflows/publish.yml`, publishing multi-architecture backend/frontend images in the lowercase `kkkkeybird` GHCR namespace. Explicit revision tags update `latest`; beta/RC tags are rejected. Create a GitHub Release at that exact tag to trigger `publish-apps.yml`; Android requires the fork's own signing secrets. Never overwrite an existing release/tag as routine maintenance.
+Publishing is separate from syncing and starts only when the owner requests a chosen version. Use **Actions → Release → Run workflow**, select `main`, and enter a fork version such as `v3.9.0-r4`. Alternatively, `./scripts/release.sh v3.9.0-r4` dispatches the same workflow from a clean checkout matching remote main and returns immediately. It does not bump upstream package versions or manually upload files. Pushing an explicitly chosen fork tag also triggers the pipeline.
+
+The Release workflow validates the version and main ancestry, runs the reusable CI workflow, creates the exact tag and a draft release with GitHub-generated notes, then builds versioned backend/frontend images and calls the native app workflow. Tags created with `GITHUB_TOKEN` do not recursively trigger another run. Both images support amd64/arm64. Before publication, Actions verifies both architecture indexes and all six desktop assets, promotes both image `latest` tags, verifies their manifests against the version tags, and publishes the GitHub Release as latest. Releases run serially; version checks reject older versions and published-tag reuse.
+
+A failed build keeps the release as a draft and prevents the publication job from running. Use **Re-run failed jobs** on the same run to resume at its pinned commit; do not create a replacement tag or overwrite a published release. Android is included when the fork's signing secrets exist; when they are absent, the six desktop installers remain required. `Publish Apps` manual dispatch remains available to repair assets for an existing release, but normal releases use the single Release workflow.
+
+The assistant's normal publishing role is to dispatch the requested version and report the workflow link. Actions handles builds, uploads, notes, verification and latest updates; the assistant does not watch or manually manage each release. Investigate failures only when requested. Never push all fetched upstream tags.
 
 Compose, server update checks, Electron/Android update URLs and issue links must continue pointing at this fork after upstream merges. Upstream sponsorship automation is guarded to run only in the upstream repository.
 
