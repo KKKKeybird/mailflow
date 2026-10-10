@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { messageRowTree, actionableMessageRows, selectedListMessage, uniqueActionRows, neighborMessageRow } from './messageRowTree.js';
+import { messageRowTree, senderMemberCacheKey, actionableMessageRows, selectedListMessage, uniqueActionRows, neighborMessageRow } from './messageRowTree.js';
 import { reconcileSenderHeads, removeSenderMembers, restoreSenderMembers, refreshSenderThreadReadState } from './senderGroupState.js';
 const sender = 'alerts@example.com', key = `sender:{}:${sender}`;
 const one = { id: 'one', from_email: sender, is_read: false, date: '2026-01-01' };
@@ -70,4 +70,19 @@ test('reading one representative changes only that conversation’s unread total
   s.threadMessages[key]=[first,second];
   const after=refreshSenderThreadReadState({[key]:[{...first,is_read:true},second]},'one',{is_read:true},s);
   assert.equal(after[key][0].unread_count,1);assert.equal(after[key][1].unread_count,2);
+});
+
+test('a separate sender list limits navigation and bulk actions to that sender', () => {
+  const s = { ...state(), senderListGroup: key };
+  assert.deepEqual(actionableMessageRows(s).map(m => m.id), ['two', 'one']);
+  s.senderListGroup = null;
+  assert.deepEqual(actionableMessageRows(s).map(m => m.id), ['two', 'one', 'outside']);
+});
+
+
+test('unread caches cannot collide with a sender name ending in :unread', () => {
+  const ordinary = 'sender:{}:shared@example.com\nAlice';
+  assert.notEqual(senderMemberCacheKey(ordinary, true), ordinary + ':unread');
+  const state = { messages: [head], senderGroupContext: '{}', expandedSenders: new Set([key]), senderViewState: { [key]: { unreadOnly: true } }, threadMessages: { [key]: [one, { ...two, is_read: true }], [senderMemberCacheKey(key, true)]: [one] } };
+  assert.deepEqual(actionableMessageRows(state).map(row => row.id), ['one']);
 });

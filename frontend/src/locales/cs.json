@@ -1907,5 +1907,24 @@
     "trash": "Koš",
     "spam": "Spam",
     "archive": "Archiv"
+  },
+  "senderGrouping": {
+    "all": "Všechny",
+    "unread": "Nepřečtené",
+    "newMail": "Nová pošta · Zobrazit",
+    "readAll": "Označit celou skupinu jako přečtenou",
+    "archiveAll": "Archivovat celou skupinu",
+    "readScheduled": "Označit {{count}} zpráv jako přečtené",
+    "archiveScheduled": "Archivovat {{count}} zpráv",
+    "partial": "Archivováno {{count}} zpráv; některé účty nemají archivní složku.",
+    "failed": "Dokončeno {{count}} zpráv. {{error}}",
+    "settings": "Skupiny odesílatelů",
+    "description": "Skupiny odpovídají e-mailové adrese a jménu odesílatele. Skupinu můžete přejmenovat nebo ručně sloučit vybrané odesílatele. Předmět seskupení neovlivňuje.",
+    "label": "Zobrazovaný název skupiny",
+    "mergeInto": "Sloučit do…",
+    "merge": "Sloučit",
+    "split": "Oddělit",
+    "empty": "Pravidlo přidáte seskupením odesílatele v nabídce zprávy.",
+    "noMail": "Žádné zprávy"
   }
 }

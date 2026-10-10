@@ -1907,5 +1907,24 @@
     "trash": "Kosz",
     "spam": "Spam",
     "archive": "Archiwum"
+  },
+  "senderGrouping": {
+    "all": "Wszystkie",
+    "unread": "Nieprzeczytane",
+    "newMail": "Nowa poczta · Pokaż",
+    "readAll": "Oznacz całą grupę jako przeczytaną",
+    "archiveAll": "Archiwizuj całą grupę",
+    "readScheduled": "Oznacz {{count}} wiadomości jako przeczytane",
+    "archiveScheduled": "Archiwizuj {{count}} wiadomości",
+    "partial": "Zarchiwizowano {{count}} wiadomości; niektóre konta nie mają folderu archiwum.",
+    "failed": "Przetworzono {{count}} wiadomości. {{error}}",
+    "settings": "Grupy nadawców",
+    "description": "Grupy są dopasowywane według adresu e-mail i nazwy nadawcy. Możesz zmienić nazwę grupy lub ręcznie połączyć wybranych nadawców. Temat nie wpływa na grupowanie.",
+    "label": "Wyświetlana nazwa grupy",
+    "mergeInto": "Połącz z…",
+    "merge": "Połącz",
+    "split": "Rozdziel",
+    "empty": "Zgrupuj nadawcę w menu wiadomości, aby dodać regułę.",
+    "noMail": "Brak wiadomości"
   }
 }

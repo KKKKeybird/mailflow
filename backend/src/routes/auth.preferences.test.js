@@ -186,7 +186,7 @@ describe('PATCH /auth/preferences groupedSenders', () => {
     expect(query.mock.calls[0][1][45]).toBe('[]');
   });
   it('rejects invalid and unbounded input without a database write', async () => {
-    for (const bad of ['alerts@example.com', [null], ['invalid'], ['a b@example.com'], Array(501).fill('a@example.com')]) {
+    for (const bad of ['alerts@example.com', [null], ['invalid'], ['a b@example.com'], Array(5001).fill('a@example.com')]) {
       query.mockClear();
       const res = await run(bad);
       expect(res.status).toHaveBeenCalledWith(400);
@@ -224,5 +224,43 @@ describe('PATCH /auth/preferences fork and upstream preferences coexist', () => 
     expect(params[44]).toBe(false);
     expect(params[45]).toBe('["alerts@example.com"]');
     expect(res.json).toHaveBeenCalledWith({ ok: true });
+  });
+});
+
+describe('PATCH /auth/preferences sender name identities', () => {
+  it('keeps distinct From names and normalizes only the mailbox casing', async () => {
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await patchPreferences({ session: { userId: 'user-1' }, body: {
+      groupedSenders: [' SHARED@Example.com \n Alice ', 'shared@example.com\nBob', 'shared@example.com\nalice'],
+    } }, res);
+    expect(JSON.parse(query.mock.calls[0][1][45])).toEqual(['shared@example.com\nAlice', 'shared@example.com\nBob', 'shared@example.com\nalice']);
+    expect(res.json).toHaveBeenCalledWith({ ok: true });
+  });
+  it('rejects malformed identity separators', async () => {
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await patchPreferences({ session: { userId: 'user-1' }, body: { groupedSenders: ['shared@example.com\nAlice\nBob'] } }, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe('PATCH /auth/preferences sender group rules', () => {
+  it('persists labels and aliases alongside existing preferences', async () => {
+    const senderGroupMappings = { 'shared@example.com\nBob': 'shared@example.com\nAlice' };
+    const senderGroupLabels = { 'shared@example.com\nAlice': 'Notifications' };
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await patchPreferences({ session: { userId: 'u' }, body: { senderGroupMappings, senderGroupLabels } }, res);
+    expect(query.mock.calls[0][1].slice(-2)).toEqual([JSON.stringify(senderGroupMappings), JSON.stringify(senderGroupLabels)]);
+    expect(res.json).toHaveBeenCalledWith({ ok: true });
+  });
+  it.each([
+    { senderGroupMappings: { 'a@example.com': 'a@example.com' } },
+    { senderGroupMappings: { 'a@example.com': 'b@example.com', 'b@example.com': 'a@example.com' } },
+    { senderGroupLabels: { 'a@example.com': 'x\ny' } },
+    { senderGroupLabels: { 'a@example.com': 'x'.repeat(101) } },
+  ])('rejects invalid rule preferences without writing', async body => {
+    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
+    await patchPreferences({ session: { userId: 'u' }, body }, res);
+    expect(res.status).toHaveBeenCalledWith(400); expect(query).not.toHaveBeenCalled();
   });
 });

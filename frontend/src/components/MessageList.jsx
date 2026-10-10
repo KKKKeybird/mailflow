@@ -127,7 +127,7 @@ export default function MessageList() {
     searchResults, setSearchResults, openCompose, accountsReady, accounts,
     messagesRefreshToken, layout, setLayout, pageSize, setPageSize, scrollMode,
     setMobileSidebarOpen, unreadCounts, showContacts, setShowContacts,
-    groupedSenders, expandedSenders, setExpandedSenders, setSenderGroupContext, threadedView, expandedThreadId, setExpandedThreadId,
+    groupedSenders, expandedSenders, setExpandedSenders, senderListGroup, setSenderListGroup, setSenderGroupContext, threadedView, expandedThreadId, setExpandedThreadId,
     threadMessages, setThreadMessages, clearThreadMessages, loadingThread, setLoadingThread,
     hoverQuickActions, hoverActionSet, showMobileAvatars, showMessagePreviews,
     swipeActions,
@@ -1419,12 +1419,14 @@ export default function MessageList() {
   };
   const senderContext = JSON.stringify(senderParams);
   useEffect(() => {
-    if (useStore.getState().senderGroupContext !== senderContext) setExpandedSenders(new Set());
+    if (useStore.getState().senderGroupContext !== senderContext) { setExpandedSenders(new Set()); setSenderListGroup(null); }
     else setExpandedSenders(previous => new Set([...previous].filter(key => groupedSenders.some(sender => key === senderCacheKey(senderContext, sender)))));
+    const active = useStore.getState().senderListGroup;
+    if (active && !groupedSenders.some(sender => active === senderCacheKey(senderContext, sender))) setSenderListGroup(null);
     setSenderGroupContext(senderContext);
-  }, [senderContext, groupedSenders, setExpandedSenders, setSenderGroupContext]);
+  }, [senderContext, groupedSenders, setExpandedSenders, setSenderGroupContext, setSenderListGroup]);
   const rowState = { messages: listRows, searchResults, searchQuery, threadedView, expandedThreadId,
-    threadMessages, expandedSenders, senderGroupContext: senderContext };
+    threadMessages, expandedSenders, senderListGroup, senderViewState: useStore.getState().senderViewState, senderGroupContext: senderContext };
   const rowTree = messageRowTree(rowState);
   const displayMessages = uniqueActionRows(actionableMessageRows(rowState), useStore.getState().selectedListRowKey);
 
@@ -2783,6 +2785,377 @@ export default function MessageList() {
       );
   };
 
+  const selectionToolbar = (selectionMode && (
+          <div style={{
+            position: 'sticky', top: 0, zIndex: 10,
+            display: 'flex', alignItems: 'center', gap: 6,
+            padding: '7px 10px',
+            background: 'var(--bg-elevated)',
+            borderBottom: '1px solid var(--border)',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
+          }}>
+            {/* Select-all checkbox */}
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={e => e.target.checked ? selectAll(displayMessages) : clearSelection()}
+              title={allSelected ? t('messageList.deselectAll') : t('messageList.selectAll')}
+              style={{ cursor: 'pointer', accentColor: 'var(--accent)', flexShrink: 0 }}
+            />
+            <span style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1, userSelect: 'none' }}>
+              {t('messageList.selectedCount', { count: selectedCount })}
+            </span>
+
+            {/* Mark read / unread button */}
+            <BulkBtn
+              title={bulkMarkAsRead ? t('messageList.markReadSelected') : t('messageList.markUnreadSelected')}
+              onClick={() => handleBulkMarkRead([...selectedIds], selectedMsgs)}
+            >
+              {bulkMarkAsRead ? (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" d="M22,9v9c0,1.1-.9,2-2,2H4c-1.1,0-2-.9-2-2v-9"/>
+                  <polyline points="22 9 12 16 2 9"/>
+                  <polyline points="2 9 12 2 22 9"/>
+                </svg>
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path strokeLinecap="round" d="M22,10.91v7.09c0,1.1-.9,2-2,2H4c-1.1,0-2-.9-2-2V6c0-1.1.9-2,2-2h11"/>
+                  <polyline strokeLinecap="round" points="16.36 9.95 12 13 2 6"/>
+                  <circle cx="19.96" cy="6" r="3" fill="var(--accent)" stroke="var(--accent)"/>
+                </svg>
+              )}
+            </BulkBtn>
+
+            {/* Star / unstar button (#434) */}
+            <BulkBtn
+              title={bulkMarkAsStarred ? t('messageList.starSelected') : t('messageList.unstarSelected')}
+              onClick={() => handleBulkStar([...selectedIds], selectedMsgs)}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill={bulkMarkAsStarred ? 'none' : 'currentColor'} stroke="currentColor" strokeWidth="2">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+              </svg>
+            </BulkBtn>
+
+            {/* Archive button */}
+            <BulkBtn
+              title={t('messageList.archiveSelected')}
+              onClick={() => handleBulkArchive([...selectedIds], selectedMsgs)}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="3" width="20" height="5" rx="1"/>
+                <path d="M4 8v11a1 1 0 001 1h14a1 1 0 001-1V8"/>
+                <polyline points="9 13 12 16 15 13"/>
+                <line x1="12" y1="11" x2="12" y2="16"/>
+              </svg>
+            </BulkBtn>
+
+            {/* Delete button */}
+            <BulkBtn
+              title={t('messageList.deleteSelected')}
+              onClick={() => handleBulkDelete([...selectedIds], selectedMsgs)}
+              danger
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
+              </svg>
+            </BulkBtn>
+
+            {/* Move button + folder picker */}
+            <div style={{ position: 'relative' }} ref={folderPickerRef}>
+              <BulkBtn
+                title={canMove ? t('messageList.moveToFolder') : t('messageList.moveToFolderDisabled')}
+                onClick={() => handleOpenFolderPicker(selectedMsgs)}
+                disabled={!canMove}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
+                </svg>
+              </BulkBtn>
+
+              {showFolderPicker && !isMobile && (<>
+                <div onClick={() => setShowFolderPicker(false)} aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
+                <div ref={pickerMenuRef} style={{
+                  position: 'fixed',
+                  left: descale(pickerPos?.x ?? 0, uiScale), top: descale(pickerPos?.y ?? 0, uiScale),
+                  visibility: pickerPos ? 'visible' : 'hidden',
+                  background: 'var(--bg-elevated)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 8,
+                  boxShadow: 'var(--shadow-popover)',
+                  minWidth: 200, maxWidth: 320,
+                  zIndex: 1000,
+                }}>
+                  {pickerLoading ? (
+                    <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>
+                      {t('common.loading')}
+                    </div>
+                  ) : pickerFolders.length === 0 ? (
+                    <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>
+                      {t('contextMenu.folders.empty')}
+                    </div>
+                  ) : (
+                    <>
+                      <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border-subtle)' }}>
+                        <input
+                          autoFocus
+                          value={pickerSearch}
+                          onChange={e => setPickerSearch(e.target.value)}
+                          placeholder={t('contextMenu.folders.search')}
+                          style={{
+                            width: '100%', boxSizing: 'border-box',
+                            padding: '5px 8px', fontSize: 12,
+                            background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+                            borderRadius: 5, color: 'var(--text-primary)',
+                            outline: 'none',
+                          }}
+                        />
+                      </div>
+                      <div style={{ maxHeight: 285, overflowY: 'auto' }}>
+                      {(() => {
+                        const q = pickerSearch.trim().toLowerCase();
+                        const displayed = pickerFolders
+                          .filter(f => f.path !== selectedFolder && (!q || folderMatchesQuery(f, q)));
+                        // Recent and favorite targets above the full list, as in the single-message
+                        // pickers (#551). The bulk picker only opens for one account's messages.
+                        const target = { accountId: selectedMsgs[0]?.account_id, currentFolder: selectedFolder };
+                        const recent = q ? [] : recentMoveTargets(recentFolders, pickerFolders, target);
+                        const favorites = q ? [] : favoriteMoveTargets(favoriteFolders, pickerFolders, { ...target, exclude: recent });
+                        const heading = label => (
+                          <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                            {label}
+                          </div>
+                        );
+                        const divider = <div style={{ height: 1, background: 'var(--border-subtle)', margin: '3px 0' }} />;
+                        const item = (f, key) => (
+                          <button
+                            key={key}
+                            onClick={() => handleBulkMove([...selectedIds], selectedMsgs, f.path)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 8,
+                              width: '100%', padding: '8px 12px',
+                              background: 'none', border: 'none',
+                              color: 'var(--text-primary)', fontSize: 13,
+                              cursor: 'pointer', textAlign: 'left',
+                              transition: 'background 0.1s',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                          >
+                            <span style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                              <FolderIcon specialUse={f.special_use} />
+                            </span>
+                            <FolderPathLabel folder={f} label={f.favoriteLabel} />
+                          </button>
+                        );
+                        return displayed.length === 0 ? (
+                          <div style={{ padding: '12px 12px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>
+                            {t('contextMenu.folders.empty')}
+                          </div>
+                        ) : (
+                          <>
+                            {recent.length > 0 && (<>
+                              {heading(t('contextMenu.folders.recent'))}
+                              {recent.map(f => item(f, `recent-${f.path}`))}
+                              {divider}
+                            </>)}
+                            {favorites.length > 0 && (<>
+                              {heading(t('contextMenu.folders.favorites'))}
+                              {favorites.map(f => item(f, `fav-${f.path}`))}
+                              {divider}
+                            </>)}
+                            {!q && heading(t('messageList.moveToFolder'))}
+                            {displayed.map(f => item(f, f.path))}
+                          </>
+                        );
+                      })()}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </>)}
+              {/* Mobile folder picker — bottom sheet */}
+              {showFolderPicker && isMobile && (
+                <>
+                  <div
+                    onClick={() => setShowFolderPicker(false)}
+                    style={{
+                      position: 'fixed', inset: 0, zIndex: 3000,
+                      background: 'var(--overlay-scrim)',
+                      backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
+                    }}
+                  />
+                  <div style={{
+                    position: 'fixed', left: 0, right: 0, bottom: 0,
+                    zIndex: 3001,
+                    background: 'var(--bg-secondary)',
+                    borderRadius: '16px 16px 0 0',
+                    boxShadow: '0 -4px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)',
+                    paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
+                    animation: 'sheet-enter 0.2s cubic-bezier(0.34,1.56,0.64,1)',
+                  }}>
+                    {/* Drag handle */}
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
+                      <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)' }} />
+                    </div>
+                    {/* Title */}
+                    <div style={{ padding: '4px 20px 12px', fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
+                      {t('messageList.moveToFolder')}
+                    </div>
+                    <div style={{ padding: '0 20px 12px' }}>
+                      <input
+                        value={pickerSearch}
+                        onChange={e => setPickerSearch(e.target.value)}
+                        placeholder={t('contextMenu.folders.search')}
+                        style={{
+                          width: '100%', boxSizing: 'border-box',
+                          padding: '8px 12px', fontSize: 14,
+                          background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
+                          borderRadius: 8, color: 'var(--text-primary)',
+                          outline: 'none',
+                        }}
+                      />
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--border-subtle)', overflowY: 'auto', maxHeight: '60vh' }}>
+                      {pickerLoading ? (
+                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
+                          {t('common.loading')}
+                        </div>
+                      ) : pickerFolders.length === 0 ? (
+                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
+                          {t('contextMenu.folders.empty')}
+                        </div>
+                      ) : (() => {
+                        const q = pickerSearch.trim().toLowerCase();
+                        const displayed = pickerFolders
+                          .filter(f => f.path !== selectedFolder && (!q || folderMatchesQuery(f, q)));
+                        const target = { accountId: selectedMsgs[0]?.account_id, currentFolder: selectedFolder };
+                        const recent = q ? [] : recentMoveTargets(recentFolders, pickerFolders, target);
+                        const favorites = q ? [] : favoriteMoveTargets(favoriteFolders, pickerFolders, { ...target, exclude: recent });
+                        const heading = label => (
+                          <div style={{ padding: '12px 20px 6px', fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid var(--border-subtle)' }}>
+                            {label}
+                          </div>
+                        );
+                        const item = (f, key) => (
+                          <button
+                            key={key}
+                            onClick={() => { handleBulkMove([...selectedIds], selectedMsgs, f.path); setShowFolderPicker(false); }}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: 14,
+                              width: '100%', minHeight: 48,
+                              padding: '0 20px',
+                              background: 'none', border: 'none',
+                              borderBottom: '1px solid var(--border-subtle)',
+                              color: 'var(--text-primary)', fontSize: 15,
+                              cursor: 'pointer', textAlign: 'left',
+                            }}
+                          >
+                            <span style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>
+                              <FolderIcon specialUse={f.special_use} />
+                            </span>
+                            <FolderPathLabel folder={f} label={f.favoriteLabel} />
+                          </button>
+                        );
+                        if (displayed.length === 0) {
+                          return (
+                            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
+                              {t('contextMenu.folders.empty')}
+                            </div>
+                          );
+                        }
+                        const sectioned = recent.length > 0 || favorites.length > 0;
+                        return (<>
+                          {recent.length > 0 && (<>
+                            {heading(t('contextMenu.folders.recent'))}
+                            {recent.map(f => item(f, `recent-${f.path}`))}
+                          </>)}
+                          {favorites.length > 0 && (<>
+                            {heading(t('contextMenu.folders.favorites'))}
+                            {favorites.map(f => item(f, `fav-${f.path}`))}
+                          </>)}
+                          {sectioned && heading(t('messageList.foldersHeading'))}
+                          {displayed.map(f => item(f, f.path))}
+                        </>);
+                      })()}
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Clear selection */}
+            <button
+              onClick={clearSelection}
+              title={t('messageList.clearSelection')}
+              style={{
+                background: 'none', border: 'none', cursor: 'pointer',
+                color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center',
+                padding: 4, borderRadius: 4,
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
+              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
+              </svg>
+            </button>
+          </div>
+        ));
+
+  const renderSenderGroup = (node, detail = false) => (
+          <SenderGroup
+            key={node.key}
+            detail={detail}
+            toolbar={selectionToolbar}
+            listRef={detail ? listRef : undefined}
+            onListKeyDown={handleListKeyDown}
+            onFilterChange={clearSelection}
+            message={node.message}
+            cacheKey={node.key}
+            params={senderParams}
+            isMobile={isMobile}
+            isNarrow={isNarrow}
+            showMobileAvatars={showMobileAvatars}
+            showMessagePreviews={showMessagePreviews}
+            onContextMenu={(e, message) => {
+              e.preventDefault();
+              setContextMenu({ x: e.clientX, y: e.clientY, message: { ...message, __sender_params: senderParams } });
+            }}
+            expanded={expandedSenders.has(node.key)}
+            onToggle={() => {
+              const opening = useStore.getState().senderListGroup !== node.key;
+              if (opening) useStore.getState().setSenderViewState(`inbox:${senderContext}`, { scroll: listRef.current?.scrollTop || 0 });
+              clearSelection();
+              setSenderListGroup(opening ? node.key : null);
+              setExpandedSenders(opening ? new Set([node.key]) : new Set());
+            }}
+            renderRow={(message) => renderListRow({ ...(node.children.find(child => child.message.id === message.id)?.message || message), __sender_source: !selectedAccountId ? (message.account_email || accounts.find(account => account.id === message.account_id)?.email_address || message.account_name || '') : '' })}
+            applyReadGuard={applyReadGuard}
+          />
+  );
+  const openedSender = !searchQuery.trim() && rowTree.find(node => node.kind === 'sender' && node.key === senderListGroup);
+  const wasSenderList = useRef(false);
+  useLayoutEffect(() => {
+    if (wasSenderList.current && !openedSender && listRef.current) listRef.current.scrollTop = useStore.getState().senderViewState[`inbox:${senderContext}`]?.scroll || 0;
+    wasSenderList.current = !!openedSender;
+  }, [openedSender, senderContext]);
+  if (openedSender) return (
+    <div style={{
+      width: isMobile || isColumn ? '100%' : 'var(--list-width)', minWidth: isMobile ? undefined : 180,
+      flex: isMobile ? 1 : (isColumn ? '0 0 42%' : undefined), minHeight: 0,
+      display: 'flex', flexDirection: 'column', height: isMobile || isColumn ? undefined : '100%',
+      background: 'var(--bg-primary)', borderRight: isMobile || isColumn ? 'none' : '1px solid var(--border-subtle)',
+    }}>
+      {renderSenderGroup(openedSender, true)}
+      {contextMenu && <ContextMenu x={contextMenu.x} y={contextMenu.y} message={contextMenu.message}
+        defaultMoveView={contextMenu.defaultMoveView} defaultSnoozeView={contextMenu.defaultSnoozeView}
+        onClose={() => setContextMenu(null)} onAction={(action, data) => handleContextAction(action, contextMenu.message, data)} />}
+      {spamExplainMessageId && <SpamExplainModal messageId={spamExplainMessageId} onClose={() => setSpamExplainMessageId(null)} />}
+      {!isMobile && undoableNotifications.map((n, i) => <UndoBar key={n.id} notification={n} onDismiss={() => removeNotification(n.id)} showTopBorder={i === 0} />)}
+    </div>
+  );
+
   return (
     <div style={{
       width: isMobile ? '100%' : (isColumn ? '100%' : 'var(--list-width)'),
@@ -3681,344 +4054,10 @@ export default function MessageList() {
         )}
 
         {/* ── Bulk-action toolbar ───────────────────────────── */}
-        {selectionMode && (
-          <div style={{
-            position: 'sticky', top: 0, zIndex: 10,
-            display: 'flex', alignItems: 'center', gap: 6,
-            padding: '7px 10px',
-            background: 'var(--bg-elevated)',
-            borderBottom: '1px solid var(--border)',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.18)',
-          }}>
-            {/* Select-all checkbox */}
-            <input
-              type="checkbox"
-              checked={allSelected}
-              onChange={e => e.target.checked ? selectAll(displayMessages) : clearSelection()}
-              title={allSelected ? t('messageList.deselectAll') : t('messageList.selectAll')}
-              style={{ cursor: 'pointer', accentColor: 'var(--accent)', flexShrink: 0 }}
-            />
-            <span style={{ fontSize: 12, color: 'var(--text-secondary)', flex: 1, userSelect: 'none' }}>
-              {t('messageList.selectedCount', { count: selectedCount })}
-            </span>
-
-            {/* Mark read / unread button */}
-            <BulkBtn
-              title={bulkMarkAsRead ? t('messageList.markReadSelected') : t('messageList.markUnreadSelected')}
-              onClick={() => handleBulkMarkRead([...selectedIds], selectedMsgs)}
-            >
-              {bulkMarkAsRead ? (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" d="M22,9v9c0,1.1-.9,2-2,2H4c-1.1,0-2-.9-2-2v-9"/>
-                  <polyline points="22 9 12 16 2 9"/>
-                  <polyline points="2 9 12 2 22 9"/>
-                </svg>
-              ) : (
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path strokeLinecap="round" d="M22,10.91v7.09c0,1.1-.9,2-2,2H4c-1.1,0-2-.9-2-2V6c0-1.1.9-2,2-2h11"/>
-                  <polyline strokeLinecap="round" points="16.36 9.95 12 13 2 6"/>
-                  <circle cx="19.96" cy="6" r="3" fill="var(--accent)" stroke="var(--accent)"/>
-                </svg>
-              )}
-            </BulkBtn>
-
-            {/* Star / unstar button (#434) */}
-            <BulkBtn
-              title={bulkMarkAsStarred ? t('messageList.starSelected') : t('messageList.unstarSelected')}
-              onClick={() => handleBulkStar([...selectedIds], selectedMsgs)}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill={bulkMarkAsStarred ? 'none' : 'currentColor'} stroke="currentColor" strokeWidth="2">
-                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
-              </svg>
-            </BulkBtn>
-
-            {/* Archive button */}
-            <BulkBtn
-              title={t('messageList.archiveSelected')}
-              onClick={() => handleBulkArchive([...selectedIds], selectedMsgs)}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <rect x="2" y="3" width="20" height="5" rx="1"/>
-                <path d="M4 8v11a1 1 0 001 1h14a1 1 0 001-1V8"/>
-                <polyline points="9 13 12 16 15 13"/>
-                <line x1="12" y1="11" x2="12" y2="16"/>
-              </svg>
-            </BulkBtn>
-
-            {/* Delete button */}
-            <BulkBtn
-              title={t('messageList.deleteSelected')}
-              onClick={() => handleBulkDelete([...selectedIds], selectedMsgs)}
-              danger
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
-              </svg>
-            </BulkBtn>
-
-            {/* Move button + folder picker */}
-            <div style={{ position: 'relative' }} ref={folderPickerRef}>
-              <BulkBtn
-                title={canMove ? t('messageList.moveToFolder') : t('messageList.moveToFolderDisabled')}
-                onClick={() => handleOpenFolderPicker(selectedMsgs)}
-                disabled={!canMove}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M22 19a2 2 0 01-2 2H4a2 2 0 01-2-2V5a2 2 0 012-2h5l2 3h9a2 2 0 012 2z"/>
-                </svg>
-              </BulkBtn>
-
-              {showFolderPicker && !isMobile && (<>
-                <div onClick={() => setShowFolderPicker(false)} aria-hidden style={{ position: 'fixed', inset: 0, zIndex: 999 }} />
-                <div ref={pickerMenuRef} style={{
-                  position: 'fixed',
-                  left: descale(pickerPos?.x ?? 0, uiScale), top: descale(pickerPos?.y ?? 0, uiScale),
-                  visibility: pickerPos ? 'visible' : 'hidden',
-                  background: 'var(--bg-elevated)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 8,
-                  boxShadow: 'var(--shadow-popover)',
-                  minWidth: 200, maxWidth: 320,
-                  zIndex: 1000,
-                }}>
-                  {pickerLoading ? (
-                    <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>
-                      {t('common.loading')}
-                    </div>
-                  ) : pickerFolders.length === 0 ? (
-                    <div style={{ padding: '20px 16px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>
-                      {t('contextMenu.folders.empty')}
-                    </div>
-                  ) : (
-                    <>
-                      <div style={{ padding: '6px 8px', borderBottom: '1px solid var(--border-subtle)' }}>
-                        <input
-                          autoFocus
-                          value={pickerSearch}
-                          onChange={e => setPickerSearch(e.target.value)}
-                          placeholder={t('contextMenu.folders.search')}
-                          style={{
-                            width: '100%', boxSizing: 'border-box',
-                            padding: '5px 8px', fontSize: 12,
-                            background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
-                            borderRadius: 5, color: 'var(--text-primary)',
-                            outline: 'none',
-                          }}
-                        />
-                      </div>
-                      <div style={{ maxHeight: 285, overflowY: 'auto' }}>
-                      {(() => {
-                        const q = pickerSearch.trim().toLowerCase();
-                        const displayed = pickerFolders
-                          .filter(f => f.path !== selectedFolder && (!q || folderMatchesQuery(f, q)));
-                        // Recent and favorite targets above the full list, as in the single-message
-                        // pickers (#551). The bulk picker only opens for one account's messages.
-                        const target = { accountId: selectedMsgs[0]?.account_id, currentFolder: selectedFolder };
-                        const recent = q ? [] : recentMoveTargets(recentFolders, pickerFolders, target);
-                        const favorites = q ? [] : favoriteMoveTargets(favoriteFolders, pickerFolders, { ...target, exclude: recent });
-                        const heading = label => (
-                          <div style={{ padding: '8px 12px 4px', fontSize: 10, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                            {label}
-                          </div>
-                        );
-                        const divider = <div style={{ height: 1, background: 'var(--border-subtle)', margin: '3px 0' }} />;
-                        const item = (f, key) => (
-                          <button
-                            key={key}
-                            onClick={() => handleBulkMove([...selectedIds], selectedMsgs, f.path)}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 8,
-                              width: '100%', padding: '8px 12px',
-                              background: 'none', border: 'none',
-                              color: 'var(--text-primary)', fontSize: 13,
-                              cursor: 'pointer', textAlign: 'left',
-                              transition: 'background 0.1s',
-                            }}
-                            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
-                            onMouseLeave={e => e.currentTarget.style.background = 'none'}
-                          >
-                            <span style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>
-                              <FolderIcon specialUse={f.special_use} />
-                            </span>
-                            <FolderPathLabel folder={f} label={f.favoriteLabel} />
-                          </button>
-                        );
-                        return displayed.length === 0 ? (
-                          <div style={{ padding: '12px 12px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12 }}>
-                            {t('contextMenu.folders.empty')}
-                          </div>
-                        ) : (
-                          <>
-                            {recent.length > 0 && (<>
-                              {heading(t('contextMenu.folders.recent'))}
-                              {recent.map(f => item(f, `recent-${f.path}`))}
-                              {divider}
-                            </>)}
-                            {favorites.length > 0 && (<>
-                              {heading(t('contextMenu.folders.favorites'))}
-                              {favorites.map(f => item(f, `fav-${f.path}`))}
-                              {divider}
-                            </>)}
-                            {!q && heading(t('messageList.moveToFolder'))}
-                            {displayed.map(f => item(f, f.path))}
-                          </>
-                        );
-                      })()}
-                      </div>
-                    </>
-                  )}
-                </div>
-              </>)}
-              {/* Mobile folder picker — bottom sheet */}
-              {showFolderPicker && isMobile && (
-                <>
-                  <div
-                    onClick={() => setShowFolderPicker(false)}
-                    style={{
-                      position: 'fixed', inset: 0, zIndex: 3000,
-                      background: 'var(--overlay-scrim)',
-                      backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)',
-                    }}
-                  />
-                  <div style={{
-                    position: 'fixed', left: 0, right: 0, bottom: 0,
-                    zIndex: 3001,
-                    background: 'var(--bg-secondary)',
-                    borderRadius: '16px 16px 0 0',
-                    boxShadow: '0 -4px 32px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.04)',
-                    paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 8px)',
-                    animation: 'sheet-enter 0.2s cubic-bezier(0.34,1.56,0.64,1)',
-                  }}>
-                    {/* Drag handle */}
-                    <div style={{ display: 'flex', justifyContent: 'center', padding: '12px 0 4px' }}>
-                      <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)' }} />
-                    </div>
-                    {/* Title */}
-                    <div style={{ padding: '4px 20px 12px', fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
-                      {t('messageList.moveToFolder')}
-                    </div>
-                    <div style={{ padding: '0 20px 12px' }}>
-                      <input
-                        value={pickerSearch}
-                        onChange={e => setPickerSearch(e.target.value)}
-                        placeholder={t('contextMenu.folders.search')}
-                        style={{
-                          width: '100%', boxSizing: 'border-box',
-                          padding: '8px 12px', fontSize: 14,
-                          background: 'var(--bg-tertiary)', border: '1px solid var(--border)',
-                          borderRadius: 8, color: 'var(--text-primary)',
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-                    <div style={{ borderTop: '1px solid var(--border-subtle)', overflowY: 'auto', maxHeight: '60vh' }}>
-                      {pickerLoading ? (
-                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
-                          {t('common.loading')}
-                        </div>
-                      ) : pickerFolders.length === 0 ? (
-                        <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
-                          {t('contextMenu.folders.empty')}
-                        </div>
-                      ) : (() => {
-                        const q = pickerSearch.trim().toLowerCase();
-                        const displayed = pickerFolders
-                          .filter(f => f.path !== selectedFolder && (!q || folderMatchesQuery(f, q)));
-                        const target = { accountId: selectedMsgs[0]?.account_id, currentFolder: selectedFolder };
-                        const recent = q ? [] : recentMoveTargets(recentFolders, pickerFolders, target);
-                        const favorites = q ? [] : favoriteMoveTargets(favoriteFolders, pickerFolders, { ...target, exclude: recent });
-                        const heading = label => (
-                          <div style={{ padding: '12px 20px 6px', fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.06em', borderBottom: '1px solid var(--border-subtle)' }}>
-                            {label}
-                          </div>
-                        );
-                        const item = (f, key) => (
-                          <button
-                            key={key}
-                            onClick={() => { handleBulkMove([...selectedIds], selectedMsgs, f.path); setShowFolderPicker(false); }}
-                            style={{
-                              display: 'flex', alignItems: 'center', gap: 14,
-                              width: '100%', minHeight: 48,
-                              padding: '0 20px',
-                              background: 'none', border: 'none',
-                              borderBottom: '1px solid var(--border-subtle)',
-                              color: 'var(--text-primary)', fontSize: 15,
-                              cursor: 'pointer', textAlign: 'left',
-                            }}
-                          >
-                            <span style={{ color: 'var(--text-tertiary)', flexShrink: 0 }}>
-                              <FolderIcon specialUse={f.special_use} />
-                            </span>
-                            <FolderPathLabel folder={f} label={f.favoriteLabel} />
-                          </button>
-                        );
-                        if (displayed.length === 0) {
-                          return (
-                            <div style={{ padding: '24px', textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 13 }}>
-                              {t('contextMenu.folders.empty')}
-                            </div>
-                          );
-                        }
-                        const sectioned = recent.length > 0 || favorites.length > 0;
-                        return (<>
-                          {recent.length > 0 && (<>
-                            {heading(t('contextMenu.folders.recent'))}
-                            {recent.map(f => item(f, `recent-${f.path}`))}
-                          </>)}
-                          {favorites.length > 0 && (<>
-                            {heading(t('contextMenu.folders.favorites'))}
-                            {favorites.map(f => item(f, `fav-${f.path}`))}
-                          </>)}
-                          {sectioned && heading(t('messageList.foldersHeading'))}
-                          {displayed.map(f => item(f, f.path))}
-                        </>);
-                      })()}
-                    </div>
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Clear selection */}
-            <button
-              onClick={clearSelection}
-              title={t('messageList.clearSelection')}
-              style={{
-                background: 'none', border: 'none', cursor: 'pointer',
-                color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center',
-                padding: 4, borderRadius: 4,
-              }}
-              onMouseEnter={e => e.currentTarget.style.color = 'var(--text-primary)'}
-              onMouseLeave={e => e.currentTarget.style.color = 'var(--text-tertiary)'}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-              </svg>
-            </button>
-          </div>
-        )}
+        {selectionToolbar}
 
         {rowTree.map(node => node.kind === 'sender' ? (
-          <SenderGroup
-            key={node.key}
-            message={node.message}
-            cacheKey={node.key}
-            params={senderParams}
-            isMobile={isMobile}
-            isNarrow={isNarrow}
-            showMobileAvatars={showMobileAvatars}
-            showMessagePreviews={showMessagePreviews}
-            expanded={expandedSenders.has(node.key)}
-            onToggle={() => setExpandedSenders(prev => {
-              const next = new Set(prev);
-              const key = node.key;
-              next.has(key) ? next.delete(key) : next.add(key);
-              return next;
-            })}
-            renderRow={(message) => renderListRow(node.children.find(child => child.message.id === message.id)?.message || message)}
-            applyReadGuard={applyReadGuard}
-          />
+          renderSenderGroup(node)
         ) : renderListRow(node.message))}
 
 
@@ -4676,6 +4715,7 @@ function ThreadRow({ message, isExpanded, threadMsgs, isLoadingThread, selectedM
             <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {message.subject || t('common.noSubject')}
             </span>
+            {message.__sender_source && <span title={message.__sender_source} style={{ flexShrink: 0, maxWidth: '35%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 8, fontSize: 10, fontWeight: 400, color: 'var(--text-tertiary)' }}>{message.__sender_source}</span>}
             <ReplyDraftIndicator message={message} />
             <SpamBadge message={message} onClick={onExplainSpam} />
           </div>
@@ -5008,6 +5048,7 @@ function MessageRow({ message, selected, lastViewed, isChecked, selectionMode, s
           <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {message.subject || t('message.noSubject')}
           </span>
+            {message.__sender_source && <span title={message.__sender_source} style={{ flexShrink: 0, maxWidth: '35%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginLeft: 8, fontSize: 10, fontWeight: 400, color: 'var(--text-tertiary)' }}>{message.__sender_source}</span>}
           <ReplyDraftIndicator message={message} />
           <SpamBadge message={message} onClick={onExplainSpam} />
         </div>

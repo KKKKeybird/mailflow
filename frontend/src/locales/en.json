@@ -1888,5 +1888,24 @@
     "trash": "Trash",
     "spam": "Spam",
     "archive": "Archive"
+  },
+  "senderGrouping": {
+    "all": "All",
+    "unread": "Unread",
+    "newMail": "New mail · View",
+    "readAll": "Mark entire group as read",
+    "archiveAll": "Archive entire group",
+    "readScheduled": "Mark {{count}} messages as read",
+    "archiveScheduled": "Archive {{count}} messages",
+    "partial": "Archived {{count}} messages; some accounts have no archive folder.",
+    "failed": "Completed {{count}} messages. {{error}}",
+    "settings": "Sender groups",
+    "description": "Groups match email address and sender name. Rename a group or manually merge selected senders. Subjects do not affect grouping.",
+    "label": "Group display name",
+    "mergeInto": "Merge into…",
+    "merge": "Merge",
+    "split": "Separate",
+    "empty": "Group a sender from the message menu to add a rule.",
+    "noMail": "No messages"
   }
 }

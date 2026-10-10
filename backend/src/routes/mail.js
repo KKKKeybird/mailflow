@@ -1,3 +1,4 @@
+import { senderGroupTargets } from '../services/senderGroupTargets.js';
 import { STATUS_STALE_MS } from '../services/folderStatus.js';
 import { Router } from 'express';
 import { createRequire } from 'module';
@@ -13,6 +14,7 @@ import { snippetFromBody, decodeMimeWords, parseRawHeaders, parseMailboxList, bu
 import { resolveTrashFolder, resolveAllTrashPaths, resolveAllDraftsPaths, resolveArchiveFolder, isAllMailFolder, resolveSpamFolder, resolveAllSpamPaths, getDeleteStrategy, adjustFolderCounts, fanOutReadToSiblings, fanOutStarToSiblings, fanOutBulkReadToSiblings } from '../utils/mailUtils.js';
 import { pluginRegistry } from '../plugins/registry.js';
 import { listMessages } from '../services/messageService.js';
+import { normalizeSenderIdentity } from '../services/senderIdentity.js';
 import { recordSyncSignal } from '../services/diagnosticsRing.js';
 import { resolveAccountScope } from '../services/unifiedInbox.js';
 import { validateHost } from '../services/hostValidation.js';
@@ -145,11 +147,19 @@ function notifyMailMutation(rows, userId) {
   }
 }
 
+// The returned snapshot includes unloaded members; mutation endpoints recheck ownership.
+router.get('/sender-group-targets', async (req, res) => {
+  const { accountId, sender, category, threaded, folder = 'INBOX' } = req.query;
+  if (!normalizeSenderIdentity(sender) || folder !== 'INBOX' || (category && !['primary','newsletter','promotion','automated','social'].includes(category))) return res.status(400).json({ error: 'Invalid sender group scope' });
+  const targets = await senderGroupTargets({ userId: req.session.userId, accountId, sender, category, threaded });
+  res.json({ targets, count: targets.length });
+});
+
 // Get messages (unified or per-account/folder)
 router.get('/messages', async (req, res) => {
   const { accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category, groupSenders, sender } = req.query;
 
-  if (sender !== undefined && (typeof sender !== 'string' || sender.length > 320 || !/^[^\s@]+@[^\s@]+$/.test(sender.trim()))) return res.status(400).json({ error: 'Invalid sender' });
+  if (sender !== undefined && !normalizeSenderIdentity(sender)) return res.status(400).json({ error: 'Invalid sender' });
 
   if (!isValidFolderName(folder)) return res.status(400).json({ error: 'Invalid folder name' });
 

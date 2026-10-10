@@ -132,6 +132,9 @@ jobs:
           psql -d mailflow_sender_revision -v ON_ERROR_STOP=1 -f backend/benchmarks/senderGrouping.sql
           psql -d mailflow_sender_revision -v ON_ERROR_STOP=1 -f backend/migrations/0063_normalized_sender_index.sql
           psql -d mailflow_sender_revision -v ON_ERROR_STOP=1 -f backend/migrations/0064_sender_thread_source_index.sql
+          psql -d mailflow_sender_revision -v ON_ERROR_STOP=1 -f backend/migrations/0066_sender_identity_preferences.sql
+          psql -d mailflow_sender_revision -v ON_ERROR_STOP=1 -f backend/migrations/0067_sender_identity_index.sql
+          psql -d mailflow_sender_revision -v ON_ERROR_STOP=1 -f backend/benchmarks/senderIdentityMigration.sql
       - name: Validate real list endpoint against upstream
         env:
           DB_NAME: mailflow_sender_revision

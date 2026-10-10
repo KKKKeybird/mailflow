@@ -54,6 +54,7 @@ Object.assign(globalThis, {
   getComputedStyle: dom.window.getComputedStyle,
   ResizeObserver: class { observe() {} unobserve() {} disconnect() {} },
   IS_REACT_ACT_ENVIRONMENT: true,
+  requestAnimationFrame: dom.window.requestAnimationFrame.bind(dom.window),
 });
 // useMobile() reads window.innerWidth first, then subscribes to matchMedia. jsdom defaults
 // innerWidth to 1024, which is the desktop case the bug report is about.
@@ -72,7 +73,12 @@ let REQUESTS = [];
 let ROUTES = {};
 globalThis.fetch = async (url, options = {}) => {
   REQUESTS.push({ url: String(url), method: options.method || 'GET' });
-  if (String(url).includes('sender=')) return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ messages: SENDER_ROWS, total: SENDER_ROWS.length }) };
+  if (String(url).includes('sender=')) {
+    const params = new URL(String(url), 'https://mail.example.invalid').searchParams;
+    const members = params.get('unreadOnly') === 'true' ? SENDER_ROWS.filter(row => !row.is_read) : SENDER_ROWS;
+    const offset = Number(params.get('offset') || 0), limit = Number(params.get('limit') || 50);
+    return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ messages: members.slice(offset, offset + limit), total: members.length }) };
+  }
   const path = String(url);
   const [status, body] = Object.entries(ROUTES).find(([p]) => path.endsWith(p))?.[1]
     ?? [200, path.includes('/mail/messages?') ? { messages: SERVED, total: SERVED.length } : {}];
@@ -108,7 +114,7 @@ async function mount({ rows, threadedView, folder = 'INBOX' }) {
     accounts: [ACCOUNT], accountsReady: true,
     selectedAccountId: 'acct-1', selectedFolder: folder,
     messages: rows, messagesTotal: rows.length, hasMoreMessages: false, loadingMessages: false,
-    searchQuery: '', threadedView, groupedSenders: rows.filter(m=>m.sender_group).map(m=>m.sender_group), threadMessages: {}, selectedMessageId: null, selectedListRowKey: null, markReadBehavior: 'manual', notifications: [],
+    searchQuery: '', threadedView, groupedSenders: rows.filter(m=>m.sender_group).map(m=>m.sender_group), senderGroupMappings: {}, senderGroupLabels: {}, senderViewState: {}, threadMessages: {}, senderListGroup: null, selectedMessageId: null, selectedListRowKey: null, markReadBehavior: 'manual', notifications: [],
     folders: { 'acct-1': [{ path: 'INBOX', name: 'INBOX' }, { path: 'Archive', name: 'Archive' }, { path: 'Drafts', name: 'Drafts', special_use: '\\Drafts' }] },
   });
   await React.act(async () => {
@@ -351,6 +357,58 @@ describe('MessageList — reopening a saved draft keeps its Bcc', () => {
 
 
 describe('MessageList — sender grouping', () => {
+  test('group card and detail menus expose group actions', async () => {
+    const sender = 'shared@example.com\nAlice';
+    const head = { ...MESSAGE, id: `sender:${sender}`, message_id: null, from_email: 'shared@example.com', from_name: 'Alice', sender_group: sender, sender_message_count: 2, sender_unread_count: 1 };
+    SENDER_ROWS = [{ ...MESSAGE, id: 'alice-member', from_email: 'shared@example.com', from_name: 'Alice' }];
+    await mount({ rows: [head], threadedView: false });
+    await React.act(async () => container.querySelector('[data-sender-group] button').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })));
+    assert.ok(container.textContent.includes('contextMenu.ungroupSender'));
+    assert.ok(!container.textContent.includes('contextMenu.archive'));
+    assert.ok(container.textContent.includes('senderGrouping.readAll'));
+    assert.ok(container.textContent.includes('senderGrouping.archiveAll'));
+    await React.act(async () => dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    assert.ok(!container.querySelector('[data-sender-list]').textContent.includes('contextMenu.ungroupSender'));
+    await React.act(async () => container.querySelector('[data-sender-list] button[aria-haspopup="menu"]').click());
+    assert.ok(container.textContent.includes('contextMenu.ungroupSender'));
+    assert.ok(!container.textContent.includes('contextMenu.archive'));
+    assert.ok(container.textContent.includes('senderGrouping.readAll'));
+    assert.ok(container.textContent.includes('senderGrouping.archiveAll'));
+    const item = [...container.querySelectorAll('span')].find(el => el.textContent === 'contextMenu.ungroupSender');
+    assert.ok(item);
+    await React.act(async () => item.click());
+    assert.ok(!useStore.getState().groupedSenders.includes(sender));
+    assert.equal(useStore.getState().senderListGroup, null);
+  });
+
+  test('same mailbox names have distinct cards, labels and member requests', async () => {
+    const alice = 'shared@example.com\nAlice', bob = 'shared@example.com\nBob';
+    const head = (key, name) => ({ ...MESSAGE, id: `sender:${key}`, message_id: null, from_email: 'shared@example.com', from_name: name,
+      sender_group: key, sender_message_count: 2, sender_unread_count: 1, subject: 'Latest invoice', snippet: 'Latest invoice preview' });
+    SENDER_ROWS = [{ ...MESSAGE, id: 'alice-1', from_email: 'shared@example.com', from_name: 'Alice', subject: 'Invoice' }];
+    await mount({ rows: [head(alice, 'Alice'), head(bob, 'Bob')], threadedView: false });
+    const groups = [...container.querySelectorAll('[data-sender-group]')];
+    assert.equal(groups.length, 2);
+    const aliceCard = groups.find(group => group.getAttribute('data-sender-group') === alice);
+    const bobCard = groups.find(group => group.getAttribute('data-sender-group') === bob);
+    assert.ok(aliceCard.querySelector('[title="Alice <shared@example.com>"]'));
+    assert.ok(aliceCard.querySelector('button').textContent.includes('Alice'));
+    assert.ok(bobCard.querySelector('[title="Bob <shared@example.com>"]'));
+    assert.ok(bobCard.querySelector('button').textContent.includes('Bob'));
+    assert.ok(aliceCard.textContent.includes('Latest invoice'));
+    assert.ok(aliceCard.textContent.includes('Latest invoice preview'));
+    assert.equal(aliceCard.querySelector('[data-sender-count]').textContent, '2');
+    assert.ok(!aliceCard.textContent.includes('messageList.senderGroupCounts'));
+    REQUESTS = [];
+    await React.act(async () => aliceCard.querySelector('button').click());
+    assert.ok(REQUESTS.some(request => new URL(request.url, 'http://localhost').searchParams.get('sender') === alice));
+    assert.ok(container.querySelector('[data-sender-list]'));
+    assert.equal(container.querySelectorAll('[data-sender-group]').length, 1);
+    await React.act(async () => container.querySelector('[data-sender-list] button[aria-label="common.back"]').click());
+    assert.equal(container.querySelectorAll('[data-sender-group]').length, 2);
+  });
+
   test('expansion is read-only and exposes messages across different subjects', async () => {
     const latest = { ...MESSAGE, from_email: 'alerts@example.com', sender_group: 'alerts@example.com', sender_message_count: 2, sender_unread_count: 2 };
     SENDER_ROWS = [
@@ -369,7 +427,7 @@ describe('MessageList — sender grouping', () => {
     assert.equal(useStore.getState().selectedMessageId, null);
     assert.ok(REQUESTS.some(r => r.url.includes('sender=alerts%40example.com')));
     assert.ok(REQUESTS.every(r => r.method === 'GET'), 'expansion must not mutate mail flags or folders');
-    await React.act(async () => group.querySelector('button').click());
+    await React.act(async () => container.querySelector('[data-sender-list] button[aria-label="common.back"]').click());
     assert.equal(container.querySelector('[data-msgid="alert-1"]'), null);
   });
 
@@ -380,10 +438,67 @@ describe('MessageList — sender grouping', () => {
     const button = container.querySelector('[data-sender-group] button');
     await React.act(async () => button.click());
     assert.ok(draggableIn(THREAD.id));
-    assert.equal(button.getAttribute('aria-expanded'), 'true');
+    assert.ok(container.querySelector('[data-sender-list]'));
   });
 });
 
+
+describe('sender group navigation enhancements', () => {
+  const sender = 'alerts@example.com';
+  const head = { ...MESSAGE, id: `sender:${sender}`, message_id: null, preview_message_id: 'one', sender_group: sender, sender_message_count: 2, sender_unread_count: 1 };
+  test('restores inbox and group positions, and separates All and Unread caches', async () => {
+    SENDER_ROWS = [{ ...MESSAGE, id: 'one', is_read: false }, { ...MESSAGE, id: 'two', is_read: true }];
+    await mount({ rows: [head], threadedView: false });
+    const inbox = container.querySelector('div[tabindex="0"]');
+    inbox.scrollTop = 280;
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    let list = container.querySelector('[data-sender-list] div[tabindex="0"]');
+    list.scrollTop = 140;
+    await React.act(async () => list.dispatchEvent(new dom.window.Event('scroll', { bubbles: true })));
+    const unread = [...container.querySelectorAll('button')].find(button => button.textContent === 'senderGrouping.unread');
+    await React.act(async () => unread.click());
+    assert.ok(container.querySelector('[data-msgid="one"]'));
+    assert.equal(container.querySelector('[data-msgid="two"]'), null);
+    assert.ok(REQUESTS.some(request => request.url.includes('unreadOnly=true')));
+    await React.act(async () => [...container.querySelectorAll('button')].find(button => button.textContent === 'senderGrouping.all').click());
+    assert.equal(container.querySelector('[data-sender-list] div[tabindex="0"]').scrollTop, 140);
+    await React.act(async () => container.querySelector('button[aria-label="common.back"]').click());
+    assert.equal(container.querySelector('div[tabindex="0"]').scrollTop, 280);
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    assert.equal(container.querySelector('[data-sender-list] div[tabindex="0"]').scrollTop, 140);
+  });
+  test('new mail refresh keeps the list open and offers a jump to the latest mail', async () => {
+    SENDER_ROWS = [{ ...MESSAGE, id: 'one' }];
+    await mount({ rows: [head], threadedView: false });
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    SENDER_ROWS = [{ ...MESSAGE, id: 'new', subject: 'New arrival' }, ...SENDER_ROWS];
+    await React.act(async () => useStore.setState({ messages: [{ ...head, preview_message_id: 'new', date: new Date(Date.now() + 60000).toISOString(), subject: 'New arrival' }] }));
+    assert.ok(container.querySelector('[data-sender-list]'));
+    assert.ok(container.querySelector('[data-msgid="new"]'));
+    const jump = [...container.querySelectorAll('button')].find(button => button.textContent === 'senderGrouping.newMail');
+    assert.ok(jump);
+    await React.act(async () => jump.click());
+    assert.ok(!container.textContent.includes('senderGrouping.newMail'));
+  });
+  test('refresh fetches enough pages to retain the visible mail after a burst of arrivals', async () => {
+    SENDER_ROWS = Array.from({ length: 60 }, (_, i) => ({ ...MESSAGE, id: `old-${i}`, date: new Date(Date.now() - i * 1000).toISOString() }));
+    await mount({ rows: [{ ...head, sender_message_count: 60 }], threadedView: false });
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    container.querySelector('[data-msgid="old-49"]').getBoundingClientRect = () => ({ top: -10, bottom: 10 });
+    SENDER_ROWS = [...Array.from({ length: 12 }, (_, i) => ({ ...MESSAGE, id: `new-${i}`, date: new Date(Date.now() + (12-i) * 1000).toISOString() })), ...SENDER_ROWS];
+    REQUESTS = [];
+    await React.act(async () => useStore.setState({ messages: [{ ...head, preview_message_id: 'new-0', sender_message_count: 72, date: SENDER_ROWS[0].date }] }));
+    assert.ok(container.querySelector('[data-msgid="old-49"]'));
+    assert.ok(REQUESTS.some(request => request.url.includes('offset=50')));
+  });
+  test('unified group rows identify their receiving account', async () => {
+    SENDER_ROWS = [{ ...MESSAGE, id: 'one', account_name: 'Work inbox', account_email: 'work@example.com' }];
+    await mount({ rows: [head], threadedView: false });
+    await React.act(async () => useStore.setState({ selectedAccountId: null }));
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    assert.equal(container.querySelector('[data-msgid="one"] [title="work@example.com"]').textContent, 'work@example.com');
+  });
+});
 
 describe('sender grouping — actual list actions', () => {
   test('keyboard navigation reaches members, deletion advances and undo restores the count', async () => {

@@ -1888,5 +1888,24 @@
     "trash": "已删除",
     "spam": "垃圾邮件",
     "archive": "归档"
+  },
+  "senderGrouping": {
+    "all": "全部",
+    "unread": "未读",
+    "newMail": "有新邮件，查看",
+    "readAll": "整组标为已读",
+    "archiveAll": "归档整组邮件",
+    "readScheduled": "将 {{count}} 封邮件标为已读",
+    "archiveScheduled": "归档 {{count}} 封邮件",
+    "partial": "已归档 {{count}} 封；部分账号没有归档文件夹。",
+    "failed": "已完成 {{count}} 封。{{error}}",
+    "settings": "发件人聚合",
+    "description": "按邮箱和发件人名称匹配，可改显示名称或手动合并指定发件人；不同主题仍聚合。",
+    "label": "聚合显示名称",
+    "mergeInto": "合并到…",
+    "merge": "合并",
+    "split": "拆分",
+    "empty": "在邮件菜单中选择聚合发件人，即可添加规则。",
+    "noMail": "没有邮件"
   }
 }

@@ -1,3 +1,5 @@
+import { scheduleSenderGroupAction } from '../utils/senderGroupActions.js';
+import { senderIdentity } from '../utils/senderIdentity.js';
 import { reconcileSenderHeads, removeSenderMembers, refreshSenderThreadReadState, restoreSenderMembers } from '../utils/senderGroupState.js';
 import { actionableMessageRows } from '../utils/messageRowTree.js';
 import { create } from 'zustand';
@@ -126,7 +128,7 @@ export const useStore = create((set, get) => ({
       ...(state.user?.id !== user?.id ? {
         serverUnreadCounts: { total: 0, byAccount: {}, snapshots: {} }, pendingCounts: {},
         unreadCounts: { total: 0, byAccount: {}, snapshots: {}, complete: false },
-        groupedSenders: [], senderGroupingSaving: false, threadMessages: {}, expandedSenders: new Set(), senderGroupContext: '', selectedListRowKey: null,
+        groupedSenders: [], senderGroupMappings: {}, senderGroupLabels: {}, senderViewState: {}, senderGroupActionPending: {}, senderGroupingSaving: false, threadMessages: {}, expandedSenders: new Set(), senderListGroup: null, senderGroupContext: '', selectedListRowKey: null,
         senderFaviconsLoaded: false,
         senderFavicons: false,
         senderFaviconsSaving: false,
@@ -667,18 +669,54 @@ export const useStore = create((set, get) => ({
   refreshSenderMembers: () => set(state => ({ senderMembersRevision: state.senderMembersRevision + 1 })),
   senderGroupContext: '',
   setSenderGroupContext: context => set({ senderGroupContext: context }),
+  senderListGroup: null,
+  setSenderListGroup: senderListGroup => set({ senderListGroup }),
   expandedSenders: new Set(),
   setExpandedSenders: value => set(state => ({ expandedSenders: typeof value === 'function' ? value(state.expandedSenders) : value })),
+  senderGroupMappings: {},
+  senderGroupLabels: {},
+  senderViewState: {},
+  senderGroupActionPending: {},
+  setSenderViewState: (key, changes) => set(state => ({ senderViewState: Object.fromEntries([...Object.entries(state.senderViewState).filter(([id]) => id !== key), [key, { ...state.senderViewState[key], ...changes }]].slice(-200)) })),
+  saveSenderGroups: async changes => {
+    if (get().senderGroupingSaving) return;
+    const userId = get().user?.id;
+    set({ senderGroupingSaving: true, senderGroupingEpoch: get().senderGroupingEpoch + 1 });
+    try {
+      await api.savePreferences(changes);
+      if (get().user?.id === userId) set({ ...changes, messagesRefreshToken: get().messagesRefreshToken + 1, senderMembersRevision: get().senderMembersRevision + 1 });
+    } finally { if (get().user?.id === userId) set({ senderGroupingSaving: false }); }
+  },
+  mergeSenderGroups: async (source, target) => {
+    if (source === target || !get().groupedSenders.includes(source) || !get().groupedSenders.includes(target)) return;
+    const mappings = { ...get().senderGroupMappings, [source]: target };
+    for (const key of Object.keys(mappings)) if (mappings[key] === source) mappings[key] = target;
+    await get().saveSenderGroups({ groupedSenders: get().groupedSenders.filter(key => key !== source), senderGroupMappings: mappings });
+  },
+  splitSenderGroup: async source => {
+    const mappings = { ...get().senderGroupMappings }; delete mappings[source];
+    await get().saveSenderGroups({ groupedSenders: [...new Set([...get().groupedSenders, source])], senderGroupMappings: mappings });
+  },
+  performSenderGroupAction: async (sender, params, action) => {
+    if (get().senderGroupActionPending[sender]) return;
+    const userId = get().user?.id;
+    set(state => ({ senderGroupActionPending: { ...state.senderGroupActionPending, [sender]: true } }));
+    const finish = () => { if (get().user?.id === userId) set(state => ({ senderGroupActionPending: { ...state.senderGroupActionPending, [sender]: false }, messagesRefreshToken: state.messagesRefreshToken + 1 })); };
+    try { return await scheduleSenderGroupAction({ api, getState: get, sender, params, action, t: i18n.t.bind(i18n), finish }); }
+    catch (error) { finish(); throw error; }
+  },
   groupedSenders: [],
   senderGroupingSaving: false,
   senderGroupingEpoch: 0,
-  toggleSenderGrouping: async (email) => {
-    const sender = String(email || '').trim().toLowerCase();
+  toggleSenderGrouping: async (identity) => {
+    const boundary = String(identity || '').indexOf('\n');
+    const sender = boundary < 0 ? senderIdentity(identity) : senderIdentity(identity.slice(0, boundary), identity.slice(boundary + 1));
     if (!sender || get().senderGroupingSaving) return;
     const userId = get().user?.id;
     set({ senderGroupingSaving: true, senderGroupingEpoch: get().senderGroupingEpoch + 1 });
+    const key = get().senderGroupMappings[sender] || sender;
     const previous = get().groupedSenders;
-    const groupedSenders = previous.includes(sender) ? previous.filter(v => v !== sender) : [...previous, sender];
+    const groupedSenders = previous.includes(key) ? previous.filter(v => v !== key) : [...previous, key];
     try {
       await api.savePreferences({ groupedSenders });
       if (get().user?.id === userId) set({ groupedSenders, messagesRefreshToken: get().messagesRefreshToken + 1 });
@@ -1288,7 +1326,7 @@ export const useStore = create((set, get) => ({
         localStorage.setItem('mailflow_threaded_view', String(groupsMessageList(mode)));
         set({ conversationMode: mode, threadedView: groupsMessageList(mode) });
       }
-      if (get().senderGroupingEpoch === senderGroupingEpoch) set({ groupedSenders: Array.isArray(prefs.groupedSenders) ? prefs.groupedSenders : [] });
+      if (get().senderGroupingEpoch === senderGroupingEpoch) set({ groupedSenders: Array.isArray(prefs.groupedSenders) ? prefs.groupedSenders : [], senderGroupMappings: prefs.senderGroupMappings || {}, senderGroupLabels: prefs.senderGroupLabels || {} });
       if (typeof prefs.plaintextEmail === 'boolean') {
         localStorage.setItem('mailflow_plaintext_email', String(prefs.plaintextEmail));
         set({ plaintextEmail: prefs.plaintextEmail });

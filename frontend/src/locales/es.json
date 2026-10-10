@@ -1888,5 +1888,24 @@
     "trash": "Papelera",
     "spam": "Spam",
     "archive": "Archivo"
+  },
+  "senderGrouping": {
+    "all": "Todos",
+    "unread": "Sin leer",
+    "newMail": "Correo nuevo · Ver",
+    "readAll": "Marcar todo el grupo como leído",
+    "archiveAll": "Archivar todo el grupo",
+    "readScheduled": "Marcar {{count}} mensajes como leídos",
+    "archiveScheduled": "Archivar {{count}} mensajes",
+    "partial": "Se archivaron {{count}} mensajes; algunas cuentas no tienen carpeta de archivo.",
+    "failed": "Se completaron {{count}} mensajes. {{error}}",
+    "settings": "Grupos de remitentes",
+    "description": "Los grupos coinciden con la dirección de correo y el nombre del remitente. Puedes renombrar un grupo o fusionar manualmente remitentes seleccionados. El asunto no afecta a la agrupación.",
+    "label": "Nombre visible del grupo",
+    "mergeInto": "Fusionar con…",
+    "merge": "Fusionar",
+    "split": "Separar",
+    "empty": "Agrupa un remitente desde el menú del mensaje para añadir una regla.",
+    "noMail": "No hay mensajes"
   }
 }
