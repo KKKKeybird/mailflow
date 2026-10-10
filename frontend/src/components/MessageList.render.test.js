@@ -73,7 +73,12 @@ let REQUESTS = [];
 let ROUTES = {};
 globalThis.fetch = async (url, options = {}) => {
   REQUESTS.push({ url: String(url), method: options.method || 'GET' });
-  if (String(url).includes('sender=')) return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ messages: new URL(String(url), 'https://mail.example.invalid').searchParams.get('unreadOnly') === 'true' ? SENDER_ROWS.filter(row => !row.is_read) : SENDER_ROWS, total: SENDER_ROWS.length }) };
+  if (String(url).includes('sender=')) {
+    const params = new URL(String(url), 'https://mail.example.invalid').searchParams;
+    const members = params.get('unreadOnly') === 'true' ? SENDER_ROWS.filter(row => !row.is_read) : SENDER_ROWS;
+    const offset = Number(params.get('offset') || 0), limit = Number(params.get('limit') || 50);
+    return { ok: true, status: 200, headers: { get: () => 'application/json' }, json: async () => ({ messages: members.slice(offset, offset + limit), total: members.length }) };
+  }
   const path = String(url);
   const [status, body] = Object.entries(ROUTES).find(([p]) => path.endsWith(p))?.[1]
     ?? [200, path.includes('/mail/messages?') ? { messages: SERVED, total: SERVED.length } : {}];
@@ -474,6 +479,17 @@ describe('sender group navigation enhancements', () => {
     assert.ok(jump);
     await React.act(async () => jump.click());
     assert.ok(!container.textContent.includes('senderGrouping.newMail'));
+  });
+  test('refresh fetches enough pages to retain the visible mail after a burst of arrivals', async () => {
+    SENDER_ROWS = Array.from({ length: 60 }, (_, i) => ({ ...MESSAGE, id: `old-${i}`, date: new Date(Date.now() - i * 1000).toISOString() }));
+    await mount({ rows: [{ ...head, sender_message_count: 60 }], threadedView: false });
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    container.querySelector('[data-msgid="old-49"]').getBoundingClientRect = () => ({ top: -10, bottom: 10 });
+    SENDER_ROWS = [...Array.from({ length: 12 }, (_, i) => ({ ...MESSAGE, id: `new-${i}`, date: new Date(Date.now() + (12-i) * 1000).toISOString() })), ...SENDER_ROWS];
+    REQUESTS = [];
+    await React.act(async () => useStore.setState({ messages: [{ ...head, preview_message_id: 'new-0', sender_message_count: 72, date: SENDER_ROWS[0].date }] }));
+    assert.ok(container.querySelector('[data-msgid="old-49"]'));
+    assert.ok(REQUESTS.some(request => request.url.includes('offset=50')));
   });
   test('unified group rows identify their receiving account', async () => {
     SENDER_ROWS = [{ ...MESSAGE, id: 'one', account_name: 'Work inbox', account_email: 'work@example.com' }];

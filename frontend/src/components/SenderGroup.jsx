@@ -62,22 +62,27 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
     const el = scrollRef.current;
     const anchor = el && [...el.querySelectorAll('[data-msgid]')].find(row => row.getBoundingClientRect().bottom > el.getBoundingClientRect().top);
     const anchorId = anchor?.dataset.msgid;
+    const anchorRow = (useStore.getState().threadMessages[memberKey] || []).find(row => row.id === anchorId);
+    const anchorDate = new Date(anchorRow?.date).getTime();
     const anchorOffset = anchor && anchor.getBoundingClientRect().top - el.getBoundingClientRect().top;
     (async () => {
       const desired = Math.max(useStore.getState().threadMessages[memberKey]?.length || 0, 50);
       let messages = [], total;
       do {
-        const data = await api.getMessages({ ...JSON.parse(requestJson), limit: Math.min(500, desired - messages.length), offset: messages.length });
+        const data = await api.getMessages({ ...JSON.parse(requestJson), limit: Math.min(500, Math.max(50, desired - messages.length)), offset: messages.length });
         if (cancelled) return;
         messages = [...messages, ...data.messages]; total = data.total;
         if (!data.messages.length) break;
-      } while (messages.length < desired && messages.length < total);
+      } while (messages.length < total && (messages.length < desired
+        || (anchorDate > 0 && !messages.some(row => row.id === anchorId || (anchorRow?.thread_id && row.thread_id === anchorRow.thread_id))
+          && new Date(messages.at(-1)?.date).getTime() >= anchorDate)));
       if (cancelled) return;
       setThreadMessages(memberKey, applyReadGuard(messages));
       setTotal(total);
-      if (anchorId) requestAnimationFrame(() => {
+      const anchorMember = messages.find(row => row.id === anchorId || (anchorRow?.thread_id && row.thread_id === anchorRow.thread_id));
+      if (anchorMember) requestAnimationFrame(() => {
         if (cancelled || !el.isConnected) return;
-        const current = [...el.querySelectorAll('[data-msgid]')].find(row => row.dataset.msgid === anchorId);
+        const current = [...el.querySelectorAll('[data-msgid]')].find(row => row.dataset.msgid === anchorMember.id);
         if (current) el.scrollTop += current.getBoundingClientRect().top - el.getBoundingClientRect().top - anchorOffset;
       });
     })().catch(() => { if (!cancelled) setError(true); })
