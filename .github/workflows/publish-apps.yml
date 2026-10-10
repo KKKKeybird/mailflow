@@ -34,10 +34,14 @@ jobs:
   # here because the secrets context is not available in a job-level `if`.
   setup:
     name: Resolve build scope
+    # GitHub only exposes draft releases to tokens with contents: write.
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     outputs:
       matrix: ${{ steps.matrix.outputs.os }}
       android: ${{ steps.matrix.outputs.android }}
+      draft: ${{ steps.release-state.outputs.draft }}
     steps:
       # A mistyped version would otherwise be created as a brand new release by
       # action-gh-release at the end, published as Latest, which every desktop install polls.
@@ -48,17 +52,24 @@ jobs:
       # rejects it as unverifiable and offers no link, so backfilling one strands whoever
       # installs it.
       - name: Verify release
+        id: release-state
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           VERSION: ${{ inputs.version }}
+          EXPECT_DRAFT: ${{ inputs.draft || false }}
         run: |
           set -euo pipefail
-          if ! gh release view "$VERSION" --repo "$GH_REPO" >/dev/null; then
+          if ! release_draft=$(gh release view "$VERSION" --repo "$GH_REPO" --json isDraft --jq .isDraft); then
             echo "::error::GitHub release '$VERSION' does not exist in '$GH_REPO'. Publish the release before running this workflow."
             exit 1
           fi
+          if [[ "$EXPECT_DRAFT" == true && "$release_draft" != true ]]; then
+            echo 'Refusing to attach draft build assets to a published release' >&2
+            exit 1
+          fi
+          echo "draft=$release_draft" >> "$GITHUB_OUTPUT"
           if ! gh api -H 'Accept: application/vnd.github.raw' "repos/$GH_REPO/contents/frontend/packages/electron/main.cjs?ref=$VERSION" > "$RUNNER_TEMP/main.cjs"; then
             echo "::error::Could not read frontend/packages/electron/main.cjs at '$VERSION' (API error, or the tag predates the desktop app)."
             exit 1
@@ -385,6 +396,7 @@ jobs:
     permissions:
       contents: write
     needs:
+      - setup
       - desktop
       - android
     # `!cancelled()` rather than the implicit "only if the dependencies succeeded", so a
@@ -416,7 +428,7 @@ jobs:
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.app-version.outputs.version }}
-          draft: ${{ inputs.draft || false }}
+          draft: ${{ needs.setup.outputs.draft == 'true' }}
           make_latest: false
           # Parallel uploads hit "Error creating asset temp dir" on two of dcoffin88's fork
           # runs and left releases missing installers. Sequential uploads are slower by a

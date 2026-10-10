@@ -29,6 +29,32 @@ class ReleasePolicyTests(unittest.TestCase):
                 policy.validate_release(version)
 
 
+class ReleaseCommitTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        spec = spec_from_file_location("release_commit", Path(__file__).with_name("resolve-release-commit.py"))
+        cls.resolver = module_from_spec(spec)
+        spec.loader.exec_module(cls.resolver)
+
+    def test_fresh_release_uses_main(self):
+        self.assertEqual(self.resolver.select_commit("a" * 40), "a" * 40)
+
+    def test_resume_keeps_original_draft_commit_after_workflow_fix(self):
+        self.assertEqual(self.resolver.select_commit("a" * 40, "b" * 40, "true"), "b" * 40)
+
+    def test_same_head_tag_without_draft_can_finish_prepare(self):
+        self.assertEqual(self.resolver.select_commit("a" * 40, "a" * 40), "a" * 40)
+
+    def test_rejects_published_or_unrelated_existing_tag(self):
+        for tag, draft in [("b" * 40, "false"), ("a" * 40, "false"), ("b" * 40, "missing"), (None, "true")]:
+            with self.subTest(tag=tag, draft=draft), self.assertRaises(ValueError):
+                self.resolver.select_commit("a" * 40, tag, draft)
+
+    def test_rejects_non_commit_inputs(self):
+        with self.assertRaises(ValueError):
+            self.resolver.select_commit("main", "b" * 40, "true")
+
+
 class ReleaseArtifactTests(unittest.TestCase):
     def test_asset_completeness_and_upload_state(self):
         spec = spec_from_file_location("assets", Path(__file__).with_name("verify-release-assets.py"))
