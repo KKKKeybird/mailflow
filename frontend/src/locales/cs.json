@@ -1129,7 +1129,19 @@
       "trustedAuthservDetected": "Viděno ve vašich nedávných zprávách (kliknutím použijete):",
       "trustedAuthservDetectedNone": "Zatím žádná data — zprávy se kontrolují, jakmile je pro tento účet zapnutý antispam.",
       "trustedAuthservWarn": "Důvěřujte pouze ID, které znáte jako přijímající server vašeho poskytovatele.",
-      "enabledGlobally": "Globálně zapnuto"
+      "enabledGlobally": "Globálně zapnuto",
+      "proxy": {
+        "section": "Proxy pro poštovní připojení",
+        "none": "Přímé připojení",
+        "host": "Hostitel proxy",
+        "port": "Port",
+        "username": "Uživatelské jméno (volitelné)",
+        "password": "Heslo (volitelné)",
+        "keepPassword": "Prázdné pole zachová uložené heslo",
+        "clearPassword": "Smazat uložené heslo",
+        "note": "Používá se pro příjem a odesílání pošty tohoto účtu. Proxy musí být dostupná ze serveru MailFlow.",
+        "privateNote": "Pro proxy v místní síti povolte soukromé hostitele v nastavení zabezpečení."
+      }
     },
     "folderMappings": {
       "title": "Mapování složek",

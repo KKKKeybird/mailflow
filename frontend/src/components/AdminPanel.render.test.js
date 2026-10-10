@@ -154,4 +154,33 @@ describe('account form: automatic Cc and Bcc (#491)', () => {
     assert.ok(document.body.textContent.includes(error), 'the server error is shown in the form');
     assert.equal(field('compose.bccPh').value, 'me');
   });
+
+  test('proxy credentials stay private on edit and clearing is explicit', async () => {
+    ACCOUNT.proxy_type = 'socks5'; ACCOUNT.proxy_host = 'proxy.example.invalid';
+    ACCOUNT.proxy_port = 1080; ACCOUNT.proxy_username = 'saved-user'; ACCOUNT.proxy_password_set = true;
+    reply = updates => ({ ...ACCOUNT, ...updates });
+    await openEdit();
+    const proxyInput = key => document.querySelector(`input[aria-label="admin.accounts.proxy.${key}"]`);
+    assert.equal(proxyInput('host').value, 'proxy.example.invalid');
+    assert.equal(proxyInput('password').value, '');
+    assert.equal(proxyInput('password').type, 'password');
+    await type(proxyInput('port'), '1081');
+    await save();
+    assert.equal(sent[0].updates.proxy_port, 1081);
+    assert.equal(sent[0].updates.proxy_username, 'saved-user');
+    assert.equal('proxy_password' in sent[0].updates, false);
+
+    await click(document.querySelector('button[title="common.edit"]'));
+    await type(proxyInput('password'), 'new@secret');
+    await save();
+    assert.equal(sent[1].updates.proxy_password, 'new@secret');
+
+    await click(document.querySelector('button[title="common.edit"]'));
+    const clear = [...document.querySelectorAll('label')].find(el => el.textContent.includes('admin.accounts.proxy.clearPassword'));
+    await click(clear.querySelector('input'));
+    await save();
+    assert.equal(sent[2].updates.proxy_password, null);
+    for (const key of ['proxy_type', 'proxy_host', 'proxy_port', 'proxy_username', 'proxy_password_set', 'proxy_password']) delete ACCOUNT[key];
+  });
+
 });

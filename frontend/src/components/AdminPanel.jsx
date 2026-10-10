@@ -82,6 +82,15 @@ function isMicrosoftImapHost(host) {
   return h.includes('.outlook.com') || h.includes('office365.com') || h.includes('.hotmail.com') || h.includes('.live.com');
 }
 
+function proxyFields(form) {
+  return {
+    proxy_type: form.proxy_type || 'none', proxy_host: form.proxy_host || null,
+    proxy_port: form.proxy_port === '' || form.proxy_port == null ? null : Number(form.proxy_port),
+    proxy_username: form.proxy_username || null,
+    ...(form.clear_proxy_password ? { proxy_password: null } : form.proxy_password ? { proxy_password: form.proxy_password } : {}),
+  };
+}
+
 function AccountForm({ initial, onSave, onCancel }) {
   const { t } = useTranslation();
   const { categorizationEnabled } = useStore();
@@ -92,6 +101,7 @@ function AccountForm({ initial, onSave, onCancel }) {
     imap_host: '', imap_port: 993, imap_skip_tls_verify: false,
     smtp_host: '', smtp_port: 587, smtp_tls: 'STARTTLS',
     smtp_auth_user: '', smtp_auth_pass: '',
+    proxy_type: 'none', proxy_host: '', proxy_port: 1080, proxy_username: '', proxy_password: '',
     auth_user: '', auth_pass: '', categorization_enabled: false, antispam_enabled: false,
     trusted_authserv_id: '',
   });
@@ -368,6 +378,49 @@ function AccountForm({ initial, onSave, onCancel }) {
       </Field>
 
       <div style={{ height: 1, background: 'var(--border-subtle)', margin: '16px 0' }} />
+      <Field label={t('admin.accounts.proxy.section')}>
+        <select aria-label={t('admin.accounts.proxy.section')} value={form.proxy_type || 'none'}
+          onChange={e => setForm(f => ({ ...f, proxy_type: e.target.value,
+            proxy_port: f.proxy_host ? f.proxy_port : e.target.value === 'http' ? 8080 : 1080 }))}
+          style={inputStyle}>
+          <option value="none">{t('admin.accounts.proxy.none')}</option>
+          <option value="http">HTTP CONNECT</option>
+          <option value="socks5">SOCKS5</option>
+        </select>
+      </Field>
+      {form.proxy_type && form.proxy_type !== 'none' && <>
+        <div style={{ color: 'var(--text-tertiary)', fontSize: 11, lineHeight: 1.5, marginBottom: 10 }}>
+          {t('admin.accounts.proxy.note')}
+        </div>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 90px', gap: 10 }}>
+          <Field label={t('admin.accounts.proxy.host')}>
+            <input aria-label={t('admin.accounts.proxy.host')} value={form.proxy_host || ''}
+              onChange={e => set('proxy_host', e.target.value)} placeholder="192.168.1.2" style={inputStyle} />
+          </Field>
+          <Field label={t('admin.accounts.proxy.port')}>
+            <input aria-label={t('admin.accounts.proxy.port')} type="number" min="1" max="65535"
+              value={form.proxy_port ?? ''} onChange={e => set('proxy_port', e.target.value)} style={inputStyle} />
+          </Field>
+        </div>
+        <Field label={t('admin.accounts.proxy.username')}>
+          <input aria-label={t('admin.accounts.proxy.username')} value={form.proxy_username || ''}
+            onChange={e => set('proxy_username', e.target.value)} autoComplete="off" style={inputStyle} />
+        </Field>
+        <Field label={t('admin.accounts.proxy.password')}>
+          <input aria-label={t('admin.accounts.proxy.password')} type="password" value={form.proxy_password || ''}
+            onChange={e => set('proxy_password', e.target.value)} autoComplete="new-password"
+            placeholder={form.proxy_password_set ? t('admin.accounts.proxy.keepPassword') : ''} style={inputStyle} />
+        </Field>
+        {form.proxy_password_set && <label style={{ display: 'flex', gap: 8, color: 'var(--text-secondary)', fontSize: 12 }}>
+          <input type="checkbox" checked={!!form.clear_proxy_password} onChange={e => set('clear_proxy_password', e.target.checked)} />
+          {t('admin.accounts.proxy.clearPassword')}
+        </label>}
+        {!mailPolicy.allowPrivateHosts && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 8 }}>
+          {t('admin.accounts.proxy.privateNote')}
+        </div>}
+      </>}
+
+      <div style={{ height: 1, background: 'var(--border-subtle)', margin: '16px 0' }} />
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
         {t('admin.accounts.signatureSection')}
       </div>
@@ -605,14 +658,14 @@ function AccountsTab() {
   const [aliasFormSaving, setAliasFormSaving] = useState(false);
 
   const handleAdd = async (form) => {
-    const account = await api.addAccount(form);
+    const account = await api.addAccount({ ...form, ...proxyFields(form) });
     setAccounts([...accounts, account]);
     setSubview('list');
   };
 
   const handleEdit = async (form) => {
     const updates = { name: form.name, sender_name: form.sender_name || null, color: form.color, imap_host: form.imap_host, imap_port: form.imap_port, imap_skip_tls_verify: !!form.imap_skip_tls_verify, smtp_host: form.smtp_host, smtp_port: form.smtp_port, smtp_tls: form.smtp_tls, signature: form.signature || null, categorization_enabled: !!form.categorization_enabled, antispam_enabled: !!form.antispam_enabled, trusted_authserv_id: (form.trusted_authserv_id || '').trim() || null, include_in_unified_inbox: form.include_in_unified_inbox !== false };
-    Object.assign(updates, autoRecipientFields(form), { signature_enabled: form.signature_enabled !== false });
+    Object.assign(updates, proxyFields(form), autoRecipientFields(form), { signature_enabled: form.signature_enabled !== false });
     if (form.auth_pass) updates.auth_pass = form.auth_pass;
     if (form.auth_user) updates.auth_user = form.auth_user;
     // Separate SMTP credentials (optional). A username sends both (a blank password on

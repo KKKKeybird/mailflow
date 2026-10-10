@@ -950,7 +950,19 @@
       "trustedAuthservDetected": "在您最近的邮件中出现过（点击使用）：",
       "trustedAuthservDetectedNone": "暂无数据——为该账户启用反垃圾邮件后才会分析邮件。",
       "trustedAuthservWarn": "只信任您确认为邮件服务商接收服务器的 ID。",
-      "enabledGlobally": "已全局启用"
+      "enabledGlobally": "已全局启用",
+      "proxy": {
+        "section": "邮箱连接代理",
+        "none": "直接连接",
+        "host": "代理主机",
+        "port": "端口",
+        "username": "用户名（可选）",
+        "password": "密码（可选）",
+        "keepPassword": "留空保留已保存的密码",
+        "clearPassword": "清除已保存的密码",
+        "note": "此账户的收信和发信均使用该代理。代理地址必须能从 MailFlow 服务器访问。",
+        "privateNote": "使用局域网代理时，请在安全设置中启用“允许私有主机”。"
+      }
     },
     "folderMappings": {
       "title": "文件夹映射",
