@@ -29,7 +29,7 @@ Run all migrations on an empty database and again on the same database. Both sen
 
 ## Publishing
 
-Publishing is separate from syncing and requires an owner request. Use a fork tag `vX.Y.Z-sender.N`, with an explicitly chosen revision, pointing at the tested main commit. Do not push all fetched tags. A fork tag triggers `.github/workflows/publish.yml`, publishing multi-architecture backend/frontend images in the lowercase `kkkkeybird` GHCR namespace. Stable sender tags update `latest`; beta/RC tags do not. Create a GitHub Release at that exact tag to trigger `publish-apps.yml`; Android requires the fork's own signing secrets. Never overwrite an existing release/tag as routine maintenance.
+Publishing is separate from syncing and requires an owner request. Use a fork tag `vX.Y.Z-rN`, with an explicitly chosen revision, pointing at the tested main commit. Do not push all fetched tags. A fork tag triggers `.github/workflows/publish.yml`, publishing multi-architecture backend/frontend images in the lowercase `kkkkeybird` GHCR namespace. Explicit revision tags update `latest`; beta/RC tags are rejected. Create a GitHub Release at that exact tag to trigger `publish-apps.yml`; Android requires the fork's own signing secrets. Never overwrite an existing release/tag as routine maintenance.
 
 Compose, server update checks, Electron/Android update URLs and issue links must continue pointing at this fork after upstream merges. Upstream sponsorship automation is guarded to run only in the upstream repository.
 

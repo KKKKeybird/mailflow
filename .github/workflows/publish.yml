@@ -3,7 +3,7 @@ name: Publish to GHCR
 on:
   push:
     tags:
-      - 'v*.*.*-sender.*'
+      - 'v*.*.*-r*'
 
 permissions:
   contents: read
@@ -21,7 +21,10 @@ jobs:
         id: namespace
         env:
           OWNER: ${{ github.repository_owner }}
-        run: echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+-r[1-9][0-9]*$ ]] || { echo "Invalid fork release tag: $RELEASE_TAG" >&2; exit 1; }
+          echo "owner=${OWNER,,}" >> "$GITHUB_OUTPUT"
 
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
@@ -46,8 +49,8 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            # Fork releases use vX.Y.Z-sender.N. Beta/RC builds never update latest.
-            type=raw,value=latest,enable=${{ contains(github.ref_name, '-sender.') && !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-rc') }}
+            # Explicit fork revisions use vX.Y.Z-rN and update latest.
+            type=raw,value=latest
 
       - name: Build and push backend
         uses: docker/build-push-action@v6
@@ -75,8 +78,8 @@ jobs:
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
-            # Fork releases use vX.Y.Z-sender.N. Beta/RC builds never update latest.
-            type=raw,value=latest,enable=${{ contains(github.ref_name, '-sender.') && !contains(github.ref_name, '-beta') && !contains(github.ref_name, '-rc') }}
+            # Explicit fork revisions use vX.Y.Z-rN and update latest.
+            type=raw,value=latest
 
       - name: Build and push frontend
         uses: docker/build-push-action@v6
