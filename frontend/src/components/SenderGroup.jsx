@@ -125,7 +125,7 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
           width: 7, height: 7, borderRadius: '50%', background: 'var(--accent)',
         }} />}
         {showAvatar && <span aria-hidden="true" style={{
-          width: 30, height: 30, borderRadius: '50%', flexShrink: 0,
+          width: isMobile ? 36 : 30, height: isMobile ? 36 : 30, borderRadius: '50%', flexShrink: 0,
           position: 'relative', overflow: 'hidden', marginTop: 1,
           display: 'flex', alignItems: 'center', justifyContent: 'center',
           fontSize: 13, fontWeight: 600, color: 'white', background: senderColor(email),

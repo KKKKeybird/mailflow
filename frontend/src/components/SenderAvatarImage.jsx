@@ -25,7 +25,9 @@ export default function SenderAvatarImage({ email, hasContactPhoto }) {
   if (!active) return null;
   // Favicons are commonly alpha-transparent PNGs; back them with an opaque
   // themed surface so the initial letter and sender colour don't bleed through.
-  const style = active.kind === 'favicon'
+  const style = active.kind === 'brand'
+    ? { ...imageStyle, objectFit: 'contain', padding: '18%', boxSizing: 'border-box', background: '#fff' }
+    : active.kind === 'favicon'
     ? { ...imageStyle, background: 'var(--bg-elevated)' }
     : imageStyle;
   return (

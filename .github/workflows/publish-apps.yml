@@ -422,6 +422,9 @@ jobs:
       - name: Download artifacts
         uses: actions/download-artifact@v4
         with:
+          # The caller also builds Docker images. Buildx uploads .dockerbuild
+          # records, which are not installer ZIPs and must not be extracted.
+          pattern: mailflow-*
           path: artifacts
 
       - name: Publish release files

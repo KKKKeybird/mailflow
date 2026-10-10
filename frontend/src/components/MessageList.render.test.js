@@ -88,6 +88,7 @@ globalThis.fetch = async (url, options = {}) => {
 const React = await import('react');
 const { createRoot } = await import('react-dom/client');
 const { useStore } = await import('../store/index.js');
+const defaultMobileAvatars = useStore.getState().showMobileAvatars;
 const { shortcutBus } = await import('../utils/shortcutBus.js');
 const MessageList = (await import('./MessageList.jsx')).default;
 
@@ -613,5 +614,76 @@ describe('MessageList reply draft indicators', () => {
     await mount({ rows: [{ ...MESSAGE, folder: 'Archive' }], threadedView: false, folder: 'Archive' });
     assert.equal(container.querySelector('[aria-label="Open reply draft"]'), null);
 
+  });
+});
+
+
+describe('mobile sender avatars and bundled brands', () => {
+  const apple = { ...MESSAGE, from_email: 'notice@email.apple.com', from_name: 'Apple', has_contact_photo: false };
+  const phone = async (rows, threadedView = false) => {
+    dom.window.innerWidth = 375;
+    useStore.setState({ showMobileAvatars: true, gravatarAvatars: false, senderFavicons: false, senderFaviconsLoaded: false });
+    await mount({ rows, threadedView });
+  };
+  const reset = async () => {
+    if (root) { await React.act(async () => root.unmount()); root = null; }
+    dom.window.innerWidth = 1024;
+    useStore.setState({ showMobileAvatars: defaultMobileAvatars });
+  };
+  test('new users see mobile avatars by default', () => {
+    assert.equal(defaultMobileAvatars, true);
+  });
+  test('ordinary and conversation rows show a local logo, even with external lookups off', async () => {
+    try {
+      for (const threadedView of [false, true]) {
+        const row = threadedView ? { ...THREAD, ...apple, id: THREAD.id, thread_id: THREAD.thread_id, message_count: 3 } : apple;
+        await phone([row], threadedView);
+        const image = container.querySelector(`[data-msgid="${row.id}"] img[src="/sender-brands/v1/apple.svg"]`);
+        assert.ok(image, 'the mobile row has its brand icon');
+        assert.equal(image.parentElement.style.width, '36px');
+        assert.equal(image.style.objectFit, 'contain');
+      }
+    } finally { await reset(); }
+  });
+  test('group cards and their independent message lists use the same avatars', async () => {
+    try {
+      const key = 'notice@email.apple.com\nApple';
+      const head = { ...apple, id: `sender:${key}`, sender_group: key, sender_message_count: 2, sender_unread_count: 1 };
+      SENDER_ROWS = [apple];
+      await phone([head]);
+      const card = container.querySelector('[data-sender-group]');
+      const image = card.querySelector('img[src="/sender-brands/v1/apple.svg"]');
+      assert.ok(image);
+      assert.equal(image.parentElement.style.width, '36px');
+      await React.act(async () => image.click());
+      assert.ok(container.querySelector('[data-sender-list] img[src="/sender-brands/v1/apple.svg"]'));
+    } finally { await reset(); }
+  });
+  test('a saved hidden preference removes mobile avatars', async () => {
+    try {
+      await phone([apple]);
+      await React.act(async () => useStore.setState({ showMobileAvatars: false }));
+      assert.equal(container.querySelector(`[data-msgid="${apple.id}"] img`), null);
+    } finally { await reset(); }
+  });
+  test('contact photos win, then a failed photo falls back to the brand, then initials', async () => {
+    try {
+      await phone([{ ...apple, has_contact_photo: true }]);
+      const row = container.querySelector(`[data-msgid="${apple.id}"]`);
+      const photo = row.querySelector('img');
+      assert.ok(photo.src.includes('/api/contacts/photo'));
+      await React.act(async () => photo.dispatchEvent(new dom.window.Event('error', { bubbles: true })));
+      const brand = row.querySelector('img');
+      assert.ok(brand.src.endsWith('/sender-brands/v1/apple.svg'));
+      await React.act(async () => brand.dispatchEvent(new dom.window.Event('error', { bubbles: true })));
+      assert.equal(row.querySelector('img'), null);
+      assert.ok(row.textContent.includes('Apple'));
+    } finally { await reset(); }
+  });
+  test('personal mail and a misleading display name keep the initial avatar', async () => {
+    try {
+      await phone([{ ...apple, from_email: 'someone@gmail.com' }]);
+      assert.equal(container.querySelector(`[data-msgid="${apple.id}"] img`), null);
+    } finally { await reset(); }
   });
 });
