@@ -1,3 +1,4 @@
+import { senderIdentity } from '../utils/senderIdentity.js';
 import { reconcileSenderHeads, removeSenderMembers, refreshSenderThreadReadState, restoreSenderMembers } from '../utils/senderGroupState.js';
 import { actionableMessageRows } from '../utils/messageRowTree.js';
 import { create } from 'zustand';
@@ -126,7 +127,7 @@ export const useStore = create((set, get) => ({
       ...(state.user?.id !== user?.id ? {
         serverUnreadCounts: { total: 0, byAccount: {}, snapshots: {} }, pendingCounts: {},
         unreadCounts: { total: 0, byAccount: {}, snapshots: {}, complete: false },
-        groupedSenders: [], senderGroupingSaving: false, threadMessages: {}, expandedSenders: new Set(), senderGroupContext: '', selectedListRowKey: null,
+        groupedSenders: [], senderGroupingSaving: false, threadMessages: {}, expandedSenders: new Set(), senderListGroup: null, senderGroupContext: '', selectedListRowKey: null,
         senderFaviconsLoaded: false,
         senderFavicons: false,
         senderFaviconsSaving: false,
@@ -667,13 +668,16 @@ export const useStore = create((set, get) => ({
   refreshSenderMembers: () => set(state => ({ senderMembersRevision: state.senderMembersRevision + 1 })),
   senderGroupContext: '',
   setSenderGroupContext: context => set({ senderGroupContext: context }),
+  senderListGroup: null,
+  setSenderListGroup: senderListGroup => set({ senderListGroup }),
   expandedSenders: new Set(),
   setExpandedSenders: value => set(state => ({ expandedSenders: typeof value === 'function' ? value(state.expandedSenders) : value })),
   groupedSenders: [],
   senderGroupingSaving: false,
   senderGroupingEpoch: 0,
-  toggleSenderGrouping: async (email) => {
-    const sender = String(email || '').trim().toLowerCase();
+  toggleSenderGrouping: async (identity) => {
+    const boundary = String(identity || '').indexOf('\n');
+    const sender = boundary < 0 ? senderIdentity(identity) : senderIdentity(identity.slice(0, boundary), identity.slice(boundary + 1));
     if (!sender || get().senderGroupingSaving) return;
     const userId = get().user?.id;
     set({ senderGroupingSaving: true, senderGroupingEpoch: get().senderGroupingEpoch + 1 });

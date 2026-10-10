@@ -1,3 +1,4 @@
+import { senderIdentity } from '../utils/senderIdentity.js';
 import { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { copyToClipboard } from '../utils/clipboard.js';
@@ -138,11 +139,11 @@ export default function ContextMenu({ x, y, message, onClose, onAction, defaultM
 
   const senderGroupingSaving = useStore(s => s.senderGroupingSaving);
   const groupedSenders = useStore(s => s.groupedSenders);
-  const sender = String(message.from_email || '').trim().toLowerCase();
+  const sender = message.sender_group || senderIdentity(message.from_email, message.from_name);
   const items = [
     ...(sender ? [{ group: 'Sender', actions: [{
       disabled: senderGroupingSaving,
-      label: groupedSenders.includes(sender) ? t('contextMenu.ungroupSender') : t('contextMenu.groupSender'),
+      label: (message.sender_group || groupedSenders.includes(sender)) ? t('contextMenu.ungroupSender') : t('contextMenu.groupSender'),
       action: () => {
         useStore.getState().toggleSenderGrouping(sender)
           .catch(err => useStore.getState().addNotification({ type: 'error', title: t('common.error'), body: err.message }));
@@ -775,7 +776,7 @@ export default function ContextMenu({ x, y, message, onClose, onAction, defaultM
         ) : (
           /* Normal groups */
           <>
-            {items.map((group, gi) => (
+            {(message.sender_group ? items.slice(0, 1) : items).map((group, gi) => (
               <div key={gi}>
                 {gi > 0 && <div style={{ height: 1, background: 'var(--border-subtle)', margin: '3px 0' }} />}
                 {group.actions.map((item, ai) => (

@@ -1,3 +1,4 @@
+import { senderIdentity } from './senderIdentity.js';
 import { senderCacheKey } from './messageRowTree.js';
 const count = row => Number(row.message_count) || 1;
 const unread = row => Number.isFinite(Number(row.unread_count)) ? Number(row.unread_count) : Number(!row.is_read);
@@ -65,7 +66,7 @@ export function restoreSenderMembers(state, restored) {
   const caches = { ...state.threadMessages };
   const restoredGroupRows = new Set();
   for (const message of restored) {
-    const sender = message.__list_sender || (message.from_email || '').trim().toLowerCase();
+    const sender = message.__list_sender || senderIdentity(message.from_email, message.from_name);
     const grouped = !state.searchQuery.trim() && state.selectedFolder === 'INBOX' && state.groupedSenders.includes(sender);
     if (!grouped) continue;
     restoredGroupRows.add(message.id);

@@ -108,7 +108,7 @@ async function mount({ rows, threadedView, folder = 'INBOX' }) {
     accounts: [ACCOUNT], accountsReady: true,
     selectedAccountId: 'acct-1', selectedFolder: folder,
     messages: rows, messagesTotal: rows.length, hasMoreMessages: false, loadingMessages: false,
-    searchQuery: '', threadedView, groupedSenders: rows.filter(m=>m.sender_group).map(m=>m.sender_group), threadMessages: {}, selectedMessageId: null, selectedListRowKey: null, markReadBehavior: 'manual', notifications: [],
+    searchQuery: '', threadedView, groupedSenders: rows.filter(m=>m.sender_group).map(m=>m.sender_group), threadMessages: {}, senderListGroup: null, selectedMessageId: null, selectedListRowKey: null, markReadBehavior: 'manual', notifications: [],
     folders: { 'acct-1': [{ path: 'INBOX', name: 'INBOX' }, { path: 'Archive', name: 'Archive' }, { path: 'Drafts', name: 'Drafts', special_use: '\\Drafts' }] },
   });
   await React.act(async () => {
@@ -351,6 +351,53 @@ describe('MessageList — reopening a saved draft keeps its Bcc', () => {
 
 
 describe('MessageList — sender grouping', () => {
+  test('group card right-click and detail ellipsis expose only ungrouping', async () => {
+    const sender = 'shared@example.com\nAlice';
+    const head = { ...MESSAGE, id: `sender:${sender}`, message_id: null, from_email: 'shared@example.com', from_name: 'Alice', sender_group: sender, sender_message_count: 2, sender_unread_count: 1 };
+    SENDER_ROWS = [{ ...MESSAGE, id: 'alice-member', from_email: 'shared@example.com', from_name: 'Alice' }];
+    await mount({ rows: [head], threadedView: false });
+    await React.act(async () => container.querySelector('[data-sender-group] button').dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })));
+    assert.ok(container.textContent.includes('contextMenu.ungroupSender'));
+    assert.ok(!container.textContent.includes('contextMenu.archive'));
+    await React.act(async () => dom.window.document.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })));
+    await React.act(async () => container.querySelector('[data-sender-group] button').click());
+    assert.ok(!container.querySelector('[data-sender-list]').textContent.includes('contextMenu.ungroupSender'));
+    await React.act(async () => container.querySelector('[data-sender-list] button[aria-haspopup="menu"]').click());
+    assert.ok(container.textContent.includes('contextMenu.ungroupSender'));
+    assert.ok(!container.textContent.includes('contextMenu.archive'));
+    const item = [...container.querySelectorAll('span')].find(el => el.textContent === 'contextMenu.ungroupSender');
+    assert.ok(item);
+    await React.act(async () => item.click());
+    assert.ok(!useStore.getState().groupedSenders.includes(sender));
+    assert.equal(useStore.getState().senderListGroup, null);
+  });
+
+  test('same mailbox names have distinct cards, labels and member requests', async () => {
+    const alice = 'shared@example.com\nAlice', bob = 'shared@example.com\nBob';
+    const head = (key, name) => ({ ...MESSAGE, id: `sender:${key}`, message_id: null, from_email: 'shared@example.com', from_name: name,
+      sender_group: key, sender_message_count: 2, sender_unread_count: 1, subject: 'Latest invoice', snippet: 'Latest invoice preview' });
+    SENDER_ROWS = [{ ...MESSAGE, id: 'alice-1', from_email: 'shared@example.com', from_name: 'Alice', subject: 'Invoice' }];
+    await mount({ rows: [head(alice, 'Alice'), head(bob, 'Bob')], threadedView: false });
+    const groups = [...container.querySelectorAll('[data-sender-group]')];
+    assert.equal(groups.length, 2);
+    const aliceCard = groups.find(group => group.getAttribute('data-sender-group') === alice);
+    const bobCard = groups.find(group => group.getAttribute('data-sender-group') === bob);
+    assert.ok(aliceCard.querySelector('[title="Alice <shared@example.com>"]'));
+    assert.ok(aliceCard.querySelector('button').textContent.includes('Alice'));
+    assert.ok(bobCard.querySelector('[title="Bob <shared@example.com>"]'));
+    assert.ok(bobCard.querySelector('button').textContent.includes('Bob'));
+    assert.ok(aliceCard.textContent.includes('Latest invoice'));
+    assert.ok(aliceCard.textContent.includes('Latest invoice preview'));
+    assert.ok(!aliceCard.textContent.includes('messageList.senderGroupCounts'));
+    REQUESTS = [];
+    await React.act(async () => aliceCard.querySelector('button').click());
+    assert.ok(REQUESTS.some(request => new URL(request.url, 'http://localhost').searchParams.get('sender') === alice));
+    assert.ok(container.querySelector('[data-sender-list]'));
+    assert.equal(container.querySelectorAll('[data-sender-group]').length, 1);
+    await React.act(async () => container.querySelector('[data-sender-list] button[aria-label="common.back"]').click());
+    assert.equal(container.querySelectorAll('[data-sender-group]').length, 2);
+  });
+
   test('expansion is read-only and exposes messages across different subjects', async () => {
     const latest = { ...MESSAGE, from_email: 'alerts@example.com', sender_group: 'alerts@example.com', sender_message_count: 2, sender_unread_count: 2 };
     SENDER_ROWS = [
@@ -369,7 +416,7 @@ describe('MessageList — sender grouping', () => {
     assert.equal(useStore.getState().selectedMessageId, null);
     assert.ok(REQUESTS.some(r => r.url.includes('sender=alerts%40example.com')));
     assert.ok(REQUESTS.every(r => r.method === 'GET'), 'expansion must not mutate mail flags or folders');
-    await React.act(async () => group.querySelector('button').click());
+    await React.act(async () => container.querySelector('[data-sender-list] button[aria-label="common.back"]').click());
     assert.equal(container.querySelector('[data-msgid="alert-1"]'), null);
   });
 
@@ -380,7 +427,7 @@ describe('MessageList — sender grouping', () => {
     const button = container.querySelector('[data-sender-group] button');
     await React.act(async () => button.click());
     assert.ok(draggableIn(THREAD.id));
-    assert.equal(button.getAttribute('aria-expanded'), 'true');
+    assert.ok(container.querySelector('[data-sender-list]'));
   });
 });
 

@@ -13,6 +13,7 @@ import { snippetFromBody, decodeMimeWords, parseRawHeaders, parseMailboxList, bu
 import { resolveTrashFolder, resolveAllTrashPaths, resolveAllDraftsPaths, resolveArchiveFolder, isAllMailFolder, resolveSpamFolder, resolveAllSpamPaths, getDeleteStrategy, adjustFolderCounts, fanOutReadToSiblings, fanOutStarToSiblings, fanOutBulkReadToSiblings } from '../utils/mailUtils.js';
 import { pluginRegistry } from '../plugins/registry.js';
 import { listMessages } from '../services/messageService.js';
+import { normalizeSenderIdentity } from '../services/senderIdentity.js';
 import { recordSyncSignal } from '../services/diagnosticsRing.js';
 import { resolveAccountScope } from '../services/unifiedInbox.js';
 import { validateHost } from '../services/hostValidation.js';
@@ -149,7 +150,7 @@ function notifyMailMutation(rows, userId) {
 router.get('/messages', async (req, res) => {
   const { accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category, groupSenders, sender } = req.query;
 
-  if (sender !== undefined && (typeof sender !== 'string' || sender.length > 320 || !/^[^\s@]+@[^\s@]+$/.test(sender.trim()))) return res.status(400).json({ error: 'Invalid sender' });
+  if (sender !== undefined && !normalizeSenderIdentity(sender)) return res.status(400).json({ error: 'Invalid sender' });
 
   if (!isValidFolderName(folder)) return res.status(400).json({ error: 'Invalid folder name' });
 

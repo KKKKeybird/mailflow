@@ -71,3 +71,10 @@ test('reading one representative changes only that conversation’s unread total
   const after=refreshSenderThreadReadState({[key]:[{...first,is_read:true},second]},'one',{is_read:true},s);
   assert.equal(after[key][0].unread_count,1);assert.equal(after[key][1].unread_count,2);
 });
+
+test('a separate sender list limits navigation and bulk actions to that sender', () => {
+  const s = { ...state(), senderListGroup: key };
+  assert.deepEqual(actionableMessageRows(s).map(m => m.id), ['two', 'one']);
+  s.senderListGroup = null;
+  assert.deepEqual(actionableMessageRows(s).map(m => m.id), ['two', 'one', 'outside']);
+});

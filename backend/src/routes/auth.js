@@ -835,7 +835,7 @@ export async function patchPreferences(req, res) {
   // #440: which hover quick actions the message list shows. Same vocabulary and canonical
   // order as frontend/src/utils/hoverActions.js; unknown keys are dropped rather than stored.
   const HOVER_ACTION_KEYS = ['markRead', 'star', 'archive', 'snooze', 'delete', 'move'];
-  if (groupedSenders !== undefined && (!Array.isArray(groupedSenders) || groupedSenders.length > 500 || normalizeGroupedSenders(groupedSenders).length !== new Set(groupedSenders.map(v => typeof v === 'string' ? v.trim().toLowerCase() : v)).size)) return res.status(400).json({ error: 'Invalid grouped senders' });
+  if (groupedSenders !== undefined && (!Array.isArray(groupedSenders) || groupedSenders.length > 5000 || normalizeGroupedSenders(groupedSenders).length !== new Set(groupedSenders.map(v => normalizeGroupedSenders([v])[0])).size)) return res.status(400).json({ error: 'Invalid grouped senders' });
   const groupedSendersJson = groupedSenders === undefined ? null : JSON.stringify(normalizeGroupedSenders(groupedSenders));
   const hoverActionSetJson = Array.isArray(hoverActionSet)
     ? JSON.stringify(HOVER_ACTION_KEYS.filter(k => hoverActionSet.includes(k)))

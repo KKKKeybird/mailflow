@@ -1,4 +1,5 @@
 import { query } from './db.js';
+import { senderIdentitySql } from './senderIdentity.js';
 
 export async function senderCandidates({ where, values, accounts, senders, sender, threaded, unfiltered, limit, offset }) {
   if (accounts.length === 1 && where.includes('m.account_id = ANY(')) {
@@ -7,7 +8,7 @@ export async function senderCandidates({ where, values, accounts, senders, sende
   }
   if (!threaded && !sender && senders.length <= 16) return flatCandidates({ where, values, accounts, senders, limit, offset });
   const deduplication = scope => `SELECT DISTINCT ON (m.thread_key, m.account_id, m.message_id)
-    m.id, m.account_id, m.thread_key, m.message_id, m.from_email, m.date, m.is_read
+    m.id, m.account_id, m.thread_key, m.message_id, m.from_email, m.from_name, m.date, m.is_read
     FROM messages m WHERE ${scope}
     ORDER BY m.thread_key, m.account_id, m.message_id, m.date ASC, m.id`;
   const dedupedSource = threaded && accounts.length > 1 && accounts.length <= 16
@@ -19,7 +20,7 @@ export async function senderCandidates({ where, values, accounts, senders, sende
   const n = values.length;
   const groupParam = `$${n + 1}::text[]`;
   const args = [...values, senders, limit + offset, limit, offset];
-  const normalized = "lower(btrim(m.from_email))";
+  const normalized = senderIdentitySql('m');
   const source = threaded ? `
     deduped AS NOT MATERIALIZED (
       ${dedupedSource}
@@ -27,7 +28,7 @@ export async function senderCandidates({ where, values, accounts, senders, sende
       SELECT thread_key,
         (array_agg(id ORDER BY date DESC, is_read ASC, id))[1] AS id,
         MAX(date) AS date,
-        lower(btrim((array_agg(from_email ORDER BY date ASC))[1])) AS sender,
+        (array_agg((lower(btrim(from_email)) || CASE WHEN btrim(COALESCE(from_name, '')) = '' THEN '' ELSE chr(10) || btrim(from_name) END) ORDER BY date ASC, id))[1] AS sender,
         COUNT(*) FILTER (WHERE NOT is_read)::int AS unread_count,
         COUNT(*) FILTER (WHERE message_id IS NOT NULL)::int AS message_count
       FROM deduped GROUP BY thread_key
@@ -119,7 +120,7 @@ async function flatCandidates({ where, values, accounts, senders, limit, offset 
   const n = values.length;
   const grouped = `$${n + 1}::text[]`;
   const account = `$${n + 2}::uuid[]`;
-  const normalized = 'lower(btrim(m.from_email))';
+  const normalized = senderIdentitySql('m');
   const args = [...values, senders, accounts, limit + offset, limit, offset];
   // Complement ranges avoid walking grouped mail to find rare ordinary rows.
   // Sort the boundaries in PostgreSQL so they use the index's collation.

@@ -63,3 +63,17 @@ describe('server-backed sender grouping preferences', () => {
     assert.equal(useStore.getState().threadMessages[key].length, 1);
   });
 });
+
+describe('sender identities sharing one mailbox', () => {
+  afterEach(() => { api.savePreferences = originalSave; });
+  it('groups each From name independently and preserves name case', async () => {
+    useStore.setState({ user: { id: 'user-1' }, groupedSenders: [], senderGroupingSaving: false });
+    api.savePreferences = async () => {};
+    await useStore.getState().toggleSenderGrouping(' SHARED@Example.com \n Alice ');
+    await useStore.getState().toggleSenderGrouping('shared@example.com\nBob');
+    await useStore.getState().toggleSenderGrouping('shared@example.com\nalice');
+    assert.deepEqual(useStore.getState().groupedSenders, ['shared@example.com\nAlice', 'shared@example.com\nBob', 'shared@example.com\nalice']);
+    await useStore.getState().toggleSenderGrouping('shared@example.com\nAlice');
+    assert.deepEqual(useStore.getState().groupedSenders, ['shared@example.com\nBob', 'shared@example.com\nalice']);
+  });
+});

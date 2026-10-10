@@ -300,7 +300,8 @@ describe('listMessages — sender grouping', () => {
     expect(result.total).toBe(2);
     const [sql, values] = query.mock.calls[1];
     expect(sql).toContain('m.is_read = false');
-    expect(sql).toContain('lower(btrim(m.from_email)) = $4');
+    expect(sql).toContain('btrim(COALESCE(m.from_name');
+    expect(sql).toContain('= $4');
     expect(values).toEqual(['acc-1', 'INBOX', 'automated', 'alerts@example.com', 50, 0]);
   });
 });
@@ -323,7 +324,7 @@ describe('listMessages — sender conversation expansion', () => {
     });
     const result = await listMessages({ userId: 'user-1', sender: 'alerts@example.com', threaded: true });
     expect(result.total).toBe(1);
-    expect(query.mock.calls[1][0]).toContain('lower(btrim((array_agg(from_email ORDER BY date ASC))[1]))');
+    expect(query.mock.calls[1][0]).toContain('ORDER BY date ASC, id))[1] AS sender');
     const hydration = query.mock.calls.find(([sql]) => sql.includes('m.to_addresses'));
     expect(hydration[0]).toContain('m.thread_key = ANY');
     expect(hydration[0]).toContain('LIMIT $');

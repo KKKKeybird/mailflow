@@ -1,8 +1,8 @@
 # Sender grouping
 
-Sender grouping is opt-in for the inbox. Choose **Group emails from this sender** from a message's existing context menu. The normalized sender preference is saved on the server; grouping results themselves are not persisted. Expanding a group loads its own member pages under the same account, unread and category scope.
+Sender grouping is opt-in for the inbox. Choose **Group emails from this sender** from a message's existing context menu. The normalized sender preference is saved on the server; grouping results themselves are not persisted. Opening a group navigates to a separate sender list with a back button and ellipsis menu, and loads its own member pages under the same account, unread and category scope. To ungroup, right-click the group card on desktop or use its ellipsis menu on mobile; the group menu only offers ungrouping.
 
-Sender group headers use the sender's email address as their identity, with message/unread totals and the latest activity date. They do not display a representative message's name, subject or snippet as the group title. Row spacing, avatars, unread emphasis and theme/hover colors follow ordinary message rows; individual subjects remain visible after expanding the group.
+Sender grouping uses the trimmed From display name together with the case-insensitive email address. Names are case-sensitive; missing names form their own group. Subjects do not affect grouping. Existing address-only preferences are migrated into separate choices for the names already present in the user's inbox; new names are not automatically grouped. Sender group cards show the From name (or the email when no name is available), with the full `Name <email>` identity in the tooltip and the email in the separate list header, alongside the latest activity date. Below the sender identity they show the latest message's subject and snippet, following the ordinary message preview setting. Message/unread totals are not displayed; unread state still drives the dot and text emphasis. Row spacing, avatars, unread emphasis and theme/hover colors follow ordinary message rows; individual messages retain their ordinary rows in the separate sender list.
 
 ## Query and interaction design
 
@@ -14,7 +14,7 @@ Counts are computed separately from the candidate page. Conversation mode first 
 
 A normalized row tree gives sender controls, conversation rows and expanded messages separate keys. Sender heads are never action targets. List navigation, range/bulk selection, shortcuts, reading-pane arrows/swipes and next-selection after removal consume that tree. Conversation-row actions retain conversation scope; expanded-message actions target only that message. Select-all excludes collapsed and not-yet-loaded sender members.
 
-Optimistic changes adjust group totals by member deltas rather than recomputing totals from a partial loaded page. Undo merges restored members with current cached members, preserving intervening arrivals. Successful mail mutations refresh the current page and expanded groups from the server. Existing request-generation guards discard responses from previous scopes. Collapsing retains the reader; navigation resumes at the group's position. Expanded sender state survives a mobile list remount within the same scope.
+Optimistic changes adjust group totals by member deltas rather than recomputing totals from a partial loaded page. Undo merges restored members with current cached members, preserving intervening arrivals. Successful mail mutations refresh the current page and expanded groups from the server. Existing request-generation guards discard responses from previous scopes. Returning to the inbox retains the reader; navigation resumes at the group's position. Expanded sender state survives a mobile list remount within the same scope.
 
 ## Reproducing endpoint validation and timings
 
@@ -24,6 +24,8 @@ Use Node 22 and a **dedicated disposable PostgreSQL database** whose name contai
 createdb mailflow_sender_revision
 psql mailflow_sender_revision -f backend/benchmarks/senderGrouping.sql
 psql mailflow_sender_revision -f backend/migrations/0063_normalized_sender_index.sql
+psql mailflow_sender_revision -f backend/migrations/0066_sender_identity_preferences.sql
+psql mailflow_sender_revision -f backend/migrations/0067_sender_identity_index.sql
 DB_NAME=mailflow_sender_revision DB_HOST=localhost DB_USER="$USER" BENCH_VALIDATE=1 node backend/benchmarks/senderGrouping.mjs
 DB_NAME=mailflow_sender_revision DB_HOST=localhost DB_USER="$USER" BENCH_OUTPUT=endpoint-results.json node backend/benchmarks/senderGrouping.mjs
 ```

@@ -1,3 +1,4 @@
+import { senderIdentity } from '../src/services/senderIdentity.js';
 // Run against a disposable database seeded with senderGrouping.sql. No mail server is contacted.
 import { registerHooks } from 'node:module';
 import { readFile, writeFile, mkdtemp, rm } from 'node:fs/promises';
@@ -63,6 +64,7 @@ try {
     results.cache='first inbox read after PostgreSQL restart; PostgreSQL buffers cold, OS cache not flushed; one sample';
     results.scenarios=[{implementation:process.env.BENCH_IMPLEMENTATION||'revision',threaded,grouping,elapsed_ms:performance.now()-start,rows:data.messages.length,total:data.total}];
   } else if (process.env.BENCH_VALIDATE) {
+    await query(`DELETE FROM messages WHERE account_id='22222222-2222-2222-2222-222222222222' AND uid>84000`);
     await query(`UPDATE messages SET from_email = CASE WHEN ((uid-1)/3)%10=0 THEN 'person'||((uid-1)/3)||'@example.com' ELSE 'sender'||((uid-1)/3)%6||'@example.com' END`);
     await query(`UPDATE messages SET from_email = 'reply@example.com' WHERE uid % 30 = 0`);
     await query(`INSERT INTO users VALUES ('33333333-3333-3333-3333-333333333333','other','{}',false) ON CONFLICT DO NOTHING`);
@@ -80,6 +82,17 @@ try {
     await query(`INSERT INTO messages(id,account_id,uid,folder,message_id,thread_id,thread_key,subject,from_name,from_email,date,snippet,is_read,category)
       SELECT md5('null-date:'||i)::uuid,'22222222-2222-2222-2222-222222222222',91000+i,'INBOX','<null-date-'||i||'>','null-date-thread','null-date-thread','Null date','Sender','sender0@example.com',NULL,'Null date',i=2,'primary'
       FROM generate_series(1,2)i ON CONFLICT DO NOTHING`);
+    // Same mailbox, distinct people (and no-name mail), with unrelated subjects per person.
+    await query(`INSERT INTO messages(id,account_id,uid,folder,message_id,thread_id,thread_key,subject,from_name,from_email,date,snippet,is_read,category)
+      SELECT md5('identity:'||i)::uuid,'22222222-2222-2222-2222-222222222222',92000+i,'INBOX','<identity-'||i||'>','identity-'||CASE WHEN i=9 THEN 1 ELSE i END,'identity-'||CASE WHEN i=9 THEN 1 ELSE i END,
+        CASE WHEN i%2=0 THEN 'Invoice' ELSE 'Events' END,
+        CASE WHEN i<=2 THEN 'Alice' WHEN i<=4 OR i=9 THEN 'Bob' WHEN i<=6 THEN '' ELSE 'alice' END,
+        CASE WHEN i%2=0 THEN ' SHARED@Example.com ' ELSE 'shared@example.com' END,
+        '2026-10-02'::timestamptz+i*interval '1 second','Identity fixture',i%2=0,'primary'
+      FROM generate_series(1,9)i ON CONFLICT DO NOTHING`);
+    await query(`UPDATE users SET preferences = preferences || jsonb_build_object('groupedSenders',
+      (preferences->'groupedSenders') || $2::jsonb) WHERE id=$1`,
+      [userId, JSON.stringify(['Alice','Bob','','alice'].map(name => senderIdentity('shared@example.com',name)))]);
     await query(`DELETE FROM folders; INSERT INTO folders SELECT account_id,'INBOX',count(*)::int,count(*)FILTER(WHERE NOT is_read)::int FROM messages GROUP BY account_id`);
     globalThis.__senderBenchmarkImplementation=current.listMessages;
     assert.ok((await request({ accountId:'44444444-4444-4444-4444-444444444444',groupSenders:true })).messages.every(m => m.account_id !== '44444444-4444-4444-4444-444444444444'));
@@ -102,7 +115,7 @@ try {
       const groups = new Map(), expected=[];
       const senders = (await query('SELECT preferences FROM users WHERE id=$1',[userId])).rows[0].preferences.groupedSenders;
       for (const row of ordered) {
-        const sender=(row.from_email||'').trim().toLowerCase();
+        const sender=senderIdentity(row.from_email, row.from_name);
         if (!senders.includes(sender)) { expected.push({id:row.id}); continue; }
         let group=groups.get(sender);
         if (!group) { group={id:`sender:${sender}`, preview_message_id:row.id,sender_message_count:0,sender_unread_count:0}; groups.set(sender,group); expected.push(group); }
@@ -114,7 +127,7 @@ try {
       for(let offset=0;;offset+=500) { const data=await request({threaded,...filters,groupSenders:true,limit:500,offset}); assert.equal(data.total,expected.length); actual.push(...data.messages); if(data.messages.length<500)break; }
       assert.deepEqual(actual.map(row => row.sender_group ? {id:row.id,preview_message_id:row.preview_message_id,sender_message_count:row.sender_message_count,sender_unread_count:row.sender_unread_count} : {id:row.id}),expected);
       for(const sender of senders) {
-        const expectedMembers = ordered.filter(m=>(m.from_email||'').trim().toLowerCase()===sender).map(m=>m.id);
+        const expectedMembers = ordered.filter(m=>senderIdentity(m.from_email, m.from_name)===sender).map(m=>m.id);
         const actualMembers=[];
         for(let offset=0;;offset+=500) { const data=await request({threaded,...filters,sender,limit:500,offset}); assert.equal(data.total,expectedMembers.length); actualMembers.push(...data.messages.map(m=>m.id)); if(data.messages.length<500)break; }
         assert.deepEqual(actualMembers,expectedMembers);
@@ -123,6 +136,17 @@ try {
       console.error('Validated',threaded,filters);
     }
     const originalPreferences=(await query('SELECT preferences FROM users WHERE id=$1',[userId])).rows[0].preferences;
+    const alice = senderIdentity('shared@example.com', 'Alice'), bob = senderIdentity('shared@example.com', 'Bob');
+    await query('UPDATE users SET preferences=$2 WHERE id=$1', [userId, {...originalPreferences,
+      groupedSenders: originalPreferences.groupedSenders.filter(key => key !== alice)}]);
+    for (const threaded of [false,true]) {
+      const data = await request({threaded,groupSenders:true,limit:50});
+      assert.ok(data.messages.some(row => row.sender_group === bob));
+      assert.ok(!data.messages.some(row => row.sender_group === alice));
+      assert.equal(data.messages.filter(row => !row.sender_group && row.from_email?.trim().toLowerCase() === 'shared@example.com' && row.from_name === 'Alice').length, 2);
+    }
+    await query('UPDATE users SET preferences=$2 WHERE id=$1', [userId, originalPreferences]);
+
     for(const threaded of[false,true]) {
       await query('UPDATE users SET preferences=$2 WHERE id=$1',[userId,originalPreferences]);
       const standard=await request({threaded,groupSenders:true,limit:500});
@@ -136,7 +160,7 @@ try {
     }
     await query('UPDATE users SET preferences=$2 WHERE id=$1',[userId,originalPreferences]);
     results.validation=checks;
-    results.additionalValidation=['NULL-date group heads','17 selected senders including absent ones','no selected sender in scope matches main'];
+    results.additionalValidation=['same mailbox: Alice/Bob/empty/case-distinct names, mixed subjects, individual ungrouping','NULL-date group heads','17 selected senders including absent ones','no selected sender in scope matches main'];
   } else {
     const filters=JSON.parse(process.env.BENCH_PARAMS || '{}');
     results.filters=filters;
