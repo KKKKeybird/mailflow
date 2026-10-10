@@ -1919,5 +1919,31 @@
     "split": "Separar",
     "empty": "Agrupa un remitente desde el menú del mensaje para añadir una regla.",
     "noMail": "No hay mensajes"
+  },
+  "mcp": {
+    "title": "Herramientas de IA / MCP",
+    "description": "Conecta Codex, Claude Code y otros clientes MCP a tus buzones.",
+    "permissionNote": "Los tokens son de solo lectura por defecto. El envío requiere un permiso adicional. Los buzones nuevos no se añaden automáticamente.",
+    "name": "Nombre del token",
+    "mailboxes": "Buzones permitidos",
+    "allowSend": "Permitir enviar correos",
+    "expiry": "Validez",
+    "days_one": "{{count}} día",
+    "days_other": "{{count}} días",
+    "create": "Crear token",
+    "once": "Copia este token ahora. Solo se muestra una vez; guárdalo de forma segura.",
+    "token": "Token de acceso MCP",
+    "hide": "Ocultar token",
+    "codexConfig": "Configuración de Codex",
+    "configHelp": "Añade esto a ~/.codex/config.toml y define MAILFLOW_MCP_TOKEN en el entorno que inicia Codex.",
+    "noTokens": "Todavía no hay tokens de integración.",
+    "readSend": "Leer y enviar",
+    "readOnly": "Solo lectura",
+    "inactive": "Revocado o caducado",
+    "expires": "Caduca el {{date}}",
+    "revoke": "Revocar",
+    "activity": "Llamadas recientes a herramientas",
+    "success": "Correcto",
+    "failed": "Fallido"
   }
 }

@@ -1919,5 +1919,31 @@
     "split": "Trennen",
     "empty": "Gruppiere einen Absender im Nachrichtenmenü, um eine Regel hinzuzufügen.",
     "noMail": "Keine Nachrichten"
+  },
+  "mcp": {
+    "title": "KI-Werkzeuge / MCP",
+    "description": "Verbinde Codex, Claude Code und andere MCP-Clients mit deinen Postfächern.",
+    "permissionNote": "Tokens haben standardmäßig nur Lesezugriff. Senden muss separat erlaubt werden. Neue Postfächer werden nicht automatisch freigegeben.",
+    "name": "Tokenname",
+    "mailboxes": "Freigegebene Postfächer",
+    "allowSend": "E-Mail-Versand erlauben",
+    "expiry": "Gültigkeitsdauer",
+    "days_one": "{{count}} Tag",
+    "days_other": "{{count}} Tage",
+    "create": "Token erstellen",
+    "once": "Kopiere das Token jetzt. Es wird nur einmal angezeigt; bewahre es sicher auf.",
+    "token": "MCP-Zugriffstoken",
+    "hide": "Token ausblenden",
+    "codexConfig": "Codex-Konfiguration",
+    "configHelp": "Füge dies in ~/.codex/config.toml ein und setze MAILFLOW_MCP_TOKEN in der Umgebung, in der Codex gestartet wird.",
+    "noTokens": "Noch keine Integrationstokens.",
+    "readSend": "Lesen und senden",
+    "readOnly": "Nur lesen",
+    "inactive": "Widerrufen oder abgelaufen",
+    "expires": "Gültig bis {{date}}",
+    "revoke": "Widerrufen",
+    "activity": "Letzte Werkzeugaufrufe",
+    "success": "Erfolgreich",
+    "failed": "Fehlgeschlagen"
   }
 }

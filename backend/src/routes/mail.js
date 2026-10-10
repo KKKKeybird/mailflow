@@ -405,7 +405,7 @@ function fetchWithTimeout(promise, ms) {
 }
 
 // Get full message body + attachments list
-router.get('/messages/:id/body', async (req, res) => {
+export async function getMessageBody(req, res) {
   const { id } = req.params;
   if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid message id' });
 
@@ -558,7 +558,9 @@ router.get('/messages/:id/body', async (req, res) => {
     }
     res.status(500).json({ error: msg });
   }
-});
+}
+
+router.get('/messages/:id/body', getMessageBody);
 
 // Get full raw headers
 router.get('/messages/:id/headers', async (req, res) => {

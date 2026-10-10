@@ -10,6 +10,11 @@ beforeEach(() => {
 });
 
 describe('listMessages — account scope', () => {
+  it('strict integration scope does not fall back after an account is removed or disabled', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: 'another-owned-account' }] });
+    expect(await listMessages({ userId: 'user-1', accountId: 'removed-account', strictAccount: true })).toEqual({ messages: [], total: 0 });
+    expect(query).toHaveBeenCalledOnce();
+  });
   it('returns empty result immediately when user has no enabled accounts', async () => {
     query.mockResolvedValueOnce({ rows: [] });
 

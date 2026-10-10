@@ -1919,5 +1919,31 @@
     "split": "Separate",
     "empty": "Group a sender from the message menu to add a rule.",
     "noMail": "No messages"
+  },
+  "mcp": {
+    "title": "AI harness / MCP",
+    "description": "Connect Codex, Claude Code and other MCP clients to your mailboxes.",
+    "permissionNote": "Tokens are read-only by default. Sending requires a separate grant. New mailboxes are not added automatically.",
+    "name": "Token name",
+    "mailboxes": "Allowed mailboxes",
+    "allowSend": "Allow sending email",
+    "expiry": "Expires after",
+    "days_one": "{{count}} day",
+    "days_other": "{{count}} days",
+    "create": "Create token",
+    "once": "Copy this token now. It is shown only once; store it securely.",
+    "token": "MCP access token",
+    "hide": "Hide token",
+    "codexConfig": "Codex configuration",
+    "configHelp": "Add this to ~/.codex/config.toml and set MAILFLOW_MCP_TOKEN in the environment that starts Codex.",
+    "noTokens": "No integration tokens yet.",
+    "readSend": "Read and send",
+    "readOnly": "Read only",
+    "inactive": "Revoked or expired",
+    "expires": "Expires {{date}}",
+    "revoke": "Revoke",
+    "activity": "Recent tool activity",
+    "success": "Success",
+    "failed": "Failed"
   }
 }

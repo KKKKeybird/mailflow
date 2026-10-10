@@ -12,6 +12,8 @@ import { buildSessionOptions } from './utils/sessionConfig.js';
 import { mountBodyParsers } from './middleware/bodyParsers.js';
 
 import sendRoutes from './routes/send.js';
+import mcpRoutes from './routes/mcp.js';
+import mcpTokenRoutes from './routes/mcpTokens.js';
 import draftRoutes from './routes/draft.js';
 import oauthRoutes from './routes/oauth.js';
 import integrationsRoutes, { loadIntegrationConfigs } from './routes/integrations.js';
@@ -135,6 +137,10 @@ app.use((req, res, next) => {
 mountBodyParsers(app, sessionMiddleware);
 app.use(sessionMiddleware);
 
+// External harness clients authenticate with scoped bearer tokens, never cookies.
+// Mount before the cookie API's CSRF/lock gates; token management stays behind them.
+app.use('/api/mcp', mcpRoutes);
+
 // CSRF defense-in-depth for the cookie-authenticated /api surface. A mutating
 // request must carry a custom header that a cross-site <form> cannot set and a
 // cross-origin fetch cannot send without a CORS preflight — which the CORS policy
@@ -174,6 +180,7 @@ app.use('/api/auth/oidc', oidcApiRouter);
 app.use('/auth/oidc', oidcBrowserRouter);
 app.use('/oauth', oauthRoutes);
 app.use('/api/integrations', integrationsRoutes);
+app.use('/api/mcp-tokens', mcpTokenRoutes);
 app.use('/api/accounts', accountRoutes);
 // Per-account antispam GDPR reset (mounted before the generic /api/accounts
 // router's own :id routes to avoid path shadowing; shares the namespace).

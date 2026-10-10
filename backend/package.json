@@ -16,6 +16,7 @@
     "postinstall": "node scripts/patch-imap-proxy.cjs"
   },
   "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
     "archiver": "^7.0.1",
     "bcryptjs": "^2.4.3",
     "connect-redis": "^7.1.0",
@@ -38,7 +39,8 @@
     "socks": "^2.8.10",
     "undici": "^6.29.0",
     "web-push": "^3.6.7",
-    "ws": "^8.21.0"
+    "ws": "^8.21.0",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",

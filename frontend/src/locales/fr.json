@@ -1919,5 +1919,31 @@
     "split": "Séparer",
     "empty": "Regroupez un expéditeur depuis le menu du message pour ajouter une règle.",
     "noMail": "Aucun message"
+  },
+  "mcp": {
+    "title": "Outils IA / MCP",
+    "description": "Connectez Codex, Claude Code et les autres clients MCP à vos boîtes mail.",
+    "permissionNote": "Les jetons sont en lecture seule par défaut. L’envoi nécessite une autorisation distincte. Les nouvelles boîtes ne sont pas ajoutées automatiquement.",
+    "name": "Nom du jeton",
+    "mailboxes": "Boîtes autorisées",
+    "allowSend": "Autoriser l’envoi d’e-mails",
+    "expiry": "Durée de validité",
+    "days_one": "{{count}} jour",
+    "days_other": "{{count}} jours",
+    "create": "Créer un jeton",
+    "once": "Copiez ce jeton maintenant. Il ne sera affiché qu’une fois ; conservez-le en lieu sûr.",
+    "token": "Jeton d’accès MCP",
+    "hide": "Masquer le jeton",
+    "codexConfig": "Configuration de Codex",
+    "configHelp": "Ajoutez ceci à ~/.codex/config.toml et définissez MAILFLOW_MCP_TOKEN dans l’environnement de lancement de Codex.",
+    "noTokens": "Aucun jeton d’intégration pour le moment.",
+    "readSend": "Lecture et envoi",
+    "readOnly": "Lecture seule",
+    "inactive": "Révoqué ou expiré",
+    "expires": "Expire le {{date}}",
+    "revoke": "Révoquer",
+    "activity": "Appels récents des outils",
+    "success": "Réussi",
+    "failed": "Échec"
   }
 }

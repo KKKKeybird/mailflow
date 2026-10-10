@@ -365,6 +365,12 @@ export const api = {
 
   // Integrations
   getIntegrations: () => request('GET', '/integrations'),
+  mcp: {
+    listTokens: () => request('GET', '/mcp-tokens'),
+    createToken: body => request('POST', '/mcp-tokens', body),
+    revokeToken: id => request('DELETE', `/mcp-tokens/${encodeURIComponent(id)}`),
+    events: () => request('GET', '/mcp-tokens/events'),
+  },
   getIntegrationsStatus: () => request('GET', '/integrations/status'),
   saveIntegration: (provider, config) => request('POST', `/integrations/${provider}`, config),
   deleteIntegration: (provider) => request('DELETE', `/integrations/${provider}`),
