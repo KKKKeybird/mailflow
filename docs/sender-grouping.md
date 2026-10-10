@@ -2,6 +2,8 @@
 
 Sender grouping is opt-in for the inbox. Choose **Group emails from this sender** from a message's existing context menu. The normalized sender preference is saved on the server; grouping results themselves are not persisted. Expanding a group loads its own member pages under the same account, unread and category scope.
 
+Sender group headers use the sender's email address as their identity, with message/unread totals and the latest activity date. They do not display a representative message's name, subject or snippet as the group title. Row spacing, avatars, unread emphasis and theme/hover colors follow ordinary message rows; individual subjects remain visible after expanding the group.
+
 ## Query and interaction design
 
 The grouping-off path keeps main's SQL unchanged. Grouping uses compact candidate keys, an ordinary candidate page, and one latest head per grouped sender. Flat candidates use bounded per-account lateral queries before the merge. A normalized-sender covering index supports head lookup. Only the selected page is hydrated through the existing mail/conversation query; no message bodies are copied into a second view.

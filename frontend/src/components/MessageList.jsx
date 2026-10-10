@@ -4005,6 +4005,10 @@ export default function MessageList() {
             message={node.message}
             cacheKey={node.key}
             params={senderParams}
+            isMobile={isMobile}
+            isNarrow={isNarrow}
+            showMobileAvatars={showMobileAvatars}
+            showMessagePreviews={showMessagePreviews}
             expanded={expandedSenders.has(node.key)}
             onToggle={() => setExpandedSenders(prev => {
               const next = new Set(prev);
