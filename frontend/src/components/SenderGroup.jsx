@@ -16,6 +16,7 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
   const memberKey = senderMemberCacheKey(cacheKey, unreadOnly);
   const rows = useStore(s => s.threadMessages[memberKey] || []);
   const customLabel = useStore(s => s.senderGroupLabels[message.sender_group]);
+  const actionPending = useStore(s => !!s.senderGroupActionPending[message.sender_group]);
   const ownListRef = useRef(null);
   const scrollRef = listRef || ownListRef;
   const restored = useRef(false);
@@ -183,9 +184,19 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
           <button type="button" onClick={onToggle} aria-label={t('common.back')} style={{ background: 'none', border: 0, color: 'var(--text-primary)', padding: 4, cursor: 'pointer', display: 'flex' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="15 18 9 12 15 6" /></svg>
           </button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <button type="button" disabled={actionPending || !hasUnread} aria-busy={actionPending}
+            onClick={() => useStore.getState().performSenderGroupAction(message.sender_group, params, 'read')
+              .catch(err => useStore.getState().addNotification({ type: 'error', title: t('common.error'), body: err.message }))}
+            style={{ ...controlStyle, margin: 0, display: 'flex', alignItems: 'center', gap: 6,
+              opacity: actionPending || !hasUnread ? 0.5 : 1, cursor: actionPending || !hasUnread ? 'default' : 'pointer' }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m4 12 4 4 8-8M12 16l8-8" /></svg>
+            {t('senderGrouping.readAll')}
+          </button>
           <button type="button" aria-label={t('message.more')} aria-haspopup="menu" onClick={e => onContextMenu?.(e, message)} style={{ background: 'none', border: 0, color: 'var(--text-primary)', padding: 4, cursor: 'pointer', display: 'flex' }}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
           </button>
+          </div>
         </div>
         <div title={label} style={{ fontSize: 18, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{customLabel || name || email}</div>
         {name && <div style={{ marginTop: 3, fontSize: 12, color: 'var(--text-tertiary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{email}</div>}
