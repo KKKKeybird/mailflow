@@ -3,7 +3,7 @@ import net from 'node:net';
 import { once } from 'node:events';
 import nodemailer from 'nodemailer';
 import { ImapFlow } from 'imapflow';
-import { validateMailProxy, resolveMailProxy, proxySocketFactory, proxyTargetHost } from './mailProxy.js';
+import { validateMailProxy, resolveMailProxy, resolveMailServer, validateMailServerHost, proxySocketFactory, proxyTargetHost } from './mailProxy.js';
 import { encrypt } from './encryption.js';
 
 const config = { proxy_type: 'http', proxy_host: '127.0.0.1', proxy_port: 8080 };
@@ -51,9 +51,18 @@ describe('mail proxy policy and credentials', () => {
     expect(decodeURIComponent(url.password)).toBe('p:a%ss');
     vi.unstubAllEnvs();
   });
-  it('never sends an unresolved target to remote DNS', () => {
-    expect(() => proxyTargetHost({ host: 'unresolved.example' })).toThrow(/DNS/);
+  it('preserves domains for remote DNS, but rejects header and URL syntax', () => {
+    expect(proxyTargetHost({ host: 'imap.gmail.com' })).toBe('imap.gmail.com');
+    expect(() => proxyTargetHost({ host: 'https://imap.gmail.com' })).toThrow(/hostname/);
+    expect(() => proxyTargetHost({ host: 'imap.gmail.com\r\nHost: other' })).toThrow(/hostname/);
     expect(proxyTargetHost({ host: '[::1]' })).toBe('::1');
+  });
+  it('does not resolve a nonexistent mailbox domain locally when a proxy is configured', async () => {
+    const result = await resolveMailServer('mailbox.invalid', config, policy);
+    expect(result).toEqual({ host: 'mailbox.invalid', servername: 'mailbox.invalid', proxy: 'http://127.0.0.1:8080/' });
+    expect(await validateMailServerHost('mailbox.invalid', config, policy)).toBeNull();
+    expect(await validateMailServerHost('127.0.0.1', config, {})).toMatch(/private/);
+    expect(await validateMailServerHost('localhost', config, {})).toMatch(/local/);
   });
 });
 
@@ -109,8 +118,11 @@ describe.each(['http', 'socks5'])('%s real mail connections', protocol => {
             seen.push(buffer.subarray(3 + buffer[1], size).toString());
             buffer = buffer.subarray(size); socket.write(Buffer.from([1, 0])); phase = 'target';
           } else if (phase === 'target') {
-            if (buffer.length < 10) return;
-            seen.push([...buffer.subarray(4, 8)].join('.')); buffer = buffer.subarray(10);
+            if (buffer.length < 5) return;
+            const size = buffer[3] === 3 ? 7 + buffer[4] : 10;
+            if (buffer.length < size) return;
+            seen.push(buffer[3] === 3 ? buffer.subarray(5, 5 + buffer[4]).toString() : [...buffer.subarray(4, 8)].join('.'));
+            buffer = buffer.subarray(size);
             socket.write(Buffer.from([5, 0, 0, 1, 127, 0, 0, 1, 0, 0])); phase = 'mail'; welcome();
           } else {
             const end = buffer.indexOf('\r\n'); if (end < 0) return;
@@ -153,5 +165,25 @@ describe.each(['http', 'socks5'])('%s real mail connections', protocol => {
       expect(server.seen.some(line => line.includes(' LOGIN '))).toBe(true);
       if (protocol === 'socks5') expect(server.seen.slice(0, 3)).toEqual(['user@name', 'p:a%ss', '192.0.2.1']);
     } finally { client.close(); await server.close(); }
+  });
+  it.each(['imap', 'smtp'])('sends the %s domain to the real proxy protocol without local target DNS', async kind => {
+    const server = await mailProxy(kind);
+    const host = 'mailbox.invalid';
+    let close;
+    try {
+      if (kind === 'imap') {
+        const client = new ImapFlow({ host, port: 143, secure: false, doSTARTTLS: false,
+          auth: { user: 'mailuser', pass: 'mailpass' }, proxy: server.url, logger: false, connectionTimeout: 1000 });
+        client.on('error', () => {}); close = () => client.close();
+        await client.connect();
+      } else {
+        const transport = nodemailer.createTransport({ host, port: 587, secure: false, ignoreTLS: true,
+          auth: { user: 'mailuser', pass: 'mailpass' }, getSocket: proxySocketFactory(server.url, 1000), greetingTimeout: 1000 });
+        close = () => transport.close();
+        expect(await transport.verify()).toBe(true);
+      }
+      if (protocol === 'socks5') expect(server.seen[2]).toBe(host);
+      else expect(server.seen[0]).toContain(`CONNECT ${host}:`);
+    } finally { close?.(); await server.close(); }
   });
 });

@@ -961,7 +961,17 @@
         "keepPassword": "留空保留已保存的密码",
         "clearPassword": "清除已保存的密码",
         "note": "此账户的收信和发信均使用该代理。代理地址必须能从 MailFlow 服务器访问。",
-        "privateNote": "使用局域网代理时，请在安全设置中启用“允许私有主机”。"
+        "privateNote": "使用局域网代理时，请在安全设置中启用“允许私有主机”。",
+        "test": "测试代理",
+        "testing": "正在测试…",
+        "testSuccess": "代理地址可连接（{{ms}} 毫秒）。",
+        "testNote": "检测 MailFlow 服务器到此代理地址和端口的连接，不验证代理账号密码或邮箱连接。",
+        "testFailure": {
+          "timeout": "连接超时。",
+          "dns": "无法解析代理地址。",
+          "refused": "连接被拒绝，请检查端口及代理服务是否运行。",
+          "unreachable": "无法连接代理地址。"
+        }
       }
     },
     "folderMappings": {

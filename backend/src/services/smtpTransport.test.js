@@ -5,7 +5,7 @@ vi.mock('nodemailer', () => ({ default: { createTransport: vi.fn() } }));
 vi.mock('../routes/oauth.js', () => ({ refreshMicrosoftToken: vi.fn(), refreshGoogleToken: vi.fn() }));
 vi.mock('./encryption.js', () => ({ decrypt: vi.fn(v => v) }));
 vi.mock('./connectionPolicy.js', () => ({ getConnectionPolicy: vi.fn() }));
-vi.mock('./hostValidation.js', () => ({ resolveForConnection: vi.fn() }));
+vi.mock('./hostValidation.js', async importOriginal => ({ ...await importOriginal(), resolveForConnection: vi.fn() }));
 
 const nodemailer = (await import('nodemailer')).default;
 const { refreshMicrosoftToken, refreshGoogleToken } = await import('../routes/oauth.js');
@@ -180,6 +180,20 @@ describe('createAccountSmtpTransport', () => {
       sendMail: vi.fn().mockResolvedValue({ accepted: ['user@example.com'] }),
       close: vi.fn(),
     });
+  });
+
+  it.each(['http', 'socks5'])('preserves the SMTP hostname for %s proxy routing and TLS without local target DNS', async proxy_type => {
+    getConnectionPolicy.mockResolvedValue({ allowPrivateHosts: true, allowInsecureTls: false });
+    resolveForConnection.mockResolvedValue({ host: '127.0.0.1', servername: null });
+    const result = await createAccountSmtpTransport({ smtp_host: 'smtp.gmail.com', smtp_port: 587, smtp_tls: 'STARTTLS',
+      auth_user: 'sender@example.com', auth_pass: 'test-password', proxy_type, proxy_host: '127.0.0.1', proxy_port: 8080 });
+    await result.transport.sendMail({ to: 'recipient@example.com', text: 'mock transport only' });
+    const config = nodemailer.createTransport.mock.calls[0][0];
+    expect(config.host).toBe('smtp.gmail.com');
+    expect(config.getSocket).toBeTypeOf('function');
+    expect(config.tls).toMatchObject({ servername: 'smtp.gmail.com', rejectUnauthorized: true });
+    expect(config.requireTLS).toBe(true);
+    expect(resolveForConnection.mock.calls).toEqual([['127.0.0.1', { allowPrivate: true }]]);
   });
 
   it('uses decrypted password credentials without exposing them in the result', async () => {

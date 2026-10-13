@@ -9,7 +9,7 @@ vi.mock('./encryption.js', () => ({ decrypt: vi.fn() }));
 vi.mock('./aiProvider.js', () => ({ getAiStatus: vi.fn(), completeText: vi.fn() }));
 vi.mock('./pushNotifications.js', () => ({ sendPushToUser: vi.fn() }));
 vi.mock('../utils/redact.js', () => ({ redactEmail: vi.fn() }));
-vi.mock('./hostValidation.js', () => ({ resolveForConnection: vi.fn(), createPinnedLookup: vi.fn(), validateHost: vi.fn(async () => null) }));
+vi.mock('./hostValidation.js', async importOriginal => ({ ...await importOriginal(), resolveForConnection: vi.fn(), createPinnedLookup: vi.fn() }));
 vi.mock('./connectionPolicy.js', () => ({ getConnectionPolicy: vi.fn() }));
 vi.mock('./spamPipeline.js', () => ({ classifyAndTagMessage: vi.fn() }));
 vi.mock('./mailAccess.js', () => ({ getAccountAddresses: vi.fn(async () => []) }));
@@ -5094,8 +5094,8 @@ describe('makeClientCfg — account proxy', () => {
     expect(cfg.tls.servername).toBe('imap.example.com');
     expect(cfg.tls.rejectUnauthorized).toBe(true);
   });
-  it('refuses unresolved destinations instead of using proxy-side DNS', () => {
-    expect(() => makeClientCfg(account, { host: 'unresolved.example', proxy: 'http://192.0.2.1:8080/' })).toThrow(/DNS/);
+  it('passes a hostname to the proxy without a local DNS lookup', () => {
+    expect(makeClientCfg(account, { host: 'imap.gmail.com', servername: 'imap.gmail.com', proxy: 'http://192.0.2.1:8080/' }).host).toBe('imap.gmail.com');
   });
 });
 
@@ -5124,7 +5124,7 @@ describe('proxied message body TLS reset recovery', () => {
       return client;
     });
     getConnectionPolicy.mockResolvedValue({ allowPrivateHosts: true, allowInsecureTls: false });
-    resolveForConnection.mockImplementation(async host => host === account.imap_host
+    resolveForConnection.mockClear().mockImplementation(async host => host === account.imap_host
       ? { host: addresses[0], addresses, servername: account.imap_host }
       : { host: '127.0.0.1', servername: null });
     query.mockReset().mockResolvedValue({ rows: [account] });
@@ -5138,7 +5138,8 @@ describe('proxied message body TLS reset recovery', () => {
     expect(body.text).toBe('Body loaded through proxy');
     expect(ImapFlow).toHaveBeenCalledTimes(2);
     expect(f.clients[0].close).toHaveBeenCalled();
-    expect(f.clients[1].close).toHaveBeenCalled();
+    expect(f.clients[1].close).not.toHaveBeenCalled(); // healthy connection stays pooled
+    expect(resolveForConnection.mock.calls.every(([host]) => host === '127.0.0.1')).toBe(true);
     for (const [config] of ImapFlow.mock.calls) {
       expect(config.proxy).toBe(`${protocol}://127.0.0.1:8080` + (protocol === 'http' ? '/' : ''));
       expect(config.secure).toBe(true);
@@ -5151,10 +5152,10 @@ describe('proxied message body TLS reset recovery', () => {
     expect(ImapFlow).toHaveBeenCalledTimes(2);
     expect(f.clients.every(client => client.close.mock.calls.length > 0)).toBe(true);
   });
-  it.each(['http', 'socks5'])('switches to another validated IP inside the %s tunnel when the first TLS endpoint resets', async protocol => {
+  it.each(['http', 'socks5'])('retries the hostname inside the %s tunnel without locally resolving the mailbox', async protocol => {
     const f = arrange(protocol, [tlsReset()], ['203.0.113.1', '203.0.113.2']);
     expect((await f.manager.fetchMessageBody(f.account, 42, 'INBOX')).text).toBe('Body loaded through proxy');
-    expect(ImapFlow.mock.calls.map(([config]) => config.host)).toEqual(['203.0.113.1', '203.0.113.2']);
+    expect(ImapFlow.mock.calls.map(([config]) => config.host)).toEqual(['imap.example.com', 'imap.example.com']);
     expect(ImapFlow.mock.calls.map(([config]) => config.proxy)).toEqual([
       ImapFlow.mock.calls[0][0].proxy, ImapFlow.mock.calls[0][0].proxy,
     ]);
@@ -5165,10 +5166,10 @@ describe('proxied message body TLS reset recovery', () => {
     await expect(f.manager.fetchMessageBody(f.account, 42, 'INBOX')).rejects.toThrow(/disconnected before secure TLS/);
     expect(ImapFlow).toHaveBeenCalledTimes(2);
   });
-  it('also recovers a status connection, before any body request, over the alternate address', async () => {
+  it('also recovers a status connection by asking the proxy to reconnect to the hostname', async () => {
     const f = arrange('http', [tlsReset()], ['203.0.113.1', '203.0.113.2']);
     expect(await f.manager._withCountClient(f.account, async () => 'status checked')).toBe('status checked');
-    expect(ImapFlow.mock.calls.map(([config]) => config.host)).toEqual(['203.0.113.1', '203.0.113.2']);
+    expect(ImapFlow.mock.calls.map(([config]) => config.host)).toEqual(['imap.example.com', 'imap.example.com']);
   });
   it.each([
     Object.assign(new Error('certificate has expired'), { code: 'CERT_HAS_EXPIRED' }),

@@ -961,7 +961,17 @@
         "keepPassword": "Laisser vide pour conserver le mot de passe",
         "clearPassword": "Effacer le mot de passe enregistré",
         "note": "Utilisé pour recevoir et envoyer les mails de ce compte. Le proxy doit être accessible depuis le serveur MailFlow.",
-        "privateNote": "Pour un proxy local, activez « Autoriser les hôtes privés » dans Sécurité."
+        "privateNote": "Pour un proxy local, activez « Autoriser les hôtes privés » dans Sécurité.",
+        "test": "Tester le proxy",
+        "testing": "Test en cours…",
+        "testSuccess": "Adresse du proxy accessible ({{ms}} ms).",
+        "testNote": "Teste la connexion du serveur MailFlow à cette adresse et à ce port. Ne vérifie pas les identifiants du proxy ni la connexion à la boîte mail.",
+        "testFailure": {
+          "timeout": "Délai de connexion dépassé.",
+          "dns": "Impossible de résoudre l’adresse du proxy.",
+          "refused": "Connexion refusée. Vérifiez le port et le service proxy.",
+          "unreachable": "Impossible de joindre l’adresse du proxy."
+        }
       }
     },
     "folderMappings": {

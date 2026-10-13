@@ -977,7 +977,17 @@
         "keepPassword": "Pozostaw puste, aby zachować zapisane hasło",
         "clearPassword": "Usuń zapisane hasło",
         "note": "Używane do odbierania i wysyłania poczty tego konta. Proxy musi być dostępne z serwera MailFlow.",
-        "privateNote": "Dla proxy w sieci LAN włącz „Zezwalaj na prywatne hosty” w ustawieniach bezpieczeństwa."
+        "privateNote": "Dla proxy w sieci LAN włącz „Zezwalaj na prywatne hosty” w ustawieniach bezpieczeństwa.",
+        "test": "Testuj proxy",
+        "testing": "Testowanie…",
+        "testSuccess": "Adres proxy jest osiągalny ({{ms}} ms).",
+        "testNote": "Sprawdza połączenie serwera MailFlow z tym adresem i portem. Nie sprawdza danych logowania proxy ani połączenia ze skrzynką.",
+        "testFailure": {
+          "timeout": "Przekroczono czas połączenia.",
+          "dns": "Nie można rozwiązać adresu proxy.",
+          "refused": "Połączenie odrzucone. Sprawdź port i usługę proxy.",
+          "unreachable": "Nie można połączyć się z adresem proxy."
+        }
       }
     },
     "folderMappings": {

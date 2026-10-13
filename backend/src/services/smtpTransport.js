@@ -1,9 +1,8 @@
 import nodemailer from 'nodemailer';
 import { refreshMicrosoftToken, refreshGoogleToken } from '../routes/oauth.js';
 import { decrypt } from './encryption.js';
-import { resolveMailProxy, proxySocketFactory } from './mailProxy.js';
+import { resolveMailServer, proxySocketFactory } from './mailProxy.js';
 import { getConnectionPolicy } from './connectionPolicy.js';
-import { resolveForConnection } from './hostValidation.js';
 
 const SMTP_ATTEMPT_TIMEOUT_MS = 10_000;
 const SMTP_FAILOVER_BUDGET_MS = 45_000;
@@ -136,10 +135,7 @@ export async function createAccountSmtpTransport(inputAccount) {
   }
 
   const policy = await getConnectionPolicy();
-  const resolved = await resolveForConnection(account.smtp_host, {
-    allowPrivate: policy.allowPrivateHosts,
-  });
-  resolved.proxy = await resolveMailProxy(account, policy);
+  const resolved = await resolveMailServer(account.smtp_host, account, policy);
   const plain = account.smtp_tls !== 'STARTTLS' && account.smtp_tls !== 'SSL';
   if (!policy.allowInsecureTls && plain) {
     return {

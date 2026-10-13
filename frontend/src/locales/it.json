@@ -961,7 +961,17 @@
         "keepPassword": "Lascia vuoto per mantenere la password salvata",
         "clearPassword": "Cancella password salvata",
         "note": "Usato per ricevere e inviare la posta di questo account. Il proxy deve essere raggiungibile dal server MailFlow.",
-        "privateNote": "Per un proxy LAN, abilita «Consenti host privati» nelle impostazioni di sicurezza."
+        "privateNote": "Per un proxy LAN, abilita «Consenti host privati» nelle impostazioni di sicurezza.",
+        "test": "Prova proxy",
+        "testing": "Verifica in corso…",
+        "testSuccess": "Indirizzo proxy raggiungibile ({{ms}} ms).",
+        "testNote": "Verifica la connessione dal server MailFlow a questo indirizzo e porta. Non controlla le credenziali del proxy né la connessione alla casella.",
+        "testFailure": {
+          "timeout": "Connessione scaduta.",
+          "dns": "Impossibile risolvere l’indirizzo del proxy.",
+          "refused": "Connessione rifiutata. Controlla la porta e il servizio proxy.",
+          "unreachable": "Impossibile raggiungere l’indirizzo del proxy."
+        }
       }
     },
     "folderMappings": {
