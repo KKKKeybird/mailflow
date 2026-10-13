@@ -1140,7 +1140,17 @@
         "keepPassword": "Prázdné pole zachová uložené heslo",
         "clearPassword": "Smazat uložené heslo",
         "note": "Používá se pro příjem a odesílání pošty tohoto účtu. Proxy musí být dostupná ze serveru MailFlow.",
-        "privateNote": "Pro proxy v místní síti povolte soukromé hostitele v nastavení zabezpečení."
+        "privateNote": "Pro proxy v místní síti povolte soukromé hostitele v nastavení zabezpečení.",
+        "test": "Otestovat proxy",
+        "testing": "Probíhá test…",
+        "testSuccess": "Adresa proxy je dostupná ({{ms}} ms).",
+        "testNote": "Ověřuje připojení serveru MailFlow k této adrese a portu. Nekontroluje přihlašovací údaje proxy ani připojení ke schránce.",
+        "testFailure": {
+          "timeout": "Vypršel časový limit připojení.",
+          "dns": "Adresu proxy nelze přeložit.",
+          "refused": "Připojení odmítnuto. Zkontrolujte port a službu proxy.",
+          "unreachable": "K adrese proxy se nelze připojit."
+        }
       }
     },
     "folderMappings": {

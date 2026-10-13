@@ -961,7 +961,17 @@
         "keepPassword": "Leave blank to keep saved password",
         "clearPassword": "Clear saved password",
         "note": "Used by this account for receiving and sending mail. The proxy must be reachable from the MailFlow server.",
-        "privateNote": "For a LAN proxy, enable “Allow private hosts” in Security settings."
+        "privateNote": "For a LAN proxy, enable “Allow private hosts” in Security settings.",
+        "test": "Test proxy",
+        "testing": "Testing…",
+        "testSuccess": "Proxy address is reachable ({{ms}} ms).",
+        "testNote": "Tests access from the MailFlow server to this address and port. Proxy authentication and mailbox connectivity are not tested.",
+        "testFailure": {
+          "timeout": "Connection timed out.",
+          "dns": "Could not resolve the proxy address.",
+          "refused": "Connection refused. Check the port and proxy service.",
+          "unreachable": "Could not reach the proxy address."
+        }
       }
     },
     "folderMappings": {

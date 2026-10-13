@@ -1,7 +1,7 @@
 import net from 'node:net';
 import { SocksClient } from 'socks';
 import { decrypt } from './encryption.js';
-import { validateHost, resolveForConnection } from './hostValidation.js';
+import { validateHost, validateHostLiteral, resolveForConnection } from './hostValidation.js';
 
 export const PROXY_FIELDS = ['proxy_type', 'proxy_host', 'proxy_port', 'proxy_username', 'proxy_password'];
 const bareHost = host => host?.replace(/^\[|\]$/g, '');
@@ -37,11 +37,30 @@ export async function validateMailProxy(input, policy = {}, { passwordEncrypted 
   return result;
 }
 
-// Pin both tunnel endpoints locally: remote DNS must not bypass the private-host policy.
+// Proxy targets retain their hostname: HTTP CONNECT and SOCKS5 let the trusted
+// proxy resolve and route it. Reject URL/header syntax before creating a tunnel.
 export function proxyTargetHost(resolved) {
-  const host = bareHost(resolved.host);
-  if (!net.isIP(host)) throw new Error('Proxy: mail server DNS lookup failed');
+  const host = bareHost(resolved.host?.trim());
+  if (!host || (!net.isIP(host) && (!/^[a-zA-Z0-9._-]+$/.test(host) || host.length > 253))) {
+    throw new Error('Proxy: enter a valid mail server hostname or IP address');
+  }
   return host;
+}
+
+export async function validateMailServerHost(host, account, policy) {
+  if (!account.proxy_type || account.proxy_type === 'none') return validateHost(host, { allowPrivate: policy.allowPrivateHosts });
+  try {
+    return validateHostLiteral(proxyTargetHost({ host }), { allowPrivate: policy.allowPrivateHosts });
+  } catch (err) { return err.message; }
+}
+
+export async function resolveMailServer(host, account, policy) {
+  const proxy = await resolveMailProxy(account, policy);
+  if (!proxy) return resolveForConnection(host, { allowPrivate: policy.allowPrivateHosts });
+  const error = await validateMailServerHost(host, account, policy);
+  if (error) throw new Error(error);
+  const target = proxyTargetHost({ host });
+  return { host: target, servername: net.isIP(target) ? null : target, proxy };
 }
 
 export async function resolveMailProxy(account, policy) {

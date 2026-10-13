@@ -183,4 +183,32 @@ describe('account form: automatic Cc and Bcc (#491)', () => {
     for (const key of ['proxy_type', 'proxy_host', 'proxy_port', 'proxy_username', 'proxy_password_set', 'proxy_password']) delete ACCOUNT[key];
   });
 
+  test('proxy test uses unsaved endpoint fields, never saves credentials, and discards outdated results', async () => {
+    Object.assign(ACCOUNT, { proxy_type: 'http', proxy_host: 'proxy.example.invalid', proxy_port: 8080, proxy_password_set: true });
+    const tested = [];
+    let complete;
+    api.testProxy = data => { tested.push(data); return new Promise(resolve => { complete = resolve; }); };
+    await openEdit();
+    const input = key => document.querySelector(`input[aria-label="admin.accounts.proxy.${key}"]`);
+    try {
+      await type(input('port'), '8888');
+      await type(input('password'), 'private proxy password');
+      const button = [...document.querySelectorAll('button')].find(el => el.textContent === 'admin.accounts.proxy.test');
+      await click(button);
+      assert.equal(button.disabled, true);
+      assert.deepEqual(tested, [{ proxy_type: 'http', proxy_host: 'proxy.example.invalid', proxy_port: 8888 }]);
+      assert.equal(sent.length, 0);
+      await type(input('host'), 'another.example.invalid');
+      await React.act(async () => complete({ ok: true, latencyMs: 3 }));
+      assert.ok(!document.body.textContent.includes('admin.accounts.proxy.testSuccess'));
+      await click(button);
+      await React.act(async () => complete({ ok: false, reason: 'refused' }));
+      assert.ok(document.body.textContent.includes('admin.accounts.proxy.testFailure.refused'));
+      assert.equal(sent.length, 0);
+      assert.equal(input('password').value, 'private proxy password');
+    } finally {
+      for (const key of ['proxy_type', 'proxy_host', 'proxy_port', 'proxy_password_set']) delete ACCOUNT[key];
+    }
+  });
+
 });

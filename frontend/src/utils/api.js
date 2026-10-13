@@ -299,6 +299,7 @@ export const api = {
 
   // Accounts
   getAccounts: () => request('GET', '/accounts'),
+  testProxy: data => request('POST', '/accounts/test-proxy', data),
   addAccount: (data) => request('POST', '/accounts', data),
   updateAccount: (id, data) => request('PUT', `/accounts/${id}`, data),
   deleteAccount: (id) => request('DELETE', `/accounts/${id}`),

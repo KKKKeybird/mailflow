@@ -6,6 +6,7 @@ vi.mock('../index.js', () => ({ imapManager: {
 } }));
 vi.mock('../services/connectionPolicy.js', () => ({ getConnectionPolicy: vi.fn().mockResolvedValue({ allowPrivateHosts: true }) }));
 import express from 'express';
+import net from 'node:net';
 import routes from './accounts.js';
 import { query } from '../services/db.js';
 import { encrypt, decrypt } from '../services/encryption.js';
@@ -73,5 +74,19 @@ describe('account proxy settings', () => {
     query.mockResolvedValueOnce({ rows: [] });
     expect((await put({ proxy_password: 'secret' })).status).toBe(404);
     expect(query).toHaveBeenCalledTimes(1);
+  });
+  it('tests an unsaved endpoint without changing or reconnecting any account', async () => {
+    const endpoint = net.createServer(socket => socket.end());
+    await new Promise(resolve => endpoint.listen(0, '127.0.0.1', resolve));
+    try {
+      const response = await fetch(`${base}/test-proxy`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ proxy_type: 'http', proxy_host: '127.0.0.1', proxy_port: endpoint.address().port }) });
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect((await response.json()).ok).toBe(true);
+      expect(query).not.toHaveBeenCalled();
+      expect(imapManager.connectAccount).not.toHaveBeenCalled();
+      expect(imapManager.disconnectAccount).not.toHaveBeenCalled();
+    } finally { await new Promise(resolve => endpoint.close(resolve)); }
   });
 });

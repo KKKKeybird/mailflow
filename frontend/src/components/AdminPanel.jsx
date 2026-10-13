@@ -1,4 +1,5 @@
 import SenderGroupingSettings from './SenderGroupingSettings.jsx';
+import ProxyConnectionTest from './ProxyConnectionTest.jsx';
 import McpSettings from './McpSettings.jsx';
 import { useCallback, useState, useEffect, useLayoutEffect, useRef, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -403,6 +404,7 @@ function AccountForm({ initial, onSave, onCancel }) {
               value={form.proxy_port ?? ''} onChange={e => set('proxy_port', e.target.value)} style={inputStyle} />
           </Field>
         </div>
+        <ProxyConnectionTest type={form.proxy_type} host={form.proxy_host} port={form.proxy_port} />
         <Field label={t('admin.accounts.proxy.username')}>
           <input aria-label={t('admin.accounts.proxy.username')} value={form.proxy_username || ''}
             onChange={e => set('proxy_username', e.target.value)} autoComplete="off" style={inputStyle} />

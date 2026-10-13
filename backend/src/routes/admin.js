@@ -1,3 +1,4 @@
+import { resolveMailServer } from '../services/mailProxy.js';
 import { Router } from 'express';
 import crypto from 'crypto';
 import bcrypt from 'bcryptjs';
@@ -462,7 +463,7 @@ router.post('/invites', async (req, res) => {
           smtpAuth = { user: account.auth_user, pass: decrypt(account.auth_pass) };
         }
         const policy = await getConnectionPolicy();
-        const acctResolved = await resolveForConnection(account.smtp_host, { allowPrivate: policy.allowPrivateHosts });
+        const acctResolved = await resolveMailServer(account.smtp_host, account, policy);
         const acctTls = { rejectUnauthorized: policy.allowInsecureTls ? !account.imap_skip_tls_verify : true };
         if (acctResolved.servername) acctTls.servername = acctResolved.servername;
         transport = createSmtpTransport(acctResolved, {

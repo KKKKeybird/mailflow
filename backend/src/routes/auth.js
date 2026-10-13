@@ -1,3 +1,4 @@
+import { resolveMailServer } from '../services/mailProxy.js';
 import { validSenderGroupMap } from '../services/senderIdentity.js';
 import { normalizeGroupedSenders } from '../services/messageService.js';
 import { Router } from 'express';
@@ -1101,7 +1102,7 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
             smtpAuth = { user: acct.auth_user, pass: decrypt(acct.auth_pass) };
           }
           const policy = await getConnectionPolicy();
-          const acctResolved = await resolveForConnection(acct.smtp_host, { allowPrivate: policy.allowPrivateHosts });
+          const acctResolved = await resolveMailServer(acct.smtp_host, acct, policy);
           const acctTls = { rejectUnauthorized: policy.allowInsecureTls ? !acct.imap_skip_tls_verify : true };
           if (acctResolved.servername) acctTls.servername = acctResolved.servername;
           transport = createSmtpTransport(acctResolved, {

@@ -17,8 +17,8 @@ import { sendPushToUser } from './pushNotifications.js';
 import { redactEmail } from '../utils/redact.js';
 import { adjustFolderCounts, resolveSpamFolder } from '../utils/mailUtils.js';
 import { getAccountAddresses } from './mailAccess.js';
-import { resolveForConnection, createPinnedLookup } from './hostValidation.js';
-import { resolveMailProxy, proxyTargetHost } from './mailProxy.js';
+import { createPinnedLookup } from './hostValidation.js';
+import { resolveMailServer, proxyTargetHost } from './mailProxy.js';
 import { getConnectionPolicy } from './connectionPolicy.js';
 import { applyInboxRules, applyBlockList } from './inboxRules.js';
 import { classifyAndTagMessage } from './spamPipeline.js';
@@ -33,9 +33,8 @@ const logAccount = (account) => redactEmail(account?.email_address || '');
 // Returns { resolved, policy } so callers can pass policy to makeClientCfg.
 const resolveAccountHost = async (account) => {
   const policy = await getConnectionPolicy();
-  const resolved = await resolveForConnection(account.imap_host, { allowPrivate: policy.allowPrivateHosts });
-  const proxy = await resolveMailProxy(account, policy);
-  return { resolved: { ...resolved, proxy }, policy };
+  const resolved = await resolveMailServer(account.imap_host, account, policy);
+  return { resolved, policy };
 };
 
 // Race a promise against a timeout. On timeout the underlying promise keeps running (JS
@@ -119,15 +118,15 @@ async function connectImapClient(account, resolved, cfgOpts, timeoutMs, label) {
   try {
     return await attempt(resolved, label);
   } catch (err) {
-    // A tunnel uses one pinned IP, so Node's multi-address lookup cannot move
-    // past a reset/unreachable Gmail endpoint. Try one other validated address
-    // through the SAME proxy; keep SNI and certificate verification unchanged.
+    // Let the proxy re-resolve/reconnect after a transient tunnel failure. Old
+    // pinned-address callers can use another validated address, while hostname
+    // targets are submitted unchanged. Keep the proxy, SNI and TLS policy.
     const alternate = resolved.proxy && !sawRefusal && (
       ['ECONNRESET', 'ETIMEDOUT', 'EPIPE', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'CONNECT_TIMEOUT'].includes(err.code) ||
       /timeout|timed out|Client network socket disconnected before secure TLS connection was established/i.test(err.message || '')
-    ) && resolved.addresses?.find(address => address !== resolved.host);
+    ) && (resolved.addresses?.find(address => address !== resolved.host) || resolved.host);
     if (alternate) {
-      console.warn(`IMAP proxy connect failed for ${logAccount(account)} (${label}); retrying another validated mail-server address`);
+      console.warn(`IMAP proxy connect failed for ${logAccount(account)} (${label}); retrying through the configured proxy`);
       try {
         return await attempt({ ...resolved, host: alternate }, `${label} proxy-address-retry`);
       } catch (retryErr) {
@@ -1458,7 +1457,8 @@ async function ensureFreshToken(account) {
   return account;
 }
 
-// resolved comes from resolveForConnection(), which limits sockets to the validated
+// Direct targets use pinned, validated DNS addresses; proxy targets retain their hostname.
+// resolved comes from resolveMailServer(), which limits direct sockets to the validated
 // address set so DNS rebinding cannot change the target between validation and connect.
 // policy: result of getConnectionPolicy() — gates TLS verification override.
 export function makeClientCfg(account, resolved, { enableIdle = false, policy = {}, idleKeepaliveMs } = {}) {

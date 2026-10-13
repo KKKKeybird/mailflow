@@ -5,14 +5,15 @@ import { requireAuth } from '../middleware/auth.js';
 import { imapManager } from '../index.js';
 import { encrypt } from '../services/encryption.js';
 import { sanitizeSignature } from '../services/emailSanitizer.js';
-import { validateHost } from '../services/hostValidation.js';
 import { getConnectionPolicy } from '../services/connectionPolicy.js';
 import { normalizeAuthservId } from '../services/spamParser.js';
 import { pluginRegistry } from '../plugins/registry.js';
 import { createKeyedSerializer } from '../utils/keyedSerializer.js';
 import { uuidParam } from '../utils/uuid.js';
-import { validateMailProxy, PROXY_FIELDS } from '../services/mailProxy.js';
+import { validateMailProxy, validateMailServerHost, PROXY_FIELDS } from '../services/mailProxy.js';
 import { normalizeAddressList } from '../utils/addressList.js';
+import { testProxyConnectivity } from '../services/proxyConnectivity.js';
+import { consume } from '../services/rateLimiter.js';
 
 // Serialize an account's reconnect triggers so a rapid settings change (e.g. a
 // gtd_enabled double-toggle) can't fire two overlapping disconnect→connect chains —
@@ -111,6 +112,21 @@ router.get('/', async (req, res) => {
   res.json(enriched);
 });
 
+router.post('/test-proxy', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const limit = await consume(`proxy-test:${req.session.userId}`, 10, 60000);
+  if (limit.limited) {
+    res.set('Retry-After', String(Math.ceil(limit.resetMs / 1000)));
+    return res.status(429).json({ error: 'Too many proxy tests. Try again shortly.' });
+  }
+  try {
+    const result = await testProxyConnectivity(req.body, await getConnectionPolicy());
+    res.json(result);
+  } catch (err) {
+    res.status(400).json({ error: err.message?.startsWith('Proxy:') ? err.message : 'Proxy address could not be validated' });
+  }
+});
+
 router.post('/', async (req, res) => {
   const {
     name, sender_name = null, email_address, color = '#6366f1', protocol = 'imap',
@@ -136,12 +152,12 @@ router.post('/', async (req, res) => {
   catch (err) { return res.status(400).json({ error: err.message }); }
 
   if (imap_host) {
-    const err = (await validateHost(imap_host, { allowPrivate: policy.allowPrivateHosts }))
+    const err = (await validateMailServerHost(imap_host, proxy, policy))
       || (!policy.allowNonstandardPorts && validatePort(imap_port, ALLOWED_IMAP_PORTS));
     if (err) return res.status(400).json({ error: `IMAP: ${err}` });
   }
   if (smtp_host) {
-    const err = (await validateHost(smtp_host, { allowPrivate: policy.allowPrivateHosts }))
+    const err = (await validateMailServerHost(smtp_host, proxy, policy))
       || (!policy.allowNonstandardPorts && validatePort(smtp_port, ALLOWED_SMTP_PORTS));
     if (err) return res.status(400).json({ error: `SMTP: ${err}` });
   }
@@ -207,7 +223,7 @@ router.put('/:id', async (req, res) => {
   }
 
   if ('imap_host' in updates && updates.imap_host) {
-    const err = await validateHost(updates.imap_host, { allowPrivate: policy.allowPrivateHosts });
+    const err = await validateMailServerHost(updates.imap_host, { ...check.rows[0], ...updates }, policy);
     if (err) return res.status(400).json({ error: `IMAP: ${err}` });
   }
   if ('imap_port' in updates && updates.imap_port !== undefined && updates.imap_port !== null) {
@@ -217,7 +233,7 @@ router.put('/:id', async (req, res) => {
     }
   }
   if ('smtp_host' in updates && updates.smtp_host) {
-    const err = await validateHost(updates.smtp_host, { allowPrivate: policy.allowPrivateHosts });
+    const err = await validateMailServerHost(updates.smtp_host, { ...check.rows[0], ...updates }, policy);
     if (err) return res.status(400).json({ error: `SMTP: ${err}` });
   }
   if ('smtp_port' in updates && updates.smtp_port !== undefined && updates.smtp_port !== null) {
