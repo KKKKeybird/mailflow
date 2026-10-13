@@ -119,6 +119,23 @@ async function connectImapClient(account, resolved, cfgOpts, timeoutMs, label) {
   try {
     return await attempt(resolved, label);
   } catch (err) {
+    // A tunnel uses one pinned IP, so Node's multi-address lookup cannot move
+    // past a reset/unreachable Gmail endpoint. Try one other validated address
+    // through the SAME proxy; keep SNI and certificate verification unchanged.
+    const alternate = resolved.proxy && !sawRefusal && (
+      ['ECONNRESET', 'ETIMEDOUT', 'EPIPE', 'ECONNREFUSED', 'EHOSTUNREACH', 'ENETUNREACH', 'CONNECT_TIMEOUT'].includes(err.code) ||
+      /timeout|timed out|Client network socket disconnected before secure TLS connection was established/i.test(err.message || '')
+    ) && resolved.addresses?.find(address => address !== resolved.host);
+    if (alternate) {
+      console.warn(`IMAP proxy connect failed for ${logAccount(account)} (${label}); retrying another validated mail-server address`);
+      try {
+        return await attempt({ ...resolved, host: alternate }, `${label} proxy-address-retry`);
+      } catch (retryErr) {
+        // Body recovery must not multiply two failed handshakes into four.
+        retryErr.proxyConnectRetried = true;
+        throw retryErr;
+      }
+    }
     // Skip the IPv4 fallback when the provider REFUSED (a connection-limit / throttle, not an IPv6
     // stall): a second attempt just piles on pressure and doubles the delay — let the refusal
     // propagate so the caller's cooldown backs off (#384). Otherwise retry IPv4-only for a wedged
@@ -6116,6 +6133,11 @@ export class ImapManager {
       // than the pool, so a second frozen/dead pooled connection can't hang or blank it.
       // Server-side rejections (auth, permission, unknown mailbox) fail again and propagate.
       const isTransient = (
+        // Node's TLS ECONNRESET message does not contain its error code:
+        // "Client network socket disconnected before secure TLS connection
+        // was established". A proxy tunnel can reset during this handshake.
+        ['ECONNRESET', 'ETIMEDOUT', 'EPIPE'].includes(firstErr.code) ||
+        /Client network socket disconnected before secure TLS connection was established/i.test(detail) ||
         detail === 'Command failed' ||
         /Command canceled/i.test(detail) ||
         /ECONNRESET/.test(detail) ||
@@ -6124,7 +6146,7 @@ export class ImapManager {
         /timed out/i.test(detail) ||
         /EPIPE/.test(detail)
       );
-      if (isTransient) {
+      if (isTransient && !firstErr.proxyConnectRetried) {
         // No fresh-login retry while the secondary backoff is armed. The entry gate lets a
         // call through during a refusal window only so it can REUSE an idle pooled session;
         // retrying over a brand-new LOGIN is exactly the doomed request the gate exists to
