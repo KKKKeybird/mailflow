@@ -26,10 +26,13 @@ final class BrowserPicker {
         Intent probe = new Intent(Intent.ACTION_VIEW, Uri.parse(uri.getScheme() + "://browser.invalid/"));
         probe.addCategory(Intent.CATEGORY_BROWSABLE);
         PackageManager manager = context.getPackageManager();
-        List<ResolveInfo> handlers = manager.queryIntentActivities(probe, PackageManager.MATCH_DEFAULT_ONLY);
+        List<ResolveInfo> handlers = manager.queryIntentActivities(probe,
+            PackageManager.MATCH_DEFAULT_ONLY | PackageManager.GET_RESOLVED_FILTER);
         Map<String, ResolveInfo> byPackage = new LinkedHashMap<>();
         for (ResolveInfo handler : handlers) {
-            if (!handler.handleAllWebDataURI || handler.activityInfo == null || !handler.activityInfo.exported
+            if (handler.filter == null || handler.filter.countDataAuthorities() != 0
+                || handler.filter.countDataPaths() != 0 || handler.filter.countDataTypes() != 0
+                || handler.activityInfo == null || !handler.activityInfo.exported
                 || context.getPackageName().equals(handler.activityInfo.packageName)) continue;
             byPackage.putIfAbsent(handler.activityInfo.packageName, handler);
         }

@@ -7,6 +7,7 @@ import static org.junit.Assert.assertTrue;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.ResolveInfo;
@@ -28,7 +29,11 @@ public class BrowserPickerTest {
     private ResolveInfo handler(String name, String packageName, boolean browser) {
         ResolveInfo info = new ResolveInfo();
         info.nonLocalizedLabel = name;
-        info.handleAllWebDataURI = browser;
+        info.filter = new IntentFilter(Intent.ACTION_VIEW);
+        info.filter.addCategory(Intent.CATEGORY_DEFAULT);
+        info.filter.addCategory(Intent.CATEGORY_BROWSABLE);
+        info.filter.addDataScheme("https");
+        if (!browser) info.filter.addDataAuthority("shopping.example", null);
         info.activityInfo = new ActivityInfo();
         info.activityInfo.packageName = packageName;
         info.activityInfo.name = packageName + ".BrowserActivity";
