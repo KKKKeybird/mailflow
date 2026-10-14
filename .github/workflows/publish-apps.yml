@@ -11,12 +11,20 @@ on:
       draft:
         default: false
         type: boolean
+      scope:
+        default: all
+        type: string
   workflow_dispatch:
     inputs:
       version:
         description: "Existing release tag whose app assets should be rebuilt"
         required: true
         type: string
+      scope:
+        description: "Platforms to build (android repairs a missing signed APK/AAB)"
+        default: all
+        type: choice
+        options: [all, android, desktop]
 
 concurrency:
   group: publish-apps-${{ inputs.version }}
@@ -41,6 +49,7 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.os }}
       android: ${{ steps.matrix.outputs.android }}
+      desktop: ${{ steps.matrix.outputs.desktop }}
       draft: ${{ steps.release-state.outputs.draft }}
     steps:
       # A mistyped version would otherwise be created as a brand new release by
@@ -83,19 +92,32 @@ jobs:
       - id: matrix
         shell: bash
         env:
+          BUILD_SCOPE: ${{ inputs.scope || 'all' }}
           MAILFLOW_ANDROID_KEYSTORE_BASE64: ${{ secrets.MAILFLOW_ANDROID_KEYSTORE_BASE64 }}
           MAILFLOW_ANDROID_STORE_PASSWORD: ${{ secrets.MAILFLOW_ANDROID_STORE_PASSWORD }}
           MAILFLOW_ANDROID_KEY_ALIAS: ${{ secrets.MAILFLOW_ANDROID_KEY_ALIAS }}
           MAILFLOW_ANDROID_KEY_PASSWORD: ${{ secrets.MAILFLOW_ANDROID_KEY_PASSWORD }}
         run: |
+          set -euo pipefail
+          case "$BUILD_SCOPE" in
+            all|desktop) echo 'desktop=true' >> "$GITHUB_OUTPUT" ;;
+            android) echo 'desktop=false' >> "$GITHUB_OUTPUT" ;;
+            *) echo 'Invalid build scope' >&2; exit 1 ;;
+          esac
           echo 'os=["windows-latest","macos-latest","ubuntu-latest"]' >> "$GITHUB_OUTPUT"
 
-          if [ -n "$MAILFLOW_ANDROID_KEYSTORE_BASE64" ] \
+          if [[ "$BUILD_SCOPE" == desktop ]]; then
+            echo "android=false" >> "$GITHUB_OUTPUT"
+          elif [ -n "$MAILFLOW_ANDROID_KEYSTORE_BASE64" ] \
             && [ -n "$MAILFLOW_ANDROID_STORE_PASSWORD" ] \
             && [ -n "$MAILFLOW_ANDROID_KEY_ALIAS" ] \
             && [ -n "$MAILFLOW_ANDROID_KEY_PASSWORD" ]; then
             echo "android=true" >> "$GITHUB_OUTPUT"
           else
+            if [[ "$BUILD_SCOPE" == android ]]; then
+              echo '::error::Android release signing is not configured. Set all four MAILFLOW_ANDROID signing secrets.'
+              exit 1
+            fi
             echo "android=false" >> "$GITHUB_OUTPUT"
             echo "::warning::No Android keystore configured — skipping the Android build. The desktop artifacts are still published."
           fi
@@ -103,6 +125,7 @@ jobs:
   desktop:
     name: Electron (${{ matrix.os }})
     needs: setup
+    if: needs.setup.outputs.desktop == 'true'
     runs-on: ${{ matrix.os }}
 
     strategy:
@@ -404,7 +427,7 @@ jobs:
     # is exercised for the first time on the first release, and a failure there is still a
     # failed run, re-run to attach its files. A failed desktop build must still stop the
     # release.
-    if: ${{ !cancelled() && needs.desktop.result == 'success' }}
+    if: ${{ !cancelled() && (needs.desktop.result == 'success' || needs.desktop.result == 'skipped') && (needs.android.result == 'success' || needs.android.result == 'skipped') && (needs.desktop.result == 'success' || needs.android.result == 'success') }}
     runs-on: ubuntu-latest
 
     steps:
@@ -428,6 +451,7 @@ jobs:
           path: artifacts
 
       - name: Publish release files
+        if: inputs.scope != 'android'
         uses: softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65 # v2
         with:
           tag_name: ${{ steps.app-version.outputs.version }}
@@ -444,3 +468,16 @@ jobs:
             artifacts/**/*.dmg
             artifacts/**/*.exe
             artifacts/**/*.rpm
+      - name: Attach Android files without changing release status
+        if: inputs.scope == 'android'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          shopt -s globstar nullglob
+          files=(artifacts/**/*.apk artifacts/**/*.aab)
+          [[ ${#files[@]} -ge 2 ]] || { echo 'Missing Android APK/AAB' >&2; exit 1; }
+          # Keep existing releases immutable: no --clobber and no metadata edit.
+          gh release upload "$VERSION" "${files[@]}"

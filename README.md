@@ -14,6 +14,8 @@
 
 安卓客户端打开外部网页时提供完整的浏览器选择列表，包括已安装的 Edge 等浏览器，不与购物或办公应用的网址处理列表混用。此功能属于安卓安装包，更新服务器镜像不会改变旧客户端的链接打开方式。
 
+正式安卓 APK/AAB 需要固定的自有签名密钥。配置四项 `MAILFLOW_ANDROID_KEYSTORE_BASE64`、`MAILFLOW_ANDROID_STORE_PASSWORD`、`MAILFLOW_ANDROID_KEY_ALIAS`、`MAILFLOW_ANDROID_KEY_PASSWORD` 仓库 Actions Secrets 后，后续 Release 自动构建安卓包。给已有版本补安卓包可运行 **Publish Apps**，输入已有标签并选择 **scope: android**，只生成 APK/AAB，不重建桌面包或修改 `latest`。自有签名首次不能覆盖上游签名的客户端；保留密钥备份以保证后续版本可覆盖升级。
+
 ## 上游项目说明（保留）
 
 <p align="center">
