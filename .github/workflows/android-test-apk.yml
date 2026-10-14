@@ -1,0 +1,127 @@
+name: Android test APK
+
+# Explicit fallback for owners without a production signing keystore.
+# Uses a separate application ID and never substitutes for a production APK.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Existing fork release tag, e.g. v3.9.0-r9'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-test-apk-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build installable test APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate existing release and select exact tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          tag=$(python3 scripts/release-policy.py "$VERSION")
+          [[ "$tag" == "$VERSION" ]] || { echo 'Use the canonical v-prefixed release tag' >&2; exit 1; }
+          git fetch origin "refs/tags/$VERSION:refs/tags/$VERSION"
+          git checkout --detach "refs/tags/$VERSION"
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407 # v3
+        with:
+          packages: 'platform-tools platforms;android-36 build-tools;36.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Stamp test app version
+        working-directory: frontend
+        env:
+          APP_VERSION: ${{ inputs.version }}
+          APP_VERSION_CODE: ${{ github.run_number }}
+        run: npm run app:version
+      - name: Prepare Android shell
+        working-directory: frontend
+        run: npm run android:sync
+      - name: Configure separate test variant
+        run: |
+          cat > "$RUNNER_TEMP/mailflow-test.gradle" <<'GRADLE'
+          allprojects {
+              plugins.withId('com.android.application') {
+                  android {
+                      buildTypes {
+                          debug {
+                              applicationIdSuffix '.test'
+                              versionNameSuffix '-test'
+                          }
+                      }
+                  }
+              }
+          }
+          GRADLE
+          mkdir -p frontend/packages/android/app/src/debug/res/values
+          cat > frontend/packages/android/app/src/debug/res/values/strings.xml <<'XML'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="app_name">MailFlow Test</string>
+              <string name="title_activity_main">MailFlow Test</string>
+          </resources>
+          XML
+      - name: Compile and test Android app
+        working-directory: frontend/packages/android
+        run: bash gradlew --no-daemon --init-script "$RUNNER_TEMP/mailflow-test.gradle" assembleDebug testDebugUnitTest
+      - name: Name and verify APK
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          cp frontend/packages/android/app/build/outputs/apk/debug/app-debug.apk "artifacts/MailFlow-${VERSION#v}-test.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "artifacts/MailFlow-${VERSION#v}-test.apk"
+          "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "artifacts/MailFlow-${VERSION#v}-test.apk" > "$RUNNER_TEMP/apk-badging.txt"
+          grep -F "name='sh.mailflow.app.test'" "$RUNNER_TEMP/apk-badging.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-test-apk
+          path: artifacts/*.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  attach:
+    name: Attach test APK to existing release
+    needs: build
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: android-test-apk
+          path: artifacts
+      - name: Attach APK without changing release status or latest
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          gh release view "$VERSION" --json tagName --jq .tagName
+          # Refuse to overwrite an existing APK (each runner uses a test key).
+          gh release upload "$VERSION" artifacts/*.apk
