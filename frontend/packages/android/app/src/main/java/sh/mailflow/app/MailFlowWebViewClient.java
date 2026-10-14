@@ -14,11 +14,13 @@ import com.getcapacitor.BridgeWebViewClient;
 public class MailFlowWebViewClient extends BridgeWebViewClient {
     private static final String FALLBACK_URL = "file:///android_asset/public/host-unavailable.html";
     private final Context context;
+    private final Context activityContext;
     private boolean loadingFallback = false;
 
     public MailFlowWebViewClient(Bridge bridge, Context context) {
         super(bridge);
         this.context = context.getApplicationContext();
+        this.activityContext = context;
     }
 
     @Override
@@ -105,8 +107,14 @@ public class MailFlowWebViewClient extends BridgeWebViewClient {
             return false;
         }
 
-        Intent intent = new Intent(Intent.ACTION_VIEW, uri);
-        intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        Intent intent;
+        if (isWebUrl(uri)) {
+            BrowserPicker.open(activityContext, uri);
+            return true;
+        } else {
+            intent = new Intent(Intent.ACTION_VIEW, uri);
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        }
 
         try {
             context.startActivity(intent);
