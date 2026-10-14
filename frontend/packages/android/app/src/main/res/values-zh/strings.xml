@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="open_in_browser">选择浏览器</string>
+    <string name="no_browser_available">未找到可打开此链接的浏览器</string>
+</resources>

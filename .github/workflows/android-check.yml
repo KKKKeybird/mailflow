@@ -1,0 +1,47 @@
+name: Android validation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'frontend/packages/android/**'
+      - '.github/workflows/android-check.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android:
+    name: Android compile and tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: android-actions/setup-android@v3
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: npm ci
+      - name: Prepare Android shell
+        working-directory: frontend
+        run: npm run android:sync
+      - name: Compile and test Android app
+        working-directory: frontend/packages/android
+        run: bash gradlew --no-daemon assembleDebug testDebugUnitTest
+      - name: Upload Android test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-test-reports
+          path: frontend/packages/android/app/build/reports/tests
+          if-no-files-found: ignore
+          retention-days: 7
