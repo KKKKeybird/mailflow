@@ -102,7 +102,7 @@ try {
         CASE WHEN i=1 THEN '[]'::jsonb ELSE jsonb_build_array(chr(92)||'Draft') END
       FROM messages m CROSS JOIN generate_series(1,2)i
       WHERE m.uid=92001 AND m.account_id='22222222-2222-2222-2222-222222222222' ON CONFLICT DO NOTHING`);
-    await query(`DELETE FROM folders; INSERT INTO folders SELECT account_id,'INBOX',count(*)::int,count(*)FILTER(WHERE NOT is_read)::int FROM messages GROUP BY account_id`);
+    await query(`DELETE FROM folders; INSERT INTO folders(account_id,path,total_count,unread_count) SELECT account_id,folder,count(*)::int,count(*)FILTER(WHERE NOT is_read)::int FROM messages GROUP BY account_id,folder`);
     globalThis.__senderBenchmarkImplementation=current.listMessages;
     assert.ok((await request({ accountId:'44444444-4444-4444-4444-444444444444',groupSenders:true })).messages.every(m => m.account_id !== '44444444-4444-4444-4444-444444444444'));
     assert.equal((await request({ accountId:'55555555-5555-5555-5555-555555555555',groupSenders:true })).messages.length,2);
