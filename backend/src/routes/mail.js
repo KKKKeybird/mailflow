@@ -9,9 +9,15 @@ import { requireAuth } from '../middleware/auth.js';
 import { imapManager } from '../index.js';
 import { extractImapError } from '../services/imapError.js';
 import { isConnectionRefusal } from '../services/imapManager.js';
-import { sanitizeEmail, stripEmailHead, hasRemoteImages, blockRemoteImages, rewriteEbayImageserUrls, rewriteAnchorHrefs } from '../services/emailSanitizer.js';
+import { stripEmailHead, blockRemoteImages, rewriteEbayImageserUrls, rewriteAnchorHrefs, splitDarkScheme, proxyRemoteImages, remoteImageRefs } from '../services/emailSanitizer.js';
+import { imageProxyPath, proxyWidth, fetchProxiedImage, createUserLimiter } from '../services/imageProxy.js';
+import { imageCache, imageCacheKey } from '../services/imageCache.js';
+import { shrinkImage } from '../services/imageShrink.js';
+import { fitInlineImages } from '../services/inlineImageFit.js';
+import { needsCidRefetch, withoutCidMarker } from '../utils/cidRefs.js';
+import { sanitizeDbText, storeFetchedBody } from '../services/messageBodyStore.js';
 import { snippetFromBody, decodeMimeWords, parseRawHeaders, parseMailboxList, buildHeadersFromMessage } from '../services/messageParser.js';
-import { resolveTrashFolder, resolveAllTrashPaths, resolveAllDraftsPaths, resolveArchiveFolder, isAllMailFolder, resolveSpamFolder, resolveAllSpamPaths, getDeleteStrategy, adjustFolderCounts, fanOutReadToSiblings, fanOutStarToSiblings, fanOutBulkReadToSiblings } from '../utils/mailUtils.js';
+import { draftMessageSql, resolveTrashFolder, resolveAllTrashPaths, resolveAllDraftsPaths, resolveArchiveFolder, isAllMailFolder, resolveSpamFolder, resolveAllSpamPaths, getDeleteStrategy, adjustFolderCounts, fanOutReadToSiblings, fanOutStarToSiblings, fanOutBulkReadToSiblings } from '../utils/mailUtils.js';
 import { pluginRegistry } from '../plugins/registry.js';
 import { listMessages } from '../services/messageService.js';
 import { normalizeSenderIdentity } from '../services/senderIdentity.js';
@@ -44,13 +50,6 @@ function isValidFolderName(name) {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function areValidUUIDs(ids) {
   return ids.every(id => typeof id === 'string' && UUID_RE.test(id));
-}
-
-// Strip NUL bytes from strings before DB writes. PostgreSQL UTF-8 text columns
-// reject 0x00, and malformed MIME bodies can contain embedded NUL characters.
-function sanitizeDbText(value) {
-  if (typeof value !== 'string') return value;
-  return value.replace(/\0/g, '');
 }
 
 // Process IMAP operations in bounded batches so a 500-message bulk action
@@ -337,7 +336,9 @@ async function getThread(req, res, threadId) {
                m.date, m.snippet, m.is_read, m.is_starred,
                m.has_attachments, m.account_id, m.category,
                m.list_unsubscribe, m.list_unsubscribe_post, m.unsubscribed_at, m.delivery_addresses,
-               a.name AS account_name, a.email_address AS account_email, a.color AS account_color
+               a.name AS account_name, a.email_address AS account_email, a.color AS account_color,
+               -- Deleting or moving the conversation leaves its drafts alone (utils/conversationActions.js).
+               ${draftMessageSql('m')} AS is_draft
         FROM messages m
         JOIN email_accounts a ON m.account_id = a.id
         WHERE m.is_deleted = false
@@ -381,8 +382,22 @@ router.get('/unread-counts', async (req, res) => {
       if (stale) complete = false;
     }
   }
+  // How many messages are snoozed (#269): the sidebar shows its Snoozed view only while some are.
+  // Secondary to the counts, so a failure here reports none rather than failing them.
+  let snoozed = 0;
+  try {
+    const r = await query(
+      `SELECT COUNT(*)::int AS n FROM snoozed_messages sm
+       JOIN email_accounts a ON a.id = sm.account_id AND a.user_id = $1 AND a.enabled
+       WHERE sm.user_id = $1 AND ${LIVE_SNOOZE_SQL}`,
+      [req.session.userId]
+    );
+    snoozed = r?.rows?.[0]?.n ?? 0;
+  } catch (err) {
+    console.warn('Snoozed count failed:', err.message);
+  }
   res.set('Cache-Control', 'no-store');
-  res.json({ total, byAccount, snapshots, complete });
+  res.json({ total, byAccount, snapshots, complete, snoozed });
 });
 
 // Hard cap on a live IMAP body fetch. Connection acquisition is already bounded at 30s
@@ -404,6 +419,10 @@ function fetchWithTimeout(promise, ms) {
   return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
 }
 
+// The Bcc MailFlow recorded for a message you sent or a draft you saved (#585). Received mail has
+// none stored, so it shows none.
+const bccOf = (message) => (Array.isArray(message.bcc_addresses) ? message.bcc_addresses : []);
+
 // Get full message body + attachments list
 export async function getMessageBody(req, res) {
   const { id } = req.params;
@@ -422,7 +441,9 @@ export async function getMessageBody(req, res) {
   // Return cached body if available — but re-fetch when the cached HTML still
   // contains unresolved cid: references, or http:// image URLs that were cached
   // before the http→https upgrade was added (would be blocked as mixed content).
-  const hasCidRefs  = message.body_html && /\bcid:/i.test(message.body_html);
+  // A body fetched completely is marked settled and not fetched again for references
+  // that can never resolve (utils/cidRefs.js, #595).
+  const hasCidRefs  = needsCidRefetch(message.body_html);
   const hasHttpImgs = message.body_html && (
     // <img src="http://"> cached before the http→https upgrade
     /<img[^>]+src=["']http:\/\//i.test(message.body_html) ||
@@ -475,13 +496,27 @@ export async function getMessageBody(req, res) {
     // Apply remote-image blocking at response time — never write the blocked variant
     // back to the DB so the canonical cached HTML always has images intact.
     const skipBlocking = req.query.remoteImages === '1';
-    let responseHtml = html;
+    // The settled marker stays in the cache (html, written back above); it never leaves MailFlow.
+    const shown = withoutCidMarker(html);
+    let responseHtml = shown;
     let hasBlockedRemoteImages = false;
-    if (!skipBlocking && html && shouldBlockImages(message.preferences, message) && hasRemoteImages(html)) {
-      responseHtml = blockRemoteImages(html);
-      hasBlockedRemoteImages = true;
+    // Whether remote images are blocked for this message at all, whatever was found: the email
+    // frame then forbids remote loads outright, behind blockRemoteImages.
+    const remoteImagesBlocked = !skipBlocking && shouldBlockImages(message.preferences, message);
+    if (remoteImagesBlocked && shown) {
+      const blocked = blockRemoteImages(shown); // once: hasRemoteImages is this same pass
+      if (blocked !== shown) {
+        responseHtml = blocked;
+        hasBlockedRemoteImages = true;
+      }
     }
-    return res.json({ html: responseHtml, text: message.body_text, attachments, hasBlockedRemoteImages, senderEmail: message.sender_email, senderName: message.sender_name, forwardedFromEmail: message.forwarded_from_email, forwardedFromName: message.forwarded_from_name, forwardedVia: message.forwarded_via });
+    // Remote images allowed for this message load through the image proxy (services/imageProxy.js),
+    // and the email frame then allows images from MailFlow alone.
+    const remoteImagesProxied = !remoteImagesBlocked;
+    const imageStats = {};
+    if (remoteImagesProxied && shown) responseHtml = proxyRemoteImages(shown, (raw, width) => imageProxyPath(id, raw, width), imageStats);
+    const inline = req.query.original === '1' ? { html: responseHtml, count: 0 } : await fitInlineImages(responseHtml, req.session.userId);
+    return res.json({ ...splitDarkScheme(inline.html), inlineImagesFitted: inline.count > 0, text: message.body_text, attachments, hasBlockedRemoteImages, remoteImagesBlocked, remoteImagesProxied, trackersBlocked: imageStats.trackers ?? 0, senderEmail: message.sender_email, senderName: message.sender_name, forwardedFromEmail: message.forwarded_from_email, forwardedFromName: message.forwarded_from_name, forwardedVia: message.forwarded_via, bccAddresses: bccOf(message) });
   }
 
   // Fetch from IMAP — signal user activity so background jobs back off during this request.
@@ -490,37 +525,32 @@ export async function getMessageBody(req, res) {
     const account = accountResult.rows[0];
     imapManager.noteUserActivity(account.id);
 
-    const { html, text, attachments } = await fetchWithTimeout(
+    const { html, text, attachments, cidsComplete } = await fetchWithTimeout(
       imapManager.fetchMessageBody(account, message.uid, message.folder),
       BODY_FETCH_TIMEOUT_MS
     );
 
-    const safeHtml = html ? sanitizeDbText(sanitizeEmail(html)) : null;
-    const safeText = sanitizeDbText(text);
-    const snip = sanitizeDbText(snippetFromBody(safeText, safeHtml || html));
-
-    // Only cache when we actually got body content — don't overwrite a prior
-    // successful cache with null if a transient IMAP fetch returns nothing.
-    if (safeHtml || text || (attachments && attachments.length > 0)) {
-      await query(
-        `UPDATE messages
-         SET body_html = $1, body_text = $2, attachments = $3,
-             snippet = CASE WHEN $5 != '' THEN $5 ELSE snippet END
-         WHERE id = $4`,
-        [safeHtml, safeText, JSON.stringify(attachments || []), id, snip]
-      );
-    }
+    const { sanitized, safeText } = await storeFetchedBody(id, { html, text, attachments, cidsComplete });
 
     // Apply remote-image blocking at response time — safeHtml (unblocked) is what
-    // was written to the DB cache above, preserving the canonical body.
+    // was written to the DB cache above, preserving the canonical body; the response is it
+    // without the settled marker.
     const skipBlocking = req.query.remoteImages === '1';
-    let responseHtml = safeHtml;
+    let responseHtml = sanitized;
     let hasBlockedRemoteImages = false;
-    if (!skipBlocking && safeHtml && shouldBlockImages(message.preferences, message) && hasRemoteImages(safeHtml)) {
-      responseHtml = blockRemoteImages(safeHtml);
-      hasBlockedRemoteImages = true;
+    const remoteImagesBlocked = !skipBlocking && shouldBlockImages(message.preferences, message);
+    if (remoteImagesBlocked && sanitized) {
+      const blocked = blockRemoteImages(sanitized);
+      if (blocked !== sanitized) {
+        responseHtml = blocked;
+        hasBlockedRemoteImages = true;
+      }
     }
-    res.json({ html: responseHtml, text: safeText, attachments: attachments || [], hasBlockedRemoteImages, senderEmail: message.sender_email, senderName: message.sender_name, forwardedFromEmail: message.forwarded_from_email, forwardedFromName: message.forwarded_from_name, forwardedVia: message.forwarded_via });
+    const remoteImagesProxied = !remoteImagesBlocked;
+    const imageStats = {};
+    if (remoteImagesProxied && sanitized) responseHtml = proxyRemoteImages(sanitized, (raw, width) => imageProxyPath(id, raw, width), imageStats);
+    const inline = req.query.original === '1' ? { html: responseHtml, count: 0 } : await fitInlineImages(responseHtml, req.session.userId);
+    res.json({ ...splitDarkScheme(inline.html), inlineImagesFitted: inline.count > 0, text: safeText, attachments: attachments || [], hasBlockedRemoteImages, remoteImagesBlocked, remoteImagesProxied, trackersBlocked: imageStats.trackers ?? 0, senderEmail: message.sender_email, senderName: message.sender_name, forwardedFromEmail: message.forwarded_from_email, forwardedFromName: message.forwarded_from_name, forwardedVia: message.forwarded_via, bccAddresses: bccOf(message) });
   } catch (err) {
     const msg = err.message || 'Unknown error';
     console.error('Body fetch error:', msg);
@@ -789,6 +819,89 @@ router.get('/messages/:id/attachments/:part', async (req, res) => {
   } catch (err) {
     console.error('Attachment fetch error:', err);
     res.status(500).json({ error: 'Failed to fetch attachment' });
+  }
+});
+
+// The image proxy (services/imageProxy.js): one remote image of one of the user's messages,
+// fetched by MailFlow. `u` is the reference exactly as the message's HTML writes it, and only a
+// reference that HTML holds is fetched, so this cannot fetch anything else. `w` is the width the
+// email shows it at, which it is fitted to (services/imageShrink.js).
+//
+// The references are read from the stored body, and also from it as the body route serves it
+// (head stripped, eBay image links unwrapped): the route writes that version back without waiting,
+// so on a first view an image request can arrive before it is stored. Kept for a few minutes per
+// user and message, as an email's images arrive together: within that time a reference already
+// found needs no query, where each image read the whole body from the database again (a
+// newsletter's 40 images, 40 reads of its body). A reference not found there is looked up afresh.
+// The list was made by this user's own query of their own message, so the shortcut serves no one
+// else; a message deleted in those minutes can still show its images until they pass.
+//
+// The image itself comes from the image cache (services/imageCache.js) when it is there. It never
+// changes for a given message, reference and width, so the browser may keep it a month without
+// asking, and asking with its ETag is answered at once.
+const imageProxyLimiter = createUserLimiter();
+const imageRefsCache = new Map();
+const IMAGE_REFS_TTL_MS = 5 * 60_000;
+const IMAGE_REFS_MAX = 200;
+const IMAGE_CACHE_CONTROL = 'private, max-age=2592000, immutable';
+const IMAGE_FAILURE_CACHE_CONTROL = 'private, max-age=600';
+function cachedImageRefs(key) {
+  const hit = imageRefsCache.get(key);
+  return hit && Date.now() - hit.at < IMAGE_REFS_TTL_MS ? hit.refs : null;
+}
+function imageRefsFor(key, stored) {
+  const served = rewriteAnchorHrefs(rewriteEbayImageserUrls(stripEmailHead(stored)));
+  const refs = new Map([...remoteImageRefs(served), ...remoteImageRefs(stored)]);
+  imageRefsCache.delete(key);
+  imageRefsCache.set(key, { refs, at: Date.now() });
+  if (imageRefsCache.size > IMAGE_REFS_MAX) imageRefsCache.delete(imageRefsCache.keys().next().value);
+  return refs;
+}
+
+router.get('/messages/:id/image', async (req, res) => {
+  const { id } = req.params;
+  const raw = typeof req.query.u === 'string' ? req.query.u : '';
+  if (!UUID_RE.test(id) || !raw || raw.length > 8192) return res.status(400).end();
+  const width = proxyWidth(req.query.w);
+  const userId = req.session.userId;
+
+  const refsKey = `${userId}:${id}`;
+  let url = cachedImageRefs(refsKey)?.get(raw);
+  if (!url) {
+    const result = await query(`
+      SELECT m.body_html FROM messages m
+      JOIN email_accounts a ON m.account_id = a.id
+      WHERE m.id = $1 AND a.user_id = $2
+    `, [id, userId]);
+    const stored = result.rows[0]?.body_html;
+    if (!stored) return res.status(404).end();
+    url = imageRefsFor(refsKey, stored).get(raw);
+  }
+  if (!url) return res.status(404).end();
+
+  const key = imageCacheKey(userId, url, width);
+  const etag = `"${key.slice(0, 40)}"`;
+  const headers = {
+    'Cache-Control': IMAGE_CACHE_CONTROL,
+    ETag: etag,
+    'X-Content-Type-Options': 'nosniff',
+    'Content-Security-Policy': "default-src 'none'; sandbox",
+    'Cross-Origin-Resource-Policy': 'same-origin',
+    'Referrer-Policy': 'no-referrer',
+  };
+  if (req.get('If-None-Match') === etag) return res.status(304).set(headers).end();
+  const failed = imageCache.failure(key);
+  if (failed) return res.status(failed).set('Cache-Control', IMAGE_FAILURE_CACHE_CONTROL).end();
+
+  try {
+    const { bytes, type } = await imageCache.load(key, () => imageProxyLimiter(userId,
+      () => fetchProxiedImage(url).then((image) => shrinkImage(image, { width }))));
+    res.set({ ...headers, 'Content-Type': type, 'Content-Length': String(bytes.length) });
+    return res.send(bytes);
+  } catch (err) {
+    const status = err?.status || 502;
+    imageCache.fail(key, status);
+    return res.status(status).set('Cache-Control', IMAGE_FAILURE_CACHE_CONTROL).end();
   }
 });
 
@@ -1139,6 +1252,18 @@ router.post('/folders/rename', async (req, res) => {
       UPDATE messages SET folder = $4 || substr(folder, length($2) + 1)
       WHERE account_id = $1
         AND (folder = $2 OR substr(folder, 1, length($3)) = $3)`,
+      [accountId, oldPath, childPrefix, newPath]);
+    // Snooze records hold both folders by path: the wakeup finds the message by
+    // snoozed_folder and moves it back to original_folder, so a stale path strands it.
+    await query(`
+      UPDATE snoozed_messages SET snoozed_folder = $4 || substr(snoozed_folder, length($2) + 1)
+      WHERE account_id = $1
+        AND (snoozed_folder = $2 OR substr(snoozed_folder, 1, length($3)) = $3)`,
+      [accountId, oldPath, childPrefix, newPath]);
+    await query(`
+      UPDATE snoozed_messages SET original_folder = $4 || substr(original_folder, length($2) + 1)
+      WHERE account_id = $1
+        AND (original_folder = $2 OR substr(original_folder, 1, length($3)) = $3)`,
       [accountId, oldPath, childPrefix, newPath]);
     res.json({ ok: true, newPath });
   } catch (err) {
@@ -2080,20 +2205,58 @@ export async function gatherSnoozeConversation(msg) {
   return [self, ...rest];
 }
 
+// When a snooze ends: a valid date in the future, within 30 days.
+export function parseSnoozeUntil(until) {
+  if (!until) return { error: 'until is required' };
+  const date = new Date(until);
+  if (isNaN(date.getTime())) return { error: 'until must be a valid ISO date' };
+  if (date <= new Date()) return { error: 'until must be in the future' };
+  const maxDate = new Date();
+  maxDate.setDate(maxDate.getDate() + 30);
+  if (date > maxDate) return { error: 'until must be within 30 days' };
+  return { date };
+}
+
+// The live snooze records of a snoozed message and those snoozed with it (#269): its thread's
+// messages waiting in the same Snoozed folder until the same time. Snoozing takes the whole reply
+// chain at once, so changing or ending the snooze does too; a later, separate snooze of another
+// message in the thread keeps its own time. As imapManager.snoozedRows returns them.
+//
+// Its conversation is the reply chain the snooze took (gatherSnoozeConversation), not every message
+// sharing its thread_id: that groups by subject too, so two separately snoozed "Build failed"
+// notifications set to the same morning came back, or moved, together.
+async function snoozedTogether(msg, userId) {
+  const chain = await gatherSnoozeConversation(msg);
+  const ids = [...new Set([msg.message_id, ...chain.map(r => r.message_id)].filter(Boolean))];
+  return imapManager.snoozedRows(
+    `sm.user_id = $1 AND sm.account_id = $2 AND sm.snoozed_folder = $3
+     AND sm.snooze_until = (
+       SELECT own.snooze_until FROM snoozed_messages own
+       WHERE own.user_id = $1 AND own.account_id = $2 AND own.message_id_header = $4 AND own.snoozed_folder = $3
+       ORDER BY own.snooze_until LIMIT 1)
+     AND m.message_id = ANY($5::text[])`,
+    [userId, msg.account_id, msg.folder, msg.message_id, ids]
+  );
+}
+
+// The reader's own message, with its account's user.
+async function ownedMessage(id, userId) {
+  const r = await query(
+    `SELECT m.*, a.user_id FROM messages m
+     JOIN email_accounts a ON a.id = m.account_id
+     WHERE m.id = $1 AND a.user_id = $2`,
+    [id, userId]
+  );
+  return r.rows[0] || null;
+}
+
 // Snooze a message: move it to a Snoozed IMAP folder and record when to restore it
 router.post('/messages/:id/snooze', async (req, res) => {
   const { id } = req.params;
   if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid message id' });
 
-  const { until } = req.body;
-  if (!until) return res.status(400).json({ error: 'until is required' });
-
-  const untilDate = new Date(until);
-  if (isNaN(untilDate.getTime())) return res.status(400).json({ error: 'until must be a valid ISO date' });
-  if (untilDate <= new Date()) return res.status(400).json({ error: 'until must be in the future' });
-  const maxDate = new Date();
-  maxDate.setDate(maxDate.getDate() + 30);
-  if (untilDate > maxDate) return res.status(400).json({ error: 'until must be within 30 days' });
+  const { date: untilDate, error: untilError } = parseSnoozeUntil(req.body?.until);
+  if (untilError) return res.status(400).json({ error: untilError });
 
   // Ownership check
   const msgResult = await query(
@@ -2106,12 +2269,6 @@ router.post('/messages/:id/snooze', async (req, res) => {
   const msg = msgResult.rows[0];
 
   if (!msg.message_id) return res.status(400).json({ error: 'Message has no Message-ID header — cannot snooze' });
-
-  const snoozedFolder = 'Snoozed';
-
-  if (msg.folder === snoozedFolder) {
-    return res.status(400).json({ error: 'Message is already in Snoozed folder' });
-  }
 
   // Check if already snoozed
   const existing = await query(
@@ -2137,11 +2294,19 @@ router.post('/messages/:id/snooze', async (req, res) => {
     [msg.account_id, convo.map(m => m.message_id)]
   );
 
+  // Store the server's real path (INBOX.Snoozed under an INBOX. namespace prefix): folder
+  // sync files the moved mail under it, so rows written as bare 'Snoozed' belong to no
+  // folder and the sync adds each message a second time.
+  let snoozedFolder;
   try {
-    await imapManager.ensureFolder(account, snoozedFolder);
+    ({ path: snoozedFolder } = await imapManager.ensureFolder(account, 'Snoozed', { resolvePath: true }));
   } catch (err) {
     console.error(`Snooze ensureFolder failed for message ${id}:`, err.message);
     return res.status(500).json({ error: 'Failed to move message to Snoozed folder' });
+  }
+
+  if (msg.folder === snoozedFolder) {
+    return res.status(400).json({ error: 'Message is already in Snoozed folder' });
   }
 
   for (const tm of convo) {
@@ -2182,6 +2347,48 @@ router.post('/messages/:id/snooze', async (req, res) => {
   notifyMailMutation(convo, req.session.userId);
 
   res.json({ ok: true });
+});
+
+// The Snoozed view (#269): change when a snoozed conversation comes back, as snoozing it did for
+// the whole reply chain.
+router.patch('/messages/:id/snooze', async (req, res) => {
+  const { id } = req.params;
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid message id' });
+  const { date: untilDate, error: untilError } = parseSnoozeUntil(req.body?.until);
+  if (untilError) return res.status(400).json({ error: untilError });
+  const msg = await ownedMessage(id, req.session.userId);
+  if (!msg) return res.status(404).json({ error: 'Message not found' });
+  const rows = msg.message_id ? await snoozedTogether(msg, req.session.userId) : [];
+  if (!rows.length) return res.status(404).json({ error: 'Message is not snoozed' });
+  await query('UPDATE snoozed_messages SET snooze_until = $1 WHERE id = ANY($2)',
+    [untilDate.toISOString(), rows.map(r => r.snooze_id)]);
+  imapManager.broadcast({ type: 'folder_updated', folder: msg.folder, accountId: msg.account_id }, req.session.userId);
+  res.json({ ok: true, until: untilDate.toISOString() });
+});
+
+// The Snoozed view (#269): bring a snoozed conversation back now, to where it was snoozed from, as
+// its wake-up would, but keeping its read state: the reader asked for it.
+router.post('/messages/:id/unsnooze', async (req, res) => {
+  const { id } = req.params;
+  if (!UUID_RE.test(id)) return res.status(400).json({ error: 'Invalid message id' });
+  const msg = await ownedMessage(id, req.session.userId);
+  if (!msg) return res.status(404).json({ error: 'Message not found' });
+  const rows = msg.message_id ? await snoozedTogether(msg, req.session.userId) : [];
+  if (!rows.length) return res.status(404).json({ error: 'Message is not snoozed' });
+  const notWoken = [];
+  for (const row of rows) {
+    if (!(await imapManager.wakeSnoozed(row, { markUnread: false }))) notWoken.push(row);
+  }
+  // One this request did not wake may be back anyway: its own wake-up got there first, or is
+  // bringing it back right now. Only a snooze that is still live and not being woken failed.
+  const stillSnoozed = notWoken.length
+    ? (await imapManager.snoozedRows('sm.id = ANY($1::uuid[])', [notWoken.map(r => r.snooze_id)]))
+      .filter(r => !imapManager.isWakingSnooze(r.snooze_id))
+    : [];
+  const restored = rows.length - stillSnoozed.length;
+  if (!restored) return res.status(500).json({ error: 'Failed to bring the message back' });
+  notifyMailMutation(rows.map(r => ({ account_id: r.account_id, message_id: r.message_id_header, folder: r.snoozed_folder })), req.session.userId);
+  res.json({ ok: true, restored });
 });
 
 // Delete (move to trash; drafts are permanently deleted)

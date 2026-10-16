@@ -114,6 +114,7 @@
     "sendTooltip": "Enviar (Ctrl+Enter)",
     "sending": "Enviando…",
     "discard": "Descartar",
+    "discardFailed": "Não foi possível excluir o rascunho. Tente novamente.",
     "saveDraft": "Salvar rascunho",
     "savingDraft": "Salvando…",
     "draftSaved": "Rascunho salvo",
@@ -188,7 +189,8 @@
       "aiApply": "Aplicar",
       "aiDismiss": "Dispensar",
       "aiGenerating": "Gerando…",
-      "aiError": "Erro da IA: {{message}}"
+      "aiError": "Erro da IA: {{message}}",
+      "aiTooLong": "este rascunho tem {{count}} caracteres, mais do que os {{max}} que a IA aceita. Encurte-o ou remova o texto citado e tente novamente."
     },
     "priority": "Prioridade",
     "priorityHigh": "Prioridade alta",
@@ -220,6 +222,9 @@
     "noContent": "Nenhum conteúdo encontrado na mensagem.",
     "remoteImagesBlocked": "As imagens remotas foram bloqueadas.",
     "loadImages": "Carregar imagens",
+    "trackersBlocked_one": "{{count}} rastreador bloqueado",
+    "trackersBlocked_other": "{{count}} rastreadores bloqueados",
+    "trackersBlockedHint": "As imagens que avisam o remetente de que você abriu este e-mail não foram carregadas.",
     "allowSender": "Sempre permitir de {{email}}",
     "allowDomain": "Sempre permitir de @{{domain}}",
     "downloading": "Baixando…",
@@ -240,6 +245,9 @@
     "delete": "Excluir",
     "downloadEml": "Baixar como .eml",
     "print": "Imprimir",
+    "showDark": "Mostrar em cores escuras",
+    "showOriginal": "Mostrar cores originais",
+    "cannotShowDark": "Este e-mail não pode ser exibido escuro sem dificultar a leitura do texto",
     "printConversation": "Imprimir conversa",
     "preparingPrint": "Preparando impressão…",
     "more": "Mais",
@@ -249,6 +257,7 @@
     "aiActions": "Ações de IA",
     "manageAiActions": "Gerenciar ações…",
     "aiRegenerate": "Gerar novamente",
+    "aiTruncated": "Baseado nos primeiros {{percent}}% deste e-mail. O restante era longo demais para enviar à IA.",
     "aiExpand": "Expandir",
     "aiCollapse": "Recolher",
     "aiCopy": "Copiar",
@@ -261,19 +270,26 @@
       "failBody": "Não foi possível arquivar a mensagem.",
       "noFolderTitle": "Sem pasta de arquivo",
       "noFolderBody": "Nenhuma pasta de arquivo configurada para esta conta. Defina uma em Configurações → Contas → Mapeamento de pastas.",
-      "conversationTitle": "Conversa arquivada"
+      "conversationTitle": "Conversa arquivada",
+      "nothingFromAccount": "Nada desta conta para arquivar nesta conversa",
+      "otherAccountMessage": "Nada foi arquivado: a mensagem aberta é de outra conta",
+      "otherAccountDraft": "Nada foi arquivado: o rascunho aberto é de outra conta"
     },
     "moved": {
       "title": "Mensagem movida",
       "failTitle": "Falha ao mover",
       "failBody": "Não foi possível mover a mensagem.",
-      "conversationTitle": "Conversa movida"
+      "conversationTitle": "Conversa movida",
+      "nothingFromAccount": "Nada desta conta para mover nesta conversa",
+      "otherAccountDraft": "Nada foi movido: o rascunho aberto é de outra conta"
     },
     "snoozed": {
       "title": "Mensagem adiada",
       "failTitle": "Falha ao adiar",
       "failBody": "Não foi possível adiar esta mensagem.",
-      "conversationTitle": "Conversa adiada"
+      "conversationTitle": "Conversa adiada",
+      "nothingFromAccount": "Nada desta conta para adiar nesta conversa",
+      "nothingInConversation": "Nada para adiar nesta conversa"
     },
     "whitelistFail": {
       "title": "Não foi possível salvar a preferência",
@@ -312,6 +328,16 @@
       "passwordLabel": "Senha do PDF",
       "passwordSubmit": "Abrir",
       "passwordIncorrect": "Senha incorreta. Tente novamente."
+    },
+    "unsnoozed": {
+      "title": "Adiamento cancelado",
+      "failTitle": "Não foi possível cancelar o adiamento",
+      "failBody": "Continua adiado. Tente novamente."
+    },
+    "snoozeChanged": {
+      "title": "Adiado até {{when}}",
+      "failTitle": "Não foi possível alterar o horário",
+      "failBody": "O horário anterior foi mantido. Tente novamente."
     }
   },
   "messageList": {
@@ -355,7 +381,8 @@
       "body": "Removida.",
       "failTitle": "Falha ao excluir",
       "failBody": "Não foi possível excluir a mensagem.",
-      "conversationTitle": "Conversa excluída"
+      "conversationTitle": "Conversa excluída",
+      "nothingFromAccount": "Nada desta conta para excluir nesta conversa"
     },
     "draftBcc": {
       "failTitle": "Rascunho aberto somente para leitura",
@@ -395,6 +422,7 @@
     "pullToSync": "Puxe para sincronizar",
     "releaseToSync": "Solte para sincronizar",
     "noSearchResults": "Nenhum resultado encontrado",
+    "searching": "Pesquisando…",
     "noSearchResultsDesc": "Nenhum resultado para {{query}}",
     "searchFailed": "Falha na pesquisa",
     "clearSearch": "Limpar pesquisa",
@@ -453,6 +481,9 @@
         "description": "Lista de mensagens acima do painel de leitura"
       }
     },
+    "snoozedUntil": "Adiado até {{when}}",
+    "snoozedEmpty": "Nada adiado",
+    "snoozedEmptyDesc": "E-mails adiados esperam aqui até voltarem.",
     "senderGroupCounts": "{{unread}} não lidas · {{count}} mensagens",
     "senderGroupLoadError": "Não foi possível carregar os e-mails deste remetente. Tente novamente."
   },
@@ -512,7 +543,8 @@
     "emptying": "Esvaziando \"{{name}}\"…",
     "emptied": "Pasta esvaziada",
     "backToAccounts": "Voltar às contas",
-    "updateAvailable": "Atualização disponível: v{{version}}"
+    "updateAvailable": "Atualização disponível: v{{version}}",
+    "snoozed": "Adiados"
   },
   "contextMenu": {
     "find": "Localizar",
@@ -534,7 +566,9 @@
       "threeHours": "Em 3 horas",
       "tomorrowMorning": "Amanhã de manhã",
       "nextWeek": "Próxima semana",
-      "custom": "Personalizado..."
+      "custom": "Personalizado...",
+      "change": "Alterar horário",
+      "unsnooze": "Cancelar adiamento"
     },
     "categorize": "Categorizar como…",
     "categoryAlwaysSender": "Sempre para este remetente",
@@ -779,6 +813,11 @@
     },
     "title": "Configurações",
     "close": "Fechar",
+    "behavior": {
+      "reading": "Leitura",
+      "writing": "Escrita",
+      "sync": "Sincronização"
+    },
     "tabs": {
       "cleanup": "Limpeza",
       "accounts": "Contas",
@@ -798,10 +837,11 @@
       "aiActions": "Ações de IA",
       "antispam": "Antispam",
       "categories": "Categorias",
-      "groupAccountMail": "Conta e e-mail",
-      "groupDisplay": "Exibição",
-      "groupSecurityIntegrations": "Segurança e integrações",
+      "groupMail": "E-mail",
+      "groupPreferences": "Preferências",
+      "groupAiExtensions": "IA e extensões",
       "groupAdmin": "Administração",
+      "behavior": "Comportamento",
       "plugins": "Plugins",
       "backup": "Backup"
     },
@@ -852,6 +892,8 @@
       "actionForward": "Encaminhar para",
       "actionForwardPlaceholder": "destinatario@exemplo.com",
       "actionSetCategory": "Definir categoria",
+      "actionNotify": "Notificar-me",
+      "actionNotifyHint": "Avisar mesmo quando a regra move o e-mail ou o marca como lido.",
       "actionSetCategorySelect": "Selecione uma categoria…",
       "actionMovePlaceholder": "Caminho IMAP exato da pasta (ex.: Trabalho ou INBOX/Trabalho)",
       "actionMoveSelectFolder": "Selecione uma pasta…",
@@ -889,6 +931,10 @@
       "editTitle": "Editar conta",
       "addTitle": "Adicionar conta",
       "color": "Cor da conta",
+      "icon": "Ícone",
+      "iconNone": "Nenhum (ponto colorido)",
+      "iconCustom": "Ou digite um emoji",
+      "iconHint": "Exibido no lugar do ponto colorido.",
       "displayName": "Nome de exibição",
       "displayNamePh": "ex.: Gmail do trabalho",
       "senderName": "Nome do remetente",
@@ -1014,6 +1060,8 @@
     "appearance": {
       "title": "Aparência",
       "description": "Escolha um tema de cores para a interface",
+      "darkEmailBodies": "Corpo do e-mail escuro",
+      "darkEmailBodiesDesc": "Em um tema escuro, mostra também os e-mails HTML em cores escuras: com o design escuro do remetente quando houver, senão recoloridos pelo MailFlow. Um e-mail fica como foi enviado quando pede isso ou quando mostrá-lo escuro dificultaria a leitura do texto. Cada mensagem pode ser alternada individualmente.",
       "typography": "Tipografia",
       "typographyDescription": "Escolha uma combinação de fontes para a interface",
       "typographyLoading": "Carregando fontes…",
@@ -1087,6 +1135,14 @@
       "defaultSender": "Remetente padrão",
       "defaultSenderDesc": "De qual endereço as novas mensagens são enviadas, qualquer que seja a conta que você está vendo. Respostas e encaminhamentos sempre usam a conta que recebeu a mensagem.",
       "defaultSenderLastUsed": "Última conta usada",
+      "afterRemove": "Depois de excluir ou arquivar",
+      "afterRemoveNext": "Abrir a próxima mensagem",
+      "afterRemoveNextDesc": "Abre a mensagem abaixo da que foi removida.",
+      "afterRemovePrevious": "Abrir a mensagem anterior",
+      "afterRemovePreviousDesc": "Abre a mensagem acima da que foi removida.",
+      "afterRemoveList": "Voltar para a lista",
+      "afterRemoveListDesc": "Deixa o painel de leitura vazio.",
+      "afterRemoveMobile": "No celular, você sempre volta para a lista.",
       "markReadBehavior": "Marcar como lida",
       "markReadImmediate": "Imediatamente",
       "markReadImmediateDesc": "Marcar e-mails como lidos assim que você os abrir.",
@@ -1791,7 +1847,9 @@
     "noRulesFired": "Nenhuma regra acionada",
     "mlTokensTitle": "Principais tokens contribuintes",
     "noMlTokens": "Nenhum token de ML",
-    "conversationMovedToSpam": "Conversa movida para Spam"
+    "conversationMovedToSpam": "Conversa movida para Spam",
+    "nothingFromAccount": "Nada desta conta para marcar como spam nesta conversa",
+    "nothingInConversation": "Nada para marcar como spam nesta conversa"
   },
   "contacts": {
     "title": "Contatos",

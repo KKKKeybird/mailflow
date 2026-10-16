@@ -10,11 +10,12 @@ import assert from 'node:assert/strict';
 
 if (!process.env.DB_NAME?.includes('sender_revision')) throw new Error('Use a disposable sender_revision database');
 const base = new URL('../', import.meta.url);
-const ref = process.env.BENCH_BASE_REF || 'v3.9.0';
+const ref = process.env.BENCH_BASE_REF || 'v4.0.1';
 const directory = await mkdtemp(`${tmpdir()}/mailflow-group-bench-`);
 const original = execFileSync('git', ['show', `${ref}:backend/src/services/messageService.js`], { cwd: base, encoding: 'utf8' });
 const baselinePath = `${directory}/baseline.mjs`;
-await writeFile(baselinePath, original.replace("'./db.js'", JSON.stringify(new URL('src/services/db.js', base).href)).replace("'./unifiedInbox.js'", JSON.stringify(new URL('src/services/unifiedInbox.js', base).href)));
+const resolveBaselineImports = source => source.replace(/(['"])(\.\.?\/[^'"]+)\1/g, (_match, _quote, relative) => JSON.stringify(new URL(relative, new URL('src/services/messageService.js', base)).href));
+await writeFile(baselinePath, resolveBaselineImports(original));
 const serviceUrl = new URL('src/services/messageService.js', base).href;
 registerHooks({ load(url, context, next) {
   if (url === new URL('src/index.js', base).href) return { format: 'module', shortCircuit: true, source: 'export const imapManager = {prefetchFolderBodies: async () => {}};' };

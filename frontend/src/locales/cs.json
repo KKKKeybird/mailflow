@@ -161,7 +161,8 @@
     "emptying": "Vyprazdňování složky „{{name}}“…",
     "emptied": "Složka vyprázdněna",
     "backToAccounts": "Zpět k účtům",
-    "updateAvailable": "Je dostupná aktualizace: v{{version}}"
+    "updateAvailable": "Je dostupná aktualizace: v{{version}}",
+    "snoozed": "Odložené"
   },
   "messageList": {
     "replyDraftChanged": "Koncept odpovědi se změnil. Zkuste jej znovu otevřít.",
@@ -204,7 +205,8 @@
       "body": "Odstraněno.",
       "failTitle": "Smazání se nezdařilo",
       "failBody": "Zprávu se nepodařilo smazat.",
-      "conversationTitle": "Konverzace smazána"
+      "conversationTitle": "Konverzace smazána",
+      "nothingFromAccount": "V této konverzaci není z tohoto účtu nic ke smazání"
     },
     "draftBcc": {
       "failTitle": "Koncept otevřen jen pro čtení",
@@ -256,6 +258,7 @@
     "pullToSync": "Tažením synchronizujete",
     "releaseToSync": "Uvolněním synchronizujete",
     "noSearchResults": "Nebyly nalezeny žádné výsledky",
+    "searching": "Hledání…",
     "noSearchResultsDesc": "Žádné výsledky pro {{query}}",
     "searchFailed": "Hledání se nezdařilo",
     "clearSearch": "Vymazat hledání",
@@ -314,6 +317,9 @@
         "description": "Seznam zpráv nad čtecím podoknem"
       }
     },
+    "snoozedUntil": "Odloženo do {{when}}",
+    "snoozedEmpty": "Nic není odloženo",
+    "snoozedEmptyDesc": "Odložené zprávy tu čekají, dokud se nevrátí.",
     "senderGroupCounts": "{{unread}} nepřečtených · {{count}} zpráv",
     "senderGroupLoadError": "E-maily tohoto odesílatele se nepodařilo načíst. Zkuste to znovu."
   },
@@ -340,6 +346,9 @@
     "noContent": "Nebyl nalezen žádný obsah zprávy.",
     "remoteImagesBlocked": "Vzdálené obrázky byly zablokovány.",
     "loadImages": "Načíst obrázky",
+    "trackersBlocked_one": "Zablokované sledovací prvky: {{count}}",
+    "trackersBlocked_other": "Zablokované sledovací prvky: {{count}}",
+    "trackersBlockedHint": "Obrázky, které odesílateli hlásí otevření tohoto e-mailu, nebyly načteny.",
     "allowSender": "Vždy povolit od {{email}}",
     "allowDomain": "Vždy povolit z @{{domain}}",
     "downloading": "Stahování…",
@@ -360,6 +369,9 @@
     "delete": "Smazat",
     "downloadEml": "Stáhnout jako .eml",
     "print": "Vytisknout",
+    "showDark": "Zobrazit v tmavých barvách",
+    "showOriginal": "Zobrazit původní barvy",
+    "cannotShowDark": "Tento e-mail nelze zobrazit tmavě, aniž by se zhoršila čitelnost textu",
     "printConversation": "Vytisknout konverzaci",
     "preparingPrint": "Příprava tisku…",
     "more": "Další",
@@ -369,6 +381,7 @@
     "aiActions": "Akce AI",
     "manageAiActions": "Spravovat akce…",
     "aiRegenerate": "Vygenerovat znovu",
+    "aiTruncated": "Vychází z prvních {{percent}} % tohoto e-mailu. Zbytek byl příliš dlouhý na odeslání AI.",
     "aiExpand": "Rozbalit",
     "aiCollapse": "Sbalit",
     "aiCopy": "Kopírovat",
@@ -381,19 +394,26 @@
       "failBody": "Zprávu se nepodařilo archivovat.",
       "noFolderTitle": "Chybí složka archivu",
       "noFolderBody": "Pro tento účet není nastavena složka archivu. Nastavte ji v Nastavení → Účty → Mapování složek.",
-      "conversationTitle": "Konverzace archivována"
+      "conversationTitle": "Konverzace archivována",
+      "nothingFromAccount": "V této konverzaci není z tohoto účtu nic k archivaci",
+      "otherAccountMessage": "Nic nebylo archivováno: otevřená zpráva je z jiného účtu",
+      "otherAccountDraft": "Nic nebylo archivováno: otevřený koncept je z jiného účtu"
     },
     "moved": {
       "title": "Zpráva přesunuta",
       "failTitle": "Přesunutí se nezdařilo",
       "failBody": "Zprávu se nepodařilo přesunout.",
-      "conversationTitle": "Konverzace přesunuta"
+      "conversationTitle": "Konverzace přesunuta",
+      "nothingFromAccount": "V této konverzaci není z tohoto účtu nic k přesunutí",
+      "otherAccountDraft": "Nic nebylo přesunuto: otevřený koncept je z jiného účtu"
     },
     "snoozed": {
       "title": "Zpráva odložena",
       "failTitle": "Odložení se nezdařilo",
       "failBody": "Tuto zprávu se nepodařilo odložit.",
-      "conversationTitle": "Konverzace odložena"
+      "conversationTitle": "Konverzace odložena",
+      "nothingFromAccount": "V této konverzaci není z tohoto účtu nic k odložení",
+      "nothingInConversation": "V této konverzaci není nic k odložení"
     },
     "whitelistFail": {
       "title": "Předvolbu se nepodařilo uložit",
@@ -432,6 +452,16 @@
       "passwordLabel": "Heslo k PDF",
       "passwordSubmit": "Otevřít",
       "passwordIncorrect": "Nesprávné heslo. Zkuste to znovu."
+    },
+    "unsnoozed": {
+      "title": "Vráceno",
+      "failTitle": "Zprávu se nepodařilo vrátit",
+      "failBody": "Zpráva zůstává odložená. Zkuste to znovu."
+    },
+    "snoozeChanged": {
+      "title": "Odloženo do {{when}}",
+      "failTitle": "Čas návratu se nepodařilo změnit",
+      "failBody": "Zůstává původní čas. Zkuste to znovu."
     }
   },
   "compose": {
@@ -455,6 +485,7 @@
     "sendTooltip": "Odeslat (Ctrl+Enter)",
     "sending": "Odesílání…",
     "discard": "Zahodit",
+    "discardFailed": "Koncept se nepodařilo smazat. Zkuste to znovu.",
     "saveDraft": "Uložit koncept",
     "savingDraft": "Ukládání…",
     "draftSaved": "Koncept uložen",
@@ -529,7 +560,8 @@
       "aiApply": "Použít",
       "aiDismiss": "Zavřít",
       "aiGenerating": "Generování…",
-      "aiError": "Chyba AI: {{message}}"
+      "aiError": "Chyba AI: {{message}}",
+      "aiTooLong": "tento koncept má {{count}} znaků, víc než {{max}}, které AI zpracuje. Zkraťte ho nebo odstraňte citovaný text a zkuste to znovu."
     },
     "priority": "Priorita",
     "priorityHigh": "Vysoká priorita",
@@ -602,7 +634,9 @@
       "threeHours": "Za 3 hodiny",
       "tomorrowMorning": "Zítra ráno",
       "nextWeek": "Příští týden",
-      "custom": "Vlastní…"
+      "custom": "Vlastní…",
+      "change": "Změnit čas návratu",
+      "unsnooze": "Vrátit hned"
     },
     "categorize": "Zařadit jako…",
     "categoryAlwaysSender": "Vždy pro tohoto odesílatele",
@@ -894,7 +928,9 @@
     "noRulesFired": "Neaktivovalo se žádné pravidlo",
     "mlTokensTitle": "Nejvýznamnější tokeny",
     "noMlTokens": "Žádné ML tokeny",
-    "conversationMovedToSpam": "Konverzace přesunuta do spamu"
+    "conversationMovedToSpam": "Konverzace přesunuta do spamu",
+    "nothingFromAccount": "V této konverzaci není z tohoto účtu nic k označení jako spam",
+    "nothingInConversation": "V této konverzaci není nic k označení jako spam"
   },
   "todoist": {
     "title": "Vytvořit úkol v Todoistu",
@@ -969,6 +1005,11 @@
     },
     "title": "Nastavení",
     "close": "Zavřít",
+    "behavior": {
+      "reading": "Čtení",
+      "writing": "Psaní",
+      "sync": "Synchronizace"
+    },
     "tabs": {
       "cleanup": "Úklid",
       "accounts": "Účty",
@@ -988,10 +1029,11 @@
       "aiActions": "Akce AI",
       "antispam": "Antispam",
       "categories": "Kategorie",
-      "groupAccountMail": "Účet a pošta",
-      "groupDisplay": "Zobrazení",
-      "groupSecurityIntegrations": "Zabezpečení a integrace",
+      "groupMail": "Pošta",
+      "groupPreferences": "Předvolby",
+      "groupAiExtensions": "AI a rozšíření",
       "groupAdmin": "Správa",
+      "behavior": "Chování",
       "plugins": "Pluginy",
       "backup": "Záloha"
     },
@@ -1038,6 +1080,8 @@
     "appearance": {
       "title": "Vzhled",
       "description": "Vyberte barevný motiv rozhraní",
+      "darkEmailBodies": "Tmavý obsah e-mailů",
+      "darkEmailBodiesDesc": "V tmavém motivu zobrazovat v tmavých barvách i e-maily HTML: s vlastním tmavým vzhledem odesílatele, pokud ho mají, jinak přebarvené aplikací MailFlow. E-mail zůstane tak, jak byl odeslán, když o to žádá nebo když by tmavé zobrazení zhoršilo čitelnost textu. Každou zprávu lze přepnout samostatně.",
       "typography": "Typografie",
       "typographyDescription": "Vyberte kombinaci písem pro rozhraní",
       "typographyLoading": "Načítání písem…",
@@ -1068,6 +1112,10 @@
       "editTitle": "Upravit účet",
       "addTitle": "Přidat účet",
       "color": "Barva účtu",
+      "icon": "Ikona",
+      "iconNone": "Žádná (barevná tečka)",
+      "iconCustom": "Nebo napište emoji",
+      "iconHint": "Zobrazí se místo barevné tečky.",
       "displayName": "Zobrazovaný název",
       "displayNamePh": "např. Pracovní Gmail",
       "senderName": "Jméno odesílatele",
@@ -1245,6 +1293,8 @@
       "actionForward": "Přeposlat na",
       "actionForwardPlaceholder": "prijemce@example.com",
       "actionSetCategory": "Nastavit kategorii",
+      "actionNotify": "Upozornit mě",
+      "actionNotifyHint": "Upozornit, i když pravidlo e-mail přesune nebo označí jako přečtený.",
       "actionSetCategorySelect": "Vyberte kategorii…",
       "actionMovePlaceholder": "Přesná cesta ke složce IMAP (např. Práce nebo INBOX/Práce)",
       "actionMoveSelectFolder": "Vyberte složku…",
@@ -1406,6 +1456,14 @@
       "defaultSender": "Výchozí odesílatel",
       "defaultSenderDesc": "Ze které adresy se odesílají nové zprávy bez ohledu na to, který účet právě prohlížíte. Odpovědi a přeposlané zprávy vždy použijí účet, který zprávu přijal.",
       "defaultSenderLastUsed": "Naposledy použitý účet",
+      "afterRemove": "Po smazání nebo archivaci",
+      "afterRemoveNext": "Otevřít další zprávu",
+      "afterRemoveNextDesc": "Otevřít zprávu pod odstraněnou.",
+      "afterRemovePrevious": "Otevřít předchozí zprávu",
+      "afterRemovePreviousDesc": "Otevřít zprávu nad odstraněnou.",
+      "afterRemoveList": "Zpět na seznam",
+      "afterRemoveListDesc": "Ponechat podokno čtení prázdné.",
+      "afterRemoveMobile": "Na telefonu se vždy vrátíte na seznam.",
       "markReadBehavior": "Označení jako přečtené",
       "markReadImmediate": "Okamžitě",
       "markReadImmediateDesc": "Označit e-maily jako přečtené ihned po otevření.",

@@ -701,9 +701,9 @@ describe('ensureMailbox — namespace + already-exists matrix', () => {
 // ── ensureMailbox — case-insensitive casing resolution ────────────────────────
 // On a case-insensitive server an existing "TODO" satisfies a "Todo" CREATE, but imapflow's
 // already-exists result echoes the REQUESTED casing. Persisting that (planGtdFolderPersist)
-// never case-matches the synced rows' folder value. With resolvePath set (only /folders/ensure,
-// which persists), the already-exists branches resolve the real casing from the folder LIST;
-// classify/snooze leave it off so they skip the extra round-trip.
+// never case-matches the synced rows' folder value. With resolvePath set (by the callers that
+// persist the path), the already-exists branches resolve the real casing from the folder LIST;
+// classify leaves it off so it skips the extra round-trip.
 describe('ensureMailbox — case-insensitive casing resolution', () => {
   it('ALREADYEXISTS return + resolvePath: resolves the server casing from LIST', async () => {
     const client = {
@@ -734,6 +734,15 @@ describe('ensureMailbox — case-insensitive casing resolution', () => {
     const res = await ensureMailbox(client, 'Todo');
     expect(res).toEqual({ path: 'Todo', created: false });
     expect(client.list).not.toHaveBeenCalled();
+  });
+
+  it('prefers an exact match to a case variant listed before it (case-sensitive server)', async () => {
+    const client = {
+      mailboxCreate: vi.fn().mockResolvedValue({ path: 'INBOX.Snoozed', created: false }),
+      list: vi.fn().mockResolvedValue([{ path: 'INBOX' }, { path: 'INBOX.snoozed' }, { path: 'INBOX.Snoozed' }]),
+    };
+    const res = await ensureMailbox(client, 'Snoozed', { resolvePath: true });
+    expect(res).toEqual({ path: 'INBOX.Snoozed', created: false });
   });
 
   it('falls back to the known path when the LIST has no case-insensitive match', async () => {
@@ -1498,12 +1507,39 @@ describe('_syncSpamFolder — periodic spam poll guards', () => {
   });
 });
 
+// A plain-text message with a photo that is disposed inline and has a Content-ID:
+// there is no HTML body to reference it.
+const textWithInlinePhoto = {
+  type: 'multipart/mixed',
+  childNodes: [
+    { part: '1', type: 'text/plain', encoding: '7bit', parameters: { charset: 'utf-8' } },
+    {
+      part: '2', type: 'image/jpeg', encoding: 'base64', id: '<x@apple>', size: 40000,
+      disposition: 'inline', dispositionParameters: { filename: 'IMG_0001.jpeg' },
+    },
+  ],
+};
+
 describe('walkStructure attachment classification', () => {
   const walk = (node) => {
     const results = { textParts: [], attachments: [] };
     walkStructure(node, results);
     return results;
   };
+
+  it('strips bidi overrides from attachment names, so "invoice<RLO>fdp.exe" cannot pose as a PDF', () => {
+    const results = walk({
+      type: 'multipart/mixed',
+      childNodes: [
+        { part: '1', type: 'text/plain', encoding: '7bit', parameters: { charset: 'utf-8' } },
+        { part: '2', type: 'application/octet-stream', encoding: 'base64', disposition: 'attachment',
+          dispositionParameters: { filename: 'invoice\u202Efdp.exe' } },
+        { part: '3', type: 'application/octet-stream', encoding: 'base64',
+          parameters: { name: 'a\u2066b\u2069c\u200Fd\u061Ce\u202Af.bin' } },
+      ],
+    });
+    expect(results.attachments.map(a => a.filename)).toEqual(['invoicefdp.exe', 'abcdef.bin']);
+  });
 
   it('treats an attached HTML file as an attachment, not body text', () => {
     const results = walk({
@@ -1653,6 +1689,118 @@ describe('attachment-only messages have no body', () => {
   });
 });
 
+// A forwarded message attached as a file. imapflow gives a message/rfc822 part the embedded
+// message's structure as children, reusing the wrapper's part number (so its parts are 2.1, 2.2).
+describe('walkStructure attached messages', () => {
+  const walk = (node) => {
+    const results = { textParts: [], attachments: [], inlineImages: [], calendarParts: [] };
+    walkStructure(node, results);
+    return results;
+  };
+  const forwarded = (wrapper, innerChildren) => ({
+    type: 'multipart/mixed',
+    childNodes: [
+      { part: '1', type: 'text/plain', encoding: '7bit', parameters: { charset: 'utf-8' } },
+      {
+        part: '2', type: 'message/rfc822', encoding: '7bit', size: 5120,
+        envelope: { subject: 'Quarterly report' },
+        ...wrapper,
+        childNodes: [{ part: '2', type: 'multipart/mixed', childNodes: innerChildren }],
+      },
+    ],
+  });
+  const innerBodyAndPdf = [
+    { part: '2.1', type: 'text/html', encoding: 'quoted-printable', parameters: { charset: 'utf-8' } },
+    { part: '2.2', type: 'application/pdf', encoding: 'base64', size: 900,
+      disposition: 'attachment', dispositionParameters: { filename: 'inner.pdf' } },
+  ];
+
+  it('lists a forward-as-attachment (Gmail style) as one .eml and keeps the outer body (#466)', () => {
+    const results = walk(forwarded(
+      { disposition: 'attachment', dispositionParameters: { filename: 'Fwd.eml' }, parameters: { name: 'Fwd.eml' } },
+      innerBodyAndPdf,
+    ));
+    expect(results.textParts.map(p => p.part)).toEqual(['1']);
+    expect(results.attachments).toEqual([{
+      part: '2', filename: 'Fwd.eml', type: 'message/rfc822', encoding: '7bit', size: 5120,
+      disposition: 'attachment',
+      contains: [{ filename: 'inner.pdf', type: 'application/pdf' }],
+    }]);
+  });
+
+  it('names an unnamed attached message after its subject (Outlook style)', () => {
+    const results = walk(forwarded({ disposition: 'attachment' }, innerBodyAndPdf));
+    expect(results.attachments.map(a => a.filename)).toEqual(['Quarterly report.eml']);
+    expect(results.textParts.map(p => p.part)).toEqual(['1']);
+  });
+
+  it('treats an inline message/rfc822 with a filename as an attachment too', () => {
+    const results = walk(forwarded({ disposition: 'inline', dispositionParameters: { filename: 'x.eml' } }, innerBodyAndPdf));
+    expect(results.attachments.map(a => [a.part, a.filename, a.type])).toEqual([['2', 'x.eml', 'message/rfc822']]);
+  });
+
+  it('keeps walking into an embedded message with no file marker, as a bounce report has', () => {
+    const results = walk({
+      type: 'multipart/report',
+      childNodes: [
+        { part: '1', type: 'text/plain', encoding: '7bit', parameters: { charset: 'utf-8' } },
+        { part: '2', type: 'message/delivery-status', encoding: '7bit' },
+        { part: '3', type: 'message/rfc822', encoding: '7bit', envelope: { subject: 'Original' },
+          childNodes: [{ part: '3', type: 'text/plain', encoding: '7bit', parameters: { charset: 'utf-8' } }] },
+      ],
+    });
+    expect(results.attachments).toEqual([]);
+    expect(results.textParts.map(p => p.part)).toEqual(['1', '3']);
+  });
+
+  it('records files nested in a forward of a forward, flattened and capped', () => {
+    const innerForward = {
+      part: '2.2', type: 'message/rfc822', encoding: '7bit', disposition: 'attachment',
+      envelope: { subject: 'Deeper' },
+      childNodes: [{ part: '2.2', type: 'multipart/mixed', childNodes: [
+        { part: '2.2.1', type: 'text/plain', encoding: '7bit' },
+        { part: '2.2.2', type: 'application/octet-stream', encoding: 'base64',
+          disposition: 'attachment', dispositionParameters: { filename: 'invoice.pdf.exe' } },
+      ] }],
+    };
+    const results = walk(forwarded({ disposition: 'attachment' }, [innerBodyAndPdf[0], innerForward]));
+    expect(results.attachments).toHaveLength(1);
+    // Risky files are listed first (see the cap below).
+    expect(results.attachments[0].contains).toEqual([
+      { filename: 'invoice.pdf.exe', type: 'application/octet-stream' },
+      { filename: 'Deeper.eml', type: 'message/rfc822' },
+    ]);
+
+    const many = Array.from({ length: 80 }, (_, i) => ({
+      part: `2.${i + 2}`, type: 'image/png', encoding: 'base64',
+      disposition: 'attachment', dispositionParameters: { filename: `p${i}.png` },
+    }));
+    const capped = walk(forwarded({ disposition: 'attachment' }, [innerBodyAndPdf[0], ...many]));
+    expect(capped.attachments[0].contains).toHaveLength(50);
+
+    // Padding the forward with harmless files must not push a program past the cap.
+    const padded = walk(forwarded({ disposition: 'attachment' }, [innerBodyAndPdf[0], ...many, {
+      part: '2.99', type: 'application/octet-stream', encoding: 'base64',
+      disposition: 'attachment', dispositionParameters: { filename: 'payload.exe' },
+    }]));
+    expect(padded.attachments[0].contains).toHaveLength(50);
+    expect(padded.attachments[0].contains[0]).toEqual({ filename: 'payload.exe', type: 'application/octet-stream' });
+  });
+
+  it('strips bidi overrides and control characters from the derived name', () => {
+    const results = walk(forwarded(
+      { disposition: 'attachment', envelope: { subject: 'Pay\r\nnow \u202Efdp.exe' } },
+      innerBodyAndPdf,
+    ));
+    expect(results.attachments[0].filename).toBe('Pay  now fdp.exe.eml');
+  });
+
+  it('stores the .eml for the attachment list built at sync', () => {
+    const msg = { bodyStructure: forwarded({ disposition: 'attachment' }, innerBodyAndPdf) };
+    expect(attachmentsFromStructure(msg).map(a => a.filename)).toEqual(['Quarterly report.eml']);
+  });
+});
+
 describe('calendar-only messages', () => {
   const calendarRoot = {
     part: '1', type: 'text/calendar', encoding: '7bit',
@@ -1687,6 +1835,138 @@ describe('calendar-only messages', () => {
       bodyParts: new Map([['1', Buffer.from('<p>Invite</p>')], ['2', Buffer.from(ics)]]),
     };
     expect(extractBodyFromMsg(msg).html).toBe('<p>Invite</p>');
+  });
+});
+
+// The body route caches the list fetchMessageBody returns, and every download route
+// resolves parts from that cache, so a part missing from it cannot be opened at all.
+// Most of these drive the real fetchMessageBody and fetchAttachment through the pool
+// against a fake server holding one message; the synced-body cases call
+// extractBodyFromMsg, which lists the same parts.
+describe('inline images the body never shows are listed as attachments', () => {
+  let seq = 700;
+  function serve(structure, parts) {
+    const account = { id: `acct-parts-${++seq}`, user_id: 'u1', imap_host: 'imap.example.test', email_address: 'p@example.test', auth_user: 'p', auth_pass: 'enc' };
+    ImapFlow.mockImplementation(function () {
+      const client = new EventEmitter();
+      client.usable = true;
+      client.connect = vi.fn(() => Promise.resolve());
+      client.logout = vi.fn(() => Promise.resolve());
+      client.close = vi.fn();
+      client.getMailboxLock = vi.fn(async () => ({ release() {} }));
+      client.fetch = vi.fn(async function* (range, fetchQuery) {
+        yield {
+          uid: 42,
+          bodyStructure: fetchQuery.bodyStructure ? structure : undefined,
+          bodyParts: fetchQuery.bodyParts
+            ? new Map(fetchQuery.bodyParts.filter(p => p in parts).map(p => [p, Buffer.from(parts[p])]))
+            : undefined,
+        };
+      });
+      return client;
+    });
+    getConnectionPolicy.mockResolvedValue({ allowPrivateHosts: true, allowInsecureTls: true });
+    resolveForConnection.mockResolvedValue({ host: '127.0.0.1', addresses: ['127.0.0.1'], servername: null });
+    return { mgr: new ImapManager({ clients: new Set() }), account };
+  }
+
+  it('lists an inline photo in a plain-text message', async () => {
+    const { mgr, account } = serve(textWithInlinePhoto, { '1': 'here is the photo', '2': '/9j/4AAQ' });
+    const body = await mgr.fetchMessageBody(account, 42, 'INBOX');
+    expect(body.text).toBe('here is the photo');
+    expect(body.attachments).toEqual([{
+      part: '2', filename: 'IMG_0001.jpeg', type: 'image/jpeg', encoding: 'base64', size: 40000, disposition: 'inline',
+    }]);
+  });
+
+  it('lists only the inline images the HTML does not reference', async () => {
+    // Hand-picked Content-IDs, as PHPMailer allows: the HTML references logo-dark in angle
+    // brackets and another case, logo is a prefix of it but is not referenced, and the
+    // third image has an empty Content-ID, which nothing can reference.
+    const image = (part, id, filename) => ({
+      part, type: 'image/png', encoding: 'base64', id, size: 12,
+      disposition: 'inline', dispositionParameters: { filename },
+    });
+    const { mgr, account } = serve({
+      type: 'multipart/related',
+      childNodes: [
+        { part: '1', type: 'text/html', encoding: '7bit', parameters: { charset: 'utf-8' } },
+        image('2', '<logo-dark>', 'logo-dark.png'),
+        image('3', '<logo>', 'logo.png'),
+        image('4', '<>', 'spacer.png'),
+      ],
+    }, { '1': '<p>hi</p><img src="cid:<LOGO-DARK>">', '2': 'iVBORw0KGgo=', '3': 'AAAA', '4': 'BBBB' });
+    const body = await mgr.fetchMessageBody(account, 42, 'INBOX');
+    expect(body.html).toBe('<p>hi</p><img src="data:image/png;base64,iVBORw0KGgo=">');
+    expect(body.attachments.map(a => a.filename)).toEqual(['logo.png', 'spacer.png']);
+  });
+
+  // #595: whether a cid: reference left in the HTML could resolve on another fetch.
+  const related = (...images) => ({
+    type: 'multipart/related',
+    childNodes: [
+      { part: '1', type: 'text/html', encoding: '7bit', parameters: { charset: 'utf-8' } },
+      ...images.map(([part, id]) => ({ part, type: 'image/png', encoding: 'base64', id, size: 12, disposition: 'inline', dispositionParameters: { filename: `${part}.png` } })),
+    ],
+  });
+
+  it('is complete when a reference names a Content-ID no part has: it can never resolve', async () => {
+    const { mgr, account } = serve(related(['2', '<logo@x>']), { '1': '<img src="cid:logo@x"><img src="cid:missing@x">', '2': 'iVBORw0KGgo=' });
+    const body = await mgr.fetchMessageBody(account, 42, 'INBOX');
+    expect(body.html).toBe('<img src="data:image/png;base64,iVBORw0KGgo="><img src="cid:missing@x">');
+    expect(body.cidsComplete).toBe(true);
+  });
+
+  it('is not complete when an image the HTML references did not arrive: another fetch may get it', async () => {
+    const { mgr, account } = serve(related(['2', '<logo@x>']), { '1': '<img src="cid:logo@x">' });
+    const body = await mgr.fetchMessageBody(account, 42, 'INBOX');
+    expect(body.html).toBe('<img src="cid:logo@x">');
+    expect(body.cidsComplete).toBe(false);
+  });
+
+  it('is complete when every referenced image was embedded', async () => {
+    const { mgr, account } = serve(related(['2', '<logo@x>']), { '1': '<img src="cid:logo@x">', '2': 'iVBORw0KGgo=' });
+    expect((await mgr.fetchMessageBody(account, 42, 'INBOX')).cidsComplete).toBe(true);
+  });
+
+  it('lists an inline photo when the body is read from a synced message', () => {
+    const body = extractBodyFromMsg({
+      bodyStructure: textWithInlinePhoto,
+      bodyParts: new Map([['1', Buffer.from('here is the photo')]]),
+    });
+    expect(body.text).toBe('here is the photo');
+    expect(body.attachments.map(a => a.filename)).toEqual(['IMG_0001.jpeg']);
+  });
+
+  it('names an unnamed inline image after its type', () => {
+    const body = extractBodyFromMsg({
+      bodyStructure: {
+        type: 'multipart/mixed',
+        childNodes: [
+          { part: '1', type: 'text/plain', encoding: '7bit' },
+          { part: '2', type: 'image/jpeg', encoding: 'base64', id: '<a@x>' },
+          { part: '3', type: 'image/svg+xml', encoding: '7bit', id: '<b@x>' },
+        ],
+      },
+      bodyParts: new Map([['1', Buffer.from('two pictures')]]),
+    });
+    expect(body.attachments.map(a => a.filename)).toEqual(['image.jpg', 'image.svg']);
+  });
+
+  it('downloads a listed inline image with its own transfer encoding', async () => {
+    const svg = '<svg xmlns="http://www.w3.org/2000/svg"/>';
+    const { mgr, account } = serve({
+      type: 'multipart/mixed',
+      childNodes: [
+        { part: '1', type: 'text/plain', encoding: '7bit' },
+        {
+          part: '2', type: 'image/svg+xml', encoding: '7bit', id: '<s@x>',
+          disposition: 'inline', dispositionParameters: { filename: 'logo.svg' },
+        },
+      ],
+    }, { '1': 'logo attached', '2': svg });
+    const buf = await mgr.fetchAttachment(account, 42, 'INBOX', '2');
+    expect(buf.toString()).toBe(svg);
   });
 });
 
@@ -1776,6 +2056,31 @@ describe("connectAccount attaches 'error' before connect (#360)", () => {
     expect(ImapFlow).toHaveBeenCalledTimes(1);
     expect(errorListenersAtConnect).toBeGreaterThanOrEqual(1);
     expect(emitThrew).toBe(false);
+  });
+});
+
+// A host the address check refuses (or an OAuth refresh that fails) used to throw before the
+// try that releases the in-progress lock: the account stayed "connecting" until a restart.
+describe('connectAccount when the host is refused', () => {
+  it('releases the lock and records the error, so the next attempt runs', async () => {
+    resolveForConnection.mockReset().mockRejectedValue(new Error('Host cannot be a private or reserved IP address'));
+    getConnectionPolicy.mockResolvedValue({ allowPrivateHosts: false, allowInsecureTls: false });
+    query.mockReset().mockResolvedValue({ rows: [] });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const mgr = new ImapManager(null);
+    clearInterval(mgr._healthCheckTimer);
+    clearInterval(mgr._snippetSchedulerTimer);
+    mgr.disconnectAccount = vi.fn(() => Promise.resolve());
+    mgr.broadcast = vi.fn();
+    const acct = { id: 'acct-refused', user_id: 'u1', imap_host: '2130706433', imap_port: 993, imap_tls: true, auth_user: 'u', auth_pass: 'enc' };
+
+    expect(await mgr.connectAccount(acct)).toBe(false);
+    expect(mgr.connectingAccounts.has(acct.id)).toBe(false);
+    expect(query.mock.calls.some(([sql, params]) => /SET sync_error/.test(sql) && /private or reserved/.test(params[0]))).toBe(true);
+    // Not "Already connecting": the second attempt reaches the host check again.
+    expect(await mgr.connectAccount(acct)).toBe(false);
+    expect(resolveForConnection).toHaveBeenCalledTimes(2);
   });
 });
 
