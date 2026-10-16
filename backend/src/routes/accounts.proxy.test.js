@@ -33,8 +33,8 @@ describe('account proxy settings', () => {
     const response = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...account, proxy_password: 'secret@%' }) });
     expect(response.status).toBe(200);
     const insert = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO email_accounts'));
-    expect(decrypt(insert[1][26])).toBe('secret@%');
-    expect(insert[1][26]).toMatch(/^enc:v1:/);
+    expect(decrypt(insert[1][27])).toBe('secret@%');
+    expect(insert[1][27]).toMatch(/^enc:v1:/);
     expect(await response.json()).not.toHaveProperty('proxy_password');
   });
   it('updates and encrypts the password, marks it as stored and reconnects', async () => {

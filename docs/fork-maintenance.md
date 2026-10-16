@@ -3,7 +3,7 @@
 ## Ownership and baseline
 
 Repository: `KKKKeybird/mailflow`; maintained branch: `main`; upstream: `maathimself/mailflow`.
-Current upstream baseline: `v3.9.0`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
+Current upstream baseline: `v4.0.1`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
 
 ## Sync policy
 
@@ -53,3 +53,9 @@ All 67 migrations applied successfully on an empty database, and a second migrat
 If a release fails because its workflow needs a fix, merge the workflow fix on main and dispatch the same unpublished version again. Release resolves an existing draft to its original tag commit and validates/builds that exact commit with the repaired workflow. It does not move the tag. Without a draft, a tag pointing to another commit is rejected; published releases are never overwritten. The draft discovery and desktop setup jobs need contents: write because GitHub hides drafts from read-only tokens.
 
 Manual Publish Apps repairs preserve whether the existing release is a draft; attaching assets must not publish an unfinished draft.
+
+## Integration: v4.0.1 (2026-10-16)
+
+Merged the selected upstream tag with ancestry preserved. Preference updates retain both sender grouping fields and upstream's `afterRemove` / `darkEmailBodies`; account updates retain both the new icon and mailbox proxy settings. List selection and removal use upstream's deep-link cleanup and after-remove preference while retaining sender row identities. The app-language date formatter keeps the fork's zero-hour midnight display. Android retains the fork's browser chooser and updater URL alongside upstream's local setup page and host-switch fixes.
+
+The live endpoint baseline and CI now use `v4.0.1`. Baseline modules resolve their relative imports against the backend source tree; the disposable fixture includes the flags, folder-role metadata and account mappings required by upstream's draft-aware conversation counts. All 72 migrations applied on an empty PostgreSQL 16 database and a second run made no changes. Production dependency audits meet the high-severity threshold; existing moderate upstream dependency advisories remain.

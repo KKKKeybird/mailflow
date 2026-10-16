@@ -153,7 +153,7 @@ jobs:
           finally { await pool.end(); }
           JS
       - name: Fetch selected upstream baseline (read only)
-        run: git fetch https://github.com/maathimself/mailflow.git refs/tags/v3.9.0:refs/tags/v3.9.0
+        run: git fetch https://github.com/maathimself/mailflow.git refs/tags/v4.0.1:refs/tags/v4.0.1
       - name: Seed disposable sender grouping database
         run: |
           createdb mailflow_sender_revision
@@ -166,6 +166,6 @@ jobs:
       - name: Validate real list endpoint against upstream
         env:
           DB_NAME: mailflow_sender_revision
-          BENCH_BASE_REF: v3.9.0
+          BENCH_BASE_REF: v4.0.1
           BENCH_VALIDATE: "1"
         run: node backend/benchmarks/senderGrouping.mjs

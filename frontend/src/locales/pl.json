@@ -114,6 +114,7 @@
     "sendTooltip": "Wyślij (Ctrl+Enter)",
     "sending": "Wysyłanie…",
     "discard": "Odrzuć",
+    "discardFailed": "Nie udało się usunąć wersji roboczej. Spróbuj ponownie.",
     "saveDraft": "Zapisz wersję roboczą",
     "savingDraft": "Zapisywanie…",
     "draftSaved": "Wersja robocza zapisana",
@@ -188,7 +189,8 @@
       "aiApply": "Zastosuj",
       "aiDismiss": "Odrzuć",
       "aiGenerating": "Generowanie…",
-      "aiError": "Błąd AI: {{message}}"
+      "aiError": "Błąd AI: {{message}}",
+      "aiTooLong": "ta wersja robocza ma {{count}} znaków, więcej niż {{max}}, które przyjmuje AI. Skróć ją lub usuń cytowany tekst i spróbuj ponownie."
     },
     "priority": "Priorytet",
     "priorityHigh": "Wysoki priorytet",
@@ -222,6 +224,9 @@
     "noContent": "Nie znaleziono treści wiadomości.",
     "remoteImagesBlocked": "Zablokowano zdalne obrazy.",
     "loadImages": "Wczytaj obrazy",
+    "trackersBlocked_one": "Zablokowane elementy śledzące: {{count}}",
+    "trackersBlocked_other": "Zablokowane elementy śledzące: {{count}}",
+    "trackersBlockedHint": "Nie wczytano obrazów, które informują nadawcę o otwarciu tej wiadomości.",
     "allowSender": "Zawsze zezwalaj nadawcy {{email}}",
     "allowDomain": "Zawsze zezwalaj domenie @{{domain}}",
     "downloading": "Pobieranie…",
@@ -242,6 +247,9 @@
     "delete": "Usuń",
     "downloadEml": "Pobierz jako .eml",
     "print": "Drukuj",
+    "showDark": "Pokaż w ciemnych kolorach",
+    "showOriginal": "Pokaż oryginalne kolory",
+    "cannotShowDark": "Tej wiadomości nie można wyświetlić w trybie ciemnym bez pogorszenia czytelności tekstu",
     "printConversation": "Drukuj konwersację",
     "preparingPrint": "Przygotowywanie wydruku…",
     "more": "Więcej",
@@ -251,6 +259,7 @@
     "aiActions": "Działania AI",
     "manageAiActions": "Zarządzaj działaniami…",
     "aiRegenerate": "Wygeneruj ponownie",
+    "aiTruncated": "Na podstawie pierwszych {{percent}}% tej wiadomości. Reszta była zbyt długa, by wysłać ją do AI.",
     "aiExpand": "Rozwiń",
     "aiCollapse": "Zwiń",
     "aiCopy": "Kopiuj",
@@ -263,19 +272,26 @@
       "failBody": "Nie udało się zarchiwizować wiadomości.",
       "noFolderTitle": "Brak folderu archiwum",
       "noFolderBody": "Nie skonfigurowano folderu archiwum dla tego konta. Ustaw go w Ustawienia → Konta → Mapowanie folderów.",
-      "conversationTitle": "Konwersacja zarchiwizowana"
+      "conversationTitle": "Konwersacja zarchiwizowana",
+      "nothingFromAccount": "W tej konwersacji nie ma nic z tego konta do zarchiwizowania",
+      "otherAccountMessage": "Nic nie zarchiwizowano: otwarta wiadomość pochodzi z innego konta",
+      "otherAccountDraft": "Nic nie zarchiwizowano: otwarta wersja robocza pochodzi z innego konta"
     },
     "moved": {
       "title": "Wiadomość przeniesiona",
       "failTitle": "Przenoszenie nie powiodło się",
       "failBody": "Nie udało się przenieść wiadomości.",
-      "conversationTitle": "Konwersacja przeniesiona"
+      "conversationTitle": "Konwersacja przeniesiona",
+      "nothingFromAccount": "W tej konwersacji nie ma nic z tego konta do przeniesienia",
+      "otherAccountDraft": "Nic nie przeniesiono: otwarta wersja robocza pochodzi z innego konta"
     },
     "snoozed": {
       "title": "Wiadomość odłożona",
       "failTitle": "Odkładanie nie powiodło się",
       "failBody": "Nie udało się odłożyć tej wiadomości.",
-      "conversationTitle": "Konwersacja odłożona"
+      "conversationTitle": "Konwersacja odłożona",
+      "nothingFromAccount": "W tej konwersacji nie ma nic z tego konta do odłożenia",
+      "nothingInConversation": "W tej konwersacji nie ma nic do odłożenia"
     },
     "whitelistFail": {
       "title": "Nie udało się zapisać ustawienia",
@@ -314,6 +330,16 @@
       "passwordLabel": "Hasło do PDF",
       "passwordSubmit": "Otwórz",
       "passwordIncorrect": "Nieprawidłowe hasło. Spróbuj ponownie."
+    },
+    "unsnoozed": {
+      "title": "Przywrócono",
+      "failTitle": "Nie udało się przywrócić",
+      "failBody": "Wiadomość nadal jest odłożona. Spróbuj ponownie."
+    },
+    "snoozeChanged": {
+      "title": "Odłożone do {{when}}",
+      "failTitle": "Nie udało się zmienić czasu powrotu",
+      "failBody": "Pozostaje poprzedni czas. Spróbuj ponownie."
     }
   },
   "messageList": {
@@ -357,7 +383,8 @@
       "body": "Usunięto.",
       "failTitle": "Usuwanie nie powiodło się",
       "failBody": "Nie udało się usunąć wiadomości.",
-      "conversationTitle": "Konwersacja usunięta"
+      "conversationTitle": "Konwersacja usunięta",
+      "nothingFromAccount": "W tej konwersacji nie ma nic z tego konta do usunięcia"
     },
     "draftBcc": {
       "failTitle": "Wersja robocza otwarta tylko do odczytu",
@@ -409,6 +436,7 @@
     "pullToSync": "Pociągnij, aby zsynchronizować",
     "releaseToSync": "Puść, aby zsynchronizować",
     "noSearchResults": "Nie znaleziono wyników",
+    "searching": "Wyszukiwanie…",
     "noSearchResultsDesc": "Brak wyników dla {{query}}",
     "searchFailed": "Wyszukiwanie nie powiodło się",
     "clearSearch": "Wyczyść wyszukiwanie",
@@ -467,6 +495,9 @@
         "description": "Lista wiadomości nad panelem czytania"
       }
     },
+    "snoozedUntil": "Odłożone do {{when}}",
+    "snoozedEmpty": "Nic nie jest odłożone",
+    "snoozedEmptyDesc": "Odłożone wiadomości czekają tutaj, aż wrócą.",
     "senderGroupCounts": "{{unread}} nieprzeczytanych · {{count}} wiadomości",
     "senderGroupLoadError": "Nie udało się wczytać wiadomości od tego nadawcy. Spróbuj ponownie."
   },
@@ -528,7 +559,8 @@
     "emptying": "Opróżnianie „{{name}}”…",
     "emptied": "Folder opróżniony",
     "backToAccounts": "Powrót do kont",
-    "updateAvailable": "Dostępna aktualizacja: v{{version}}"
+    "updateAvailable": "Dostępna aktualizacja: v{{version}}",
+    "snoozed": "Odłożone"
   },
   "contextMenu": {
     "find": "Znajdź",
@@ -550,7 +582,9 @@
       "threeHours": "Za 3 godziny",
       "tomorrowMorning": "Jutro rano",
       "nextWeek": "W przyszłym tygodniu",
-      "custom": "Niestandardowe..."
+      "custom": "Niestandardowe...",
+      "change": "Zmień czas powrotu",
+      "unsnooze": "Przywróć teraz"
     },
     "categorize": "Kategoryzuj jako…",
     "categoryAlwaysSender": "Zawsze dla tego nadawcy",
@@ -795,6 +829,11 @@
     },
     "title": "Ustawienia",
     "close": "Zamknij",
+    "behavior": {
+      "reading": "Czytanie",
+      "writing": "Pisanie",
+      "sync": "Synchronizacja"
+    },
     "tabs": {
       "cleanup": "Porządki",
       "accounts": "Konta",
@@ -814,10 +853,11 @@
       "aiActions": "Działania AI",
       "antispam": "Antyspam",
       "categories": "Kategorie",
-      "groupAccountMail": "Konto i poczta",
-      "groupDisplay": "Wyświetlanie",
-      "groupSecurityIntegrations": "Bezpieczeństwo i integracje",
+      "groupMail": "Poczta",
+      "groupPreferences": "Preferencje",
+      "groupAiExtensions": "AI i rozszerzenia",
       "groupAdmin": "Administracja",
+      "behavior": "Zachowanie",
       "plugins": "Wtyczki",
       "backup": "Kopia zapasowa"
     },
@@ -868,6 +908,8 @@
       "actionForward": "Przekaż dalej do",
       "actionForwardPlaceholder": "odbiorca@example.com",
       "actionSetCategory": "Ustaw kategorię",
+      "actionNotify": "Powiadom mnie",
+      "actionNotifyHint": "Powiadamiaj, nawet gdy reguła przenosi wiadomość lub oznacza ją jako przeczytaną.",
       "actionSetCategorySelect": "Wybierz kategorię…",
       "actionMovePlaceholder": "Dokładna ścieżka folderu IMAP (np. Praca lub Odebrane/Praca)",
       "actionMoveSelectFolder": "Wybierz folder…",
@@ -905,6 +947,10 @@
       "editTitle": "Edytuj konto",
       "addTitle": "Dodaj konto",
       "color": "Kolor konta",
+      "icon": "Ikona",
+      "iconNone": "Brak (kolorowa kropka)",
+      "iconCustom": "Lub wpisz emoji",
+      "iconHint": "Wyświetlana zamiast kolorowej kropki.",
       "displayName": "Nazwa wyświetlana",
       "displayNamePh": "np. Konto służbowe",
       "senderName": "Nazwa nadawcy",
@@ -1030,6 +1076,8 @@
     "appearance": {
       "title": "Wygląd",
       "description": "Wybierz motyw kolorystyczny interfejsu",
+      "darkEmailBodies": "Ciemna treść wiadomości",
+      "darkEmailBodiesDesc": "W ciemnym motywie pokazuj w ciemnych kolorach także e-maile HTML: z własnym ciemnym wyglądem nadawcy, jeśli go mają, a w przeciwnym razie przebarwione przez MailFlow. E-mail wygląda tak, jak go wysłano, gdy o to prosi lub gdy ciemne wyświetlanie pogorszyłoby czytelność tekstu. Każdą wiadomość można przełączyć osobno.",
       "typography": "Typografia",
       "typographyDescription": "Wybierz zestaw czcionek dla interfejsu",
       "typographyLoading": "Wczytywanie czcionek…",
@@ -1103,6 +1151,14 @@
       "defaultSender": "Domyślny nadawca",
       "defaultSenderDesc": "Adres, z którego wysyłane są nowe wiadomości, niezależnie od tego, które konto przeglądasz. Odpowiedzi i przekazywane wiadomości zawsze korzystają z konta, które otrzymało wiadomość.",
       "defaultSenderLastUsed": "Ostatnio używane konto",
+      "afterRemove": "Po usunięciu lub archiwizacji",
+      "afterRemoveNext": "Otwórz następną wiadomość",
+      "afterRemoveNextDesc": "Otwiera wiadomość poniżej usuniętej.",
+      "afterRemovePrevious": "Otwórz poprzednią wiadomość",
+      "afterRemovePreviousDesc": "Otwiera wiadomość powyżej usuniętej.",
+      "afterRemoveList": "Wróć do listy",
+      "afterRemoveListDesc": "Pozostawia panel odczytu pusty.",
+      "afterRemoveMobile": "Na telefonie zawsze wracasz do listy.",
       "markReadBehavior": "Oznacz jako przeczytane",
       "markReadImmediate": "Natychmiast",
       "markReadImmediateDesc": "Oznaczaj wiadomości jako przeczytane natychmiast po ich otwarciu.",
@@ -1810,7 +1866,9 @@
     "noRulesFired": "Nie aktywowano żadnej reguły",
     "mlTokensTitle": "Najważniejsze tokeny",
     "noMlTokens": "Brak tokenów ML",
-    "conversationMovedToSpam": "Konwersacja przeniesiona do spamu"
+    "conversationMovedToSpam": "Konwersacja przeniesiona do spamu",
+    "nothingFromAccount": "W tej konwersacji nie ma nic z tego konta do oznaczenia jako spam",
+    "nothingInConversation": "W tej konwersacji nie ma nic do oznaczenia jako spam"
   },
   "contacts": {
     "title": "Kontakty",

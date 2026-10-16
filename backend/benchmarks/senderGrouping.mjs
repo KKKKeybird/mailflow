@@ -10,11 +10,12 @@ import assert from 'node:assert/strict';
 
 if (!process.env.DB_NAME?.includes('sender_revision')) throw new Error('Use a disposable sender_revision database');
 const base = new URL('../', import.meta.url);
-const ref = process.env.BENCH_BASE_REF || 'v3.9.0';
+const ref = process.env.BENCH_BASE_REF || 'v4.0.1';
 const directory = await mkdtemp(`${tmpdir()}/mailflow-group-bench-`);
 const original = execFileSync('git', ['show', `${ref}:backend/src/services/messageService.js`], { cwd: base, encoding: 'utf8' });
 const baselinePath = `${directory}/baseline.mjs`;
-await writeFile(baselinePath, original.replace("'./db.js'", JSON.stringify(new URL('src/services/db.js', base).href)).replace("'./unifiedInbox.js'", JSON.stringify(new URL('src/services/unifiedInbox.js', base).href)));
+const resolveBaselineImports = source => source.replace(/(['"])(\.\.?\/[^'"]+)\1/g, (_match, _quote, relative) => JSON.stringify(new URL(relative, new URL('src/services/messageService.js', base)).href));
+await writeFile(baselinePath, resolveBaselineImports(original));
 const serviceUrl = new URL('src/services/messageService.js', base).href;
 registerHooks({ load(url, context, next) {
   if (url === new URL('src/index.js', base).href) return { format: 'module', shortCircuit: true, source: 'export const imapManager = {prefetchFolderBodies: async () => {}};' };
@@ -93,7 +94,15 @@ try {
     await query(`UPDATE users SET preferences = preferences || jsonb_build_object('groupedSenders',
       (preferences->'groupedSenders') || $2::jsonb) WHERE id=$1`,
       [userId, JSON.stringify(['Alice','Bob','','alice'].map(name => senderIdentity('shared@example.com',name)))]);
-    await query(`DELETE FROM folders; INSERT INTO folders SELECT account_id,'INBOX',count(*)::int,count(*)FILTER(WHERE NOT is_read)::int FROM messages GROUP BY account_id`);
+    // Conversation badges include sent replies across folders, but never unsent drafts.
+    await query(`INSERT INTO messages(id,account_id,uid,folder,message_id,thread_id,thread_key,subject,from_name,from_email,date,snippet,is_read,category,flags)
+      SELECT md5('conversation-extra:'||i)::uuid,m.account_id,93000+i,
+        CASE WHEN i=1 THEN 'Sent' ELSE 'Drafts' END,'<conversation-extra-'||i||'>',m.thread_id,m.thread_key,
+        'Reply',m.from_name,m.from_email,m.date+interval '1 minute','Reply',true,m.category,
+        CASE WHEN i=1 THEN '[]'::jsonb ELSE jsonb_build_array(chr(92)||'Draft') END
+      FROM messages m CROSS JOIN generate_series(1,2)i
+      WHERE m.uid=92001 AND m.account_id='22222222-2222-2222-2222-222222222222' ON CONFLICT DO NOTHING`);
+    await query(`DELETE FROM folders; INSERT INTO folders(account_id,path,total_count,unread_count) SELECT account_id,folder,count(*)::int,count(*)FILTER(WHERE NOT is_read)::int FROM messages GROUP BY account_id,folder`);
     globalThis.__senderBenchmarkImplementation=current.listMessages;
     assert.ok((await request({ accountId:'44444444-4444-4444-4444-444444444444',groupSenders:true })).messages.every(m => m.account_id !== '44444444-4444-4444-4444-444444444444'));
     assert.equal((await request({ accountId:'55555555-5555-5555-5555-555555555555',groupSenders:true })).messages.length,2);

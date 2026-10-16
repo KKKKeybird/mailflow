@@ -1,7 +1,8 @@
 import { query } from './db.js';
 import { senderIdentitySql } from './senderIdentity.js';
+import { draftMessageSql } from '../utils/mailUtils.js';
 
-export async function senderCandidates({ where, values, accounts, senders, sender, threaded, unfiltered, limit, offset, mappingsParam }) {
+export async function senderCandidates({ where, values, accounts, senders, sender, threaded, limit, offset, mappingsParam }) {
   if (accounts.length === 1 && where.includes('m.account_id = ANY(')) {
     values = [...values, accounts[0]];
     where += ` AND m.account_id = $${values.length}`;
@@ -53,25 +54,24 @@ export async function senderCandidates({ where, values, accounts, senders, sende
   }
   let totals = '';
   let messages = '1';
-  if (threaded && !unfiltered) {
+  if (threaded) {
     const accountParam = `$${args.length + 1}`;
     args.push(accounts);
     const accountTotals = accounts.length <= 16 ? accounts.map((_, i) => `
       SELECT thread_key, COUNT(DISTINCT message_id)::int AS message_count
-      FROM messages WHERE account_id = (${accountParam}::uuid[])[${i + 1}]
-        AND folder = 'INBOX' AND NOT is_deleted AND message_id IS NOT NULL
+      FROM messages m WHERE account_id = (${accountParam}::uuid[])[${i + 1}]
+        AND NOT is_deleted AND message_id IS NOT NULL AND NOT ${draftMessageSql('m')}
       GROUP BY thread_key`) : null;
     totals = `, thread_totals AS (
       ${accountTotals ? (accounts.length === 1 ? accountTotals[0] : `
         SELECT thread_key, SUM(message_count)::int AS message_count
         FROM (${accountTotals.join(' UNION ALL ')}) account_totals GROUP BY thread_key`) : `
         SELECT thread_key, COUNT(DISTINCT (account_id, message_id))::int AS message_count
-        FROM messages WHERE account_id = ANY(${accountParam}) AND folder = 'INBOX'
-          AND NOT is_deleted AND message_id IS NOT NULL GROUP BY thread_key`}
+        FROM messages m WHERE account_id = ANY(${accountParam})
+          AND NOT is_deleted AND message_id IS NOT NULL AND NOT ${draftMessageSql('m')} GROUP BY thread_key`}
     )`;
     messages = 'COALESCE(tt.message_count, 1)';
   }
-  if (threaded && unfiltered) messages = 'GREATEST(message_count, 1)';
   const accountsParam = `$${args.length + 1}::uuid[]`;
   if (!threaded) args.push(accounts);
   const ordinarySource = threaded ? `
@@ -102,7 +102,7 @@ export async function senderCandidates({ where, values, accounts, senders, sende
         COUNT(*)::int AS list_count, SUM(${messages})::int AS sender_message_count,
         SUM(${unread})::int AS sender_unread_count
         ${threaded ? ', MAX(date) AS head_date, BOOL_OR(date IS NULL) AS has_null_date' : ''}
-      FROM ${rows} ${threaded && !unfiltered ? 'LEFT JOIN thread_totals tt USING (thread_key)' : ''}
+      FROM ${rows} ${threaded ? 'LEFT JOIN thread_totals tt USING (thread_key)' : ''}
       WHERE ${scope} GROUP BY CASE WHEN ${from} = ANY(${groupParam}) THEN ${from} END
     ), ordinary AS (${ordinarySource}), heads AS (${heads}), page AS (
       SELECT * FROM (SELECT * FROM ordinary UNION ALL

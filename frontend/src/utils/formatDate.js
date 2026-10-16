@@ -1,28 +1,85 @@
-import { format, isToday, isYesterday, isThisYear } from 'date-fns';
+import i18next from 'i18next';
+import { isToday, isTomorrow, isYesterday, isThisYear } from 'date-fns';
+import { htmlLang } from './browserLanguage.js';
 
-export function formatMailTime(date) {
-  const d = new Date(date);
-  if (!Number.isFinite(d.getTime())) return '';
-  // Use zero for midnight, while keeping noon as 12 PM.
-  return `${d.getHours() === 0 ? 0 : (d.getHours() % 12 || 12)}:${format(d, 'mm a')}`;
+// Dates are written in MailFlow's language, not the browser's (#593): with Russian chosen in
+// MailFlow and an English browser, month names, AM/PM and "Yesterday" used to stay English. The
+// time zone and the calendar day stay the browser's own. The language is read from the shared
+// i18next instance (src/i18n.js), so these work wherever they are called from.
+export function appLocale() {
+  const tag = htmlLang(i18next.language || 'en');
+  try {
+    return Intl.DateTimeFormat.supportedLocalesOf([tag]).length ? tag : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
-export function formatMessageDate(dateStr, mobile = false) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  if (!Number.isFinite(d.getTime())) return '';
-  return `${format(d, mobile ? 'MMM d' : 'MMM d, yyyy')}, ${formatMailTime(d)}`;
+const parse = (value) => {
+  if (!value) return null;
+  const d = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(d.getTime()) ? d : null;
+};
+
+const written = (d, options, locale) => {
+  const formatter = new Intl.DateTimeFormat(locale ?? appLocale(), options);
+  const parts = formatter.formatToParts(d);
+  if (!(d.getHours() === 0 && parts.some(part => part.type === 'dayPeriod'))) return formatter.format(d);
+  if (d.getHours() === 0) {
+    for (const part of parts) if (part.type === 'hour' && part.value === '12') part.value = '0';
+  }
+  return parts.map(part => part.value).join('').replace(/\u202f/g, ' ');
+};
+
+// "Yesterday" in the app's language, capitalized as a label.
+function yesterday(locale) {
+  const word = new Intl.RelativeTimeFormat(locale ?? appLocale(), { numeric: 'auto' }).format(-1, 'day');
+  return word.charAt(0).toLocaleUpperCase(locale ?? appLocale()) + word.slice(1);
 }
 
 // Compact relative date label shared by MessageList and the GTD display surfaces.
-// Guards an invalid date to '' so a malformed value can never throw from
-// date-fns format().
-export function formatDate(dateStr) {
-  if (!dateStr) return '';
-  const d = new Date(dateStr);
-  if (!Number.isFinite(d.getTime())) return '';
-  if (isToday(d)) return formatMailTime(d);
-  if (isYesterday(d)) return 'Yesterday';
-  if (isThisYear(d)) return format(d, 'MMM d');
-  return format(d, 'MMM d, yyyy');
+// Guards an invalid date to '' so a malformed value can never throw.
+export function formatDate(dateStr, locale) {
+  const d = parse(dateStr);
+  if (!d) return '';
+  if (isToday(d)) return written(d, { hour: 'numeric', minute: '2-digit' }, locale);
+  if (isYesterday(d)) return yesterday(locale);
+  if (isThisYear(d)) return written(d, { month: 'short', day: 'numeric' }, locale);
+  return written(d, { month: 'short', day: 'numeric', year: 'numeric' }, locale);
 }
+
+// A message's date and time in the reading pane; without the year where space is short.
+export function formatMessageDateTime(dateStr, { withYear = true } = {}, locale) {
+  const d = parse(dateStr);
+  if (!d) return '';
+  return written(d, {
+    month: 'short', day: 'numeric', ...(withYear ? { year: 'numeric' } : {}), hour: 'numeric', minute: '2-digit',
+  }, locale);
+}
+
+// toLocaleString / toLocaleDateString / toLocaleTimeString, in the app's language.
+export const formatDateTime = (value, locale) => parse(value)?.toLocaleString(locale ?? appLocale()) ?? '';
+export const formatDay = (value, locale) => parse(value)?.toLocaleDateString(locale ?? appLocale()) ?? '';
+export const formatTime = (value, locale) => parse(value)?.toLocaleTimeString(locale ?? appLocale()) ?? '';
+
+// When snoozed mail comes back (#269), compact for a list row: the time today, "Tomorrow" and the
+// time, the weekday within the week, the date beyond that.
+export function formatSnoozeUntil(value, locale, now = new Date()) {
+  const d = parse(value);
+  if (!d) return '';
+  const time = written(d, { hour: 'numeric', minute: '2-digit' }, locale);
+  if (isToday(d)) return time;
+  if (isTomorrow(d)) {
+    const word = new Intl.RelativeTimeFormat(locale ?? appLocale(), { numeric: 'auto' }).format(1, 'day');
+    return `${word.charAt(0).toLocaleUpperCase(locale ?? appLocale())}${word.slice(1)} ${time}`;
+  }
+  if (d - now < 6 * 86_400_000) return written(d, { weekday: 'short', hour: 'numeric', minute: '2-digit' }, locale);
+  return written(d, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }, locale);
+}
+
+// Compatibility exports used by sender cards and existing fork integrations.
+export const formatMailTime = value => {
+  const d = parse(value);
+  return d ? written(d, { hour: 'numeric', minute: '2-digit' }, 'en-US').replace(/\s+/g, ' ') : '';
+};
+export const formatMessageDate = (value, mobile = false) => formatMessageDateTime(value, { withYear: !mobile }, 'en-US').replace(/\s+/g, ' ');
