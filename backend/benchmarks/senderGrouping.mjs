@@ -94,6 +94,14 @@ try {
     await query(`UPDATE users SET preferences = preferences || jsonb_build_object('groupedSenders',
       (preferences->'groupedSenders') || $2::jsonb) WHERE id=$1`,
       [userId, JSON.stringify(['Alice','Bob','','alice'].map(name => senderIdentity('shared@example.com',name)))]);
+    // Conversation badges include sent replies across folders, but never unsent drafts.
+    await query(`INSERT INTO messages(id,account_id,uid,folder,message_id,thread_id,thread_key,subject,from_name,from_email,date,snippet,is_read,category,flags)
+      SELECT md5('conversation-extra:'||i)::uuid,m.account_id,93000+i,
+        CASE WHEN i=1 THEN 'Sent' ELSE 'Drafts' END,'<conversation-extra-'||i||'>',m.thread_id,m.thread_key,
+        'Reply',m.from_name,m.from_email,m.date+interval '1 minute','Reply',true,m.category,
+        CASE WHEN i=1 THEN '[]'::jsonb ELSE jsonb_build_array(chr(92)||'Draft') END
+      FROM messages m CROSS JOIN generate_series(1,2)i
+      WHERE m.uid=92001 AND m.account_id='22222222-2222-2222-2222-222222222222' ON CONFLICT DO NOTHING`);
     await query(`DELETE FROM folders; INSERT INTO folders SELECT account_id,'INBOX',count(*)::int,count(*)FILTER(WHERE NOT is_read)::int FROM messages GROUP BY account_id`);
     globalThis.__senderBenchmarkImplementation=current.listMessages;
     assert.ok((await request({ accountId:'44444444-4444-4444-4444-444444444444',groupSenders:true })).messages.every(m => m.account_id !== '44444444-4444-4444-4444-444444444444'));
