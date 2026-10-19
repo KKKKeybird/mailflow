@@ -1,6 +1,6 @@
 # MailFlow sender-grouping fork
 
-这是 [KKKKeybird/mailflow](https://github.com/KKKKeybird/mailflow) 独立维护的 fork，基于上游 **v4.0.1**，保留按发件人折叠收件箱及索引查询性能优化。它不是上游官方版本。功能操作与边界见 [发件人折叠说明](docs/sender-grouping.md)，维护、同步与验证流程见 [fork 维护说明](docs/fork-maintenance.md)。
+这是 [KKKKeybird/mailflow](https://github.com/KKKKeybird/mailflow) 独立维护的 fork，基于上游 **v4.0.2**，保留按发件人折叠收件箱及索引查询性能优化。它不是上游官方版本。功能操作与边界见 [发件人折叠说明](docs/sender-grouping.md)，维护、同步与验证流程见 [fork 维护说明](docs/fork-maintenance.md)。
 
 在收件箱的邮件菜单选择 **Group emails from this sender（按此发件人折叠）**，不同主题的邮件会合并成一个可展开的发件人分组；偏好保存到服务器并在设备间同步，原有会话模式、邮件操作和未读过滤继续可用。
 
@@ -656,7 +656,7 @@ MailFlow is free and open source. If it's useful to you, consider supporting dev
 ### GitHub Sponsors
 
 <!-- SPONSORS-START -->
-<a href="https://github.com/shamoon" title="shamoon"><img src="https://avatars.githubusercontent.com/u/4887959?s=64&v=4" width="48" height="48" alt="shamoon" style="border-radius:50%;margin:4px"></a>
+<a href="https://github.com/phillip9933" title="phillip9933"><img src="https://avatars.githubusercontent.com/u/19641186?s=64&u=f5eed97c62db0fed8c5274adcf7fd750e42bcd93&v=4" width="48" height="48" alt="phillip9933" style="border-radius:50%;margin:4px"></a>
 <a href="https://github.com/chip-well" title="chip-well"><img src="https://avatars.githubusercontent.com/u/80933507?s=64&u=a1ab1fc07b1cf5a6822453c007abfe24a581a420&v=4" width="48" height="48" alt="chip-well" style="border-radius:50%;margin:4px"></a>
 <!-- SPONSORS-END -->
 
