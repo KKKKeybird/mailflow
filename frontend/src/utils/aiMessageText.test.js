@@ -278,25 +278,31 @@ describe('aiMessageText', () => {
   });
 
   it('stays linear: ~120 KB of quotes with a signature after them still reads whole (#647 review)', () => {
+    const time = (fn) => {
+      const started = performance.now();
+      fn();
+      return performance.now() - started;
+    };
     const repeated = '> q\n'.repeat(30000);
-    const startedText = performance.now();
-    const out = stripQuotedHistory(`Hi\n${repeated}Sent from my phone`);
-    const textElapsed = performance.now() - startedText;
+    let out;
+    const textElapsed = time(() => { out = stripQuotedHistory(`Hi\n${repeated}Sent from my phone`); });
     assert.match(out, /^Hi\n/);
     assert.match(out, /Sent from my phone$/);
     assert.equal(stripQuotedHistory(`My answer.\n${repeated}`), 'My answer.');
 
     const html = `<p>Hi</p>${'&gt; q<br>'.repeat(30000)}<div>Sent from my phone</div>`;
-    const startedHtml = performance.now();
-    const outHtml = aiMessageText({ html });
-    const htmlElapsed = performance.now() - startedHtml;
+    let outHtml;
+    const htmlElapsed = time(() => { outHtml = aiMessageText({ html }); });
     assert.match(outHtml, /Hi/);
     assert.match(outHtml, /Sent from my phone/);
-    // The per-quote scans this replaces took ~8 s at 100 KB and ~62 s at 300 KB in Node,
-    // 7.5–11.6 s in the browsers; linear code clears both shapes in milliseconds. The
-    // bound is loose so slow CI cannot flake.
-    assert.ok(textElapsed < 5000, `text pass took ${textElapsed.toFixed(0)}ms`);
-    assert.ok(htmlElapsed < 5000, `html pass took ${htmlElapsed.toFixed(0)}ms`);
+
+    // Against the same amount of unquoted text on the same machine, not a fixed time: a busy
+    // CI runner is several times slower across the board. The per-quote scans this replaces
+    // took ~8 s at 100 KB in Node, hundreds of times the plain text.
+    const plainText = time(() => stripQuotedHistory(`Hi\n${'- q\n'.repeat(30000)}Sent from my phone`));
+    const plainHtml = time(() => aiMessageText({ html: `<p>Hi</p>${'&amp; q<br>'.repeat(30000)}<div>Sent from my phone</div>` }));
+    assert.ok(textElapsed < plainText * 10 + 200, `text pass took ${textElapsed.toFixed(0)}ms, plain ${plainText.toFixed(0)}ms`);
+    assert.ok(htmlElapsed < plainHtml * 10 + 200, `html pass took ${htmlElapsed.toFixed(0)}ms, plain ${plainHtml.toFixed(0)}ms`);
   });
 
   it('degrades to tags-to-spaces on a tree too deep for the DOM walk, instead of dying (#647 review)', () => {
