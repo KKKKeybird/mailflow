@@ -992,3 +992,97 @@ describe('MessageList — a conversation another account also received (#476)', 
     await settle();
   });
 });
+
+describe('MessageList — mark entire folder read', () => {
+  test('the shortcut sits immediately before Unread and uses the full-folder endpoint', async () => {
+    ROUTES = {};
+    await mount({ rows: [MESSAGE], threadedView: false });
+    const button = container.querySelector('button[aria-label="sidebar.folderMenu.markAllRead"]');
+    assert.ok(button);
+    assert.equal(button.nextElementSibling.textContent, 'messageList.unread');
+    CALLS = [];
+    await React.act(async () => { button.click(); await new Promise(r => setTimeout(r, 20)); });
+    const request = CALLS.find(call => call.path.endsWith('/mail/mark-all-read'));
+    assert.deepEqual(request.body, { accountId: ACCOUNT.id, folder: 'INBOX' });
+    assert.ok(!CALLS.some(call => call.path.endsWith('/mail/bulk-read')));
+  });
+});
+
+describe('MessageList — mobile sender card swipes', () => {
+  const sender = 'shared@example.com\nAlice';
+  const head = { ...MESSAGE, id: `sender:${sender}`, message_id: null, from_email: 'shared@example.com', from_name: 'Alice', sender_group: sender, sender_message_count: 650, sender_unread_count: 640 };
+  const touch = (element, type, x, y = 20) => {
+    const event = new dom.window.Event(type, { bubbles: true, cancelable: true });
+    Object.defineProperty(event, 'touches', { value: type === 'touchend' || type === 'touchcancel' ? [] : [{ clientX: x, clientY: y }] });
+    element.dispatchEvent(event);
+  };
+  async function mobileScenario(run) {
+    const originalWidth = dom.window.innerWidth, originalMedia = dom.window.matchMedia;
+    const originalAction = useStore.getState().performSenderGroupAction;
+    const actions = [];
+    dom.window.innerWidth = 390;
+    dom.window.matchMedia = query => ({ matches: !query.includes('prefers-reduced-motion'), addEventListener() {}, removeEventListener() {} });
+    useStore.setState({ performSenderGroupAction: async (...args) => { actions.push(args); return {}; }, senderGroupActionPending: {} });
+    try {
+      await mount({ rows: [head], threadedView: false });
+      const card = container.querySelector('[data-sender-group] button[aria-expanded]');
+      assert.ok(card);
+      await run(card, actions);
+    } finally {
+      await React.act(async () => root.unmount()); root = null;
+      dom.window.innerWidth = originalWidth; dom.window.matchMedia = originalMedia;
+      useStore.setState({ performSenderGroupAction: originalAction, senderGroupActionPending: {} });
+    }
+  }
+  test('right swipe reads the whole group without opening it or acting on its preview', async () => {
+    await mobileScenario(async (card, actions) => {
+      await React.act(async () => { touch(card, 'touchstart', 20); touch(card, 'touchmove', 140); touch(card, 'touchend', 140); card.click(); });
+      assert.equal(card.style.opacity, '0');
+      await React.act(async () => { await new Promise(r => setTimeout(r, 220)); });
+      assert.deepEqual(actions, [[sender, { accountId: ACCOUNT.id, folder: 'INBOX' }, 'read']]);
+      assert.ok(!container.querySelector('[data-sender-list]'));
+    });
+  });
+  test('left swipe archives the whole group and collapses the card', async () => {
+    await mobileScenario(async (card, actions) => {
+      await React.act(async () => { touch(card, 'touchstart', 200); touch(card, 'touchmove', 60); touch(card, 'touchend', 60); await new Promise(r => setTimeout(r, 220)); });
+      assert.equal(actions.length, 1);
+      assert.equal(actions[0][2], 'archive');
+      assert.equal(container.querySelector('[data-sender-group]').style.maxHeight, '0px');
+    });
+  });
+  test('undo makes a dismissed group visible again', async () => {
+    await mobileScenario(async (card) => {
+      await React.act(async () => useStore.setState({ performSenderGroupAction: async () => {
+        useStore.setState({ senderGroupActionPending: { [sender]: true } });
+        return { undo() {} };
+      } }));
+      await React.act(async () => { touch(card, 'touchstart', 200); touch(card, 'touchmove', 60); touch(card, 'touchend', 60); await new Promise(r => setTimeout(r, 220)); });
+      assert.equal(container.querySelector('[data-sender-group]').style.maxHeight, '0px');
+      await React.act(async () => useStore.setState({ senderGroupActionPending: { [sender]: false } }));
+      assert.equal(container.querySelector('[data-sender-group]').getAttribute('aria-hidden'), null);
+      assert.equal(card.disabled, false);
+    });
+  });
+  test('a failed group snapshot restores the card and reports an error', async () => {
+    await mobileScenario(async (card) => {
+      await React.act(async () => useStore.setState({ performSenderGroupAction: async () => { throw new Error('offline'); } }));
+      await React.act(async () => { touch(card, 'touchstart', 200); touch(card, 'touchmove', 60); touch(card, 'touchend', 60); await new Promise(r => setTimeout(r, 220)); });
+      assert.equal(card.style.opacity, '1');
+      assert.equal(container.querySelector('[data-sender-group]').getAttribute('aria-hidden'), null);
+      assert.ok(useStore.getState().notifications.some(n => n.type === 'error' && n.body === 'offline'));
+    });
+  });
+  test('scrolling, short drags and cancelled gestures never apply group actions', async () => {
+    await mobileScenario(async (card, actions) => {
+      await React.act(async () => {
+        touch(card, 'touchstart', 20); touch(card, 'touchmove', 25, 160); touch(card, 'touchend', 25, 160);
+        touch(card, 'touchstart', 20); touch(card, 'touchmove', 45); touch(card, 'touchend', 45);
+        touch(card, 'touchstart', 20); touch(card, 'touchmove', 140); touch(card, 'touchcancel', 140);
+        await new Promise(r => setTimeout(r, 220));
+      });
+      assert.equal(actions.length, 0);
+      assert.ok(!container.querySelector('[data-sender-list]'));
+    });
+  });
+});

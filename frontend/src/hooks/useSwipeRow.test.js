@@ -17,3 +17,11 @@ describe('isInteractiveSwipeTarget', () => {
     assert.equal(isInteractiveSwipeTarget(null), false);
   });
 });
+
+describe('button rows', () => {
+  it('allows a sender card button itself but still protects nested controls', () => {
+    const button = {};
+    assert.equal(isInteractiveSwipeTarget({ closest: () => button }, button), false);
+    assert.equal(isInteractiveSwipeTarget({ closest: () => ({}) }, button), true);
+  });
+});

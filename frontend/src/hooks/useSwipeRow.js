@@ -2,12 +2,15 @@ import { useRef, useEffect, useCallback } from 'react';
 
 const SWIPE_THRESHOLD = 72;
 
-export function isInteractiveSwipeTarget(target) {
-  return Boolean(target?.closest?.('button, input, select, textarea, a, [role="button"]'));
+export function isInteractiveSwipeTarget(target, rowControl = null) {
+  const control = target?.closest?.('button, input, select, textarea, a, [role="button"]');
+  return Boolean(control && control !== rowControl);
 }
 
-export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLongPress, onTap }) {
+export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLongPress, onTap, rowIsButton = false, animateCommit = false }) {
   const contentRef = useRef(null);
+  const commitTimerRef = useRef(null);
+  const committingRef = useRef(false);
   const swipeBgLeftRef = useRef(null);
   const swipeBgRightRef = useRef(null);
   const swipeRef = useRef({ active: false, startX: 0, startY: 0, dir: null, x: 0, interactive: false });
@@ -19,7 +22,7 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
   // tappedRef is set to true when onTap fires so the subsequent click event can be
   // suppressed — prevents handleSelect from being called twice on the same tap.
   const tappedRef = useRef(false);
-  latestRef.current = { message, onSwipeLeft, onSwipeRight, onLongPress, onTap };
+  latestRef.current = { message, onSwipeLeft, onSwipeRight, onLongPress, onTap, rowIsButton, animateCommit };
 
   const springBack = useCallback(() => {
     const el = contentRef.current;
@@ -27,6 +30,7 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
     if (springBackTimerRef.current) clearTimeout(springBackTimerRef.current);
     el.style.transition = 'transform 0.25s cubic-bezier(0.25,0.46,0.45,0.94)';
     el.style.transform = 'translateX(0)';
+    el.style.opacity = '1';
     el.style.boxShadow = '';
     springBackTimerRef.current = setTimeout(() => {
       springBackTimerRef.current = null;
@@ -67,13 +71,14 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
     };
 
     const onStart = (e) => {
+      if (committingRef.current || e.touches.length !== 1) return;
       const t = e.touches[0];
       if (springBackTimerRef.current) {
         clearTimeout(springBackTimerRef.current);
         springBackTimerRef.current = null;
       }
       longPressActivatedRef.current = false;
-      const interactive = isInteractiveSwipeTarget(e.target);
+      const interactive = isInteractiveSwipeTarget(e.target, latestRef.current.rowIsButton ? el : null);
       swipeRef.current = { active: false, startX: t.clientX, startY: t.clientY, dir: null, x: 0, interactive };
       showBgs();
       if (!interactive && latestRef.current.onLongPress) {
@@ -88,7 +93,7 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
 
     const onMove = (e) => {
       const s = swipeRef.current;
-      if (s.interactive) return;
+      if (committingRef.current || s.interactive || e.touches.length !== 1) return;
       const t = e.touches[0];
       const dx = t.clientX - s.startX;
       const dy = t.clientY - s.startY;
@@ -106,6 +111,8 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
       el.style.transform = `translateX(${s.x}px)`;
       const progress = Math.min(Math.abs(s.x) / SWIPE_THRESHOLD, 1);
       const iconScale = 0.7 + 0.3 * progress;
+      if (swipeBgLeftRef.current) swipeBgLeftRef.current.style.opacity = '0';
+      if (swipeBgRightRef.current) swipeBgRightRef.current.style.opacity = '0';
       if (s.x > 0 && swipeBgLeftRef.current) {
         swipeBgLeftRef.current.style.opacity = String(0.3 + 0.7 * progress);
         const icon = swipeBgLeftRef.current.querySelector('svg');
@@ -119,6 +126,7 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
     };
 
     const onEnd = () => {
+      if (committingRef.current) return;
       cancelLongPress();
       const s = swipeRef.current;
       if (!s.active) {
@@ -140,11 +148,26 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
       }
       const x = s.x;
       resetSwipeState();
-      springBack();
-      if (x < -SWIPE_THRESHOLD) {
-        latestRef.current.onSwipeLeft?.(latestRef.current.message);
-      } else if (x > SWIPE_THRESHOLD) {
-        latestRef.current.onSwipeRight?.(latestRef.current.message);
+      // Group cards opt into the completion animation; ordinary mail keeps its
+      // existing gesture behavior. Capture this action so rerenders cannot retarget it.
+      const action = x < -SWIPE_THRESHOLD ? latestRef.current.onSwipeLeft
+        : x > SWIPE_THRESHOLD ? latestRef.current.onSwipeRight : null;
+      if (action && latestRef.current.animateCommit) {
+        suppressNextClick();
+        committingRef.current = true;
+        const message = latestRef.current.message;
+        const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        el.style.transition = reduced ? 'none' : 'transform 180ms ease-in, opacity 180ms ease-in';
+        el.style.transform = `translateX(${x < 0 ? '-110%' : '110%'})`;
+        el.style.opacity = '0';
+        commitTimerRef.current = setTimeout(async () => {
+          commitTimerRef.current = null;
+          try { await action(message); }
+          finally { committingRef.current = false; springBack(); }
+        }, reduced ? 0 : 180);
+      } else {
+        springBack();
+        if (action) { suppressNextClick(); action(latestRef.current.message); }
       }
     };
 
@@ -164,6 +187,8 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
     el.addEventListener('touchcancel', onCancel, { passive: true });
     return () => {
       cancelLongPress();
+      if (commitTimerRef.current) clearTimeout(commitTimerRef.current);
+      committingRef.current = false;
       if (tapSuppressTimerRef.current) {
         clearTimeout(tapSuppressTimerRef.current);
         tapSuppressTimerRef.current = null;
@@ -180,6 +205,7 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
       el.style.touchAction = '';
       el.style.transform = 'translateX(0)';
       el.style.transition = '';
+      el.style.opacity = '';
       el.style.boxShadow = '';
       if (bgLeft)  bgLeft.style.display = 'none';
       if (bgRight) bgRight.style.display = 'none';

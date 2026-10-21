@@ -7,8 +7,10 @@ import { formatDate } from '../utils/formatDate.js';
 import { senderColor } from '../themes.js';
 import { splitSenderIdentity } from '../utils/senderIdentity.js';
 import SenderAvatarImage from './SenderAvatarImage.jsx';
+import { useSwipeRow } from '../hooks/useSwipeRow.js';
+import { SwipeBackground } from './SwipeActions.jsx';
 
-export default function SenderGroup({ message, cacheKey, params, expanded, onToggle, renderRow, applyReadGuard, isMobile, isNarrow, showMobileAvatars, showMessagePreviews, onContextMenu, onFilterChange, detail = false, toolbar, listRef, onListKeyDown }) {
+export default function SenderGroup({ message, cacheKey, params, expanded, onToggle, renderRow, applyReadGuard, isMobile, isNarrow, showMobileAvatars, showMessagePreviews, onContextMenu, onFilterChange, detail = false, toolbar, listRef, onListKeyDown, swipeDisabled = false }) {
   const { t } = useTranslation();
   const generation = useRef(0);
   const view = useStore(s => s.senderViewState[cacheKey]);
@@ -17,6 +19,26 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
   const rows = useStore(s => s.threadMessages[memberKey] || []);
   const customLabel = useStore(s => s.senderGroupLabels[message.sender_group]);
   const actionPending = useStore(s => !!s.senderGroupActionPending[message.sender_group]);
+  const [archiveDismissed, setArchiveDismissed] = useState(false);
+  const cardRef = useRef(null);
+  const [cardHeight, setCardHeight] = useState(null);
+  const performSwipe = async action => {
+    if (actionPending || swipeDisabled) return;
+    try {
+      setCardHeight(cardRef.current?.getBoundingClientRect().height || 120);
+      const scheduled = await useStore.getState().performSenderGroupAction(message.sender_group, params, action);
+      if (action === 'archive' && scheduled) setArchiveDismissed(true);
+    } catch (error) {
+      useStore.getState().addNotification({ type: 'error', title: t('common.error'), body: error.message });
+    }
+  };
+  const { contentRef, swipeBgLeftRef, swipeBgRightRef, tappedRef } = useSwipeRow({
+    isMobile: isMobile && !detail, message, rowIsButton: true, animateCommit: true,
+    onSwipeLeft: actionPending || swipeDisabled ? undefined : () => performSwipe('archive'),
+    onSwipeRight: actionPending || swipeDisabled || !Number(message.sender_unread_count) ? undefined : () => performSwipe('read'),
+    onTap: onToggle,
+  });
+  useEffect(() => { if (!actionPending) setArchiveDismissed(false); }, [actionPending]);
   const ownListRef = useRef(null);
   const scrollRef = listRef || ownListRef;
   const restored = useRef(false);
@@ -110,9 +132,16 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
   };
 
   return (
-    <section data-sender-group={message.sender_group} data-sender-list={detail || undefined} style={{ borderBottom: '1px solid var(--border-subtle)', ...(detail ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : {}) }}>
-      {!detail && <div style={{ position: 'relative' }} onContextMenu={e => onContextMenu?.(e, message)}>
-      <button type="button" aria-expanded={expanded} onClick={onToggle}
+    <section aria-hidden={archiveDismissed || undefined} aria-busy={actionPending} data-sender-group={message.sender_group} data-sender-list={detail || undefined} style={{ borderBottom: archiveDismissed ? 0 : '1px solid var(--border-subtle)', overflow: detail ? undefined : 'hidden', maxHeight: detail ? undefined : (archiveDismissed ? 0 : actionPending ? cardHeight ?? undefined : undefined), transition: 'max-height 180ms ease, opacity 180ms ease', opacity: archiveDismissed ? 0 : 1, ...(detail ? { display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0 } : {}) }}>
+      {!detail && <div ref={cardRef} style={{ position: 'relative', overflow: 'hidden' }} onContextMenu={e => onContextMenu?.(e, message)}>
+      {isMobile && <>
+        <SwipeBackground fullWidth side="left" innerRef={swipeBgLeftRef} actionView={{ label: t('senderGrouping.readAll'), color: 'var(--accent)', icon: 'unread' }} />
+        <SwipeBackground fullWidth side="right" innerRef={swipeBgRightRef} actionView={{ label: t('senderGrouping.archiveAll'), color: 'var(--amber, #d97706)', icon: 'archive' }} />
+      </>}
+      <button disabled={archiveDismissed} className={isMobile ? 'no-callout' : undefined} ref={isMobile ? contentRef : undefined} type="button" aria-expanded={expanded} onClick={() => {
+        if (tappedRef.current) { tappedRef.current = false; return; }
+        onToggle();
+      }}
         onMouseEnter={() => !isMobile && setHovered(true)}
         onMouseLeave={() => !isMobile && setHovered(false)} style={{
         display: 'flex', alignItems: 'flex-start', gap: 10, width: '100%',
@@ -168,7 +197,7 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
           }}>{message.snippet || '\u00a0'}</span>}
         </span>
       </button>
-      {isMobile && <button type="button" aria-label={t('message.more')} aria-haspopup="menu"
+      {isMobile && <button disabled={archiveDismissed} type="button" aria-label={t('message.more')} aria-haspopup="menu"
         onClick={e => { e.stopPropagation(); onContextMenu?.(e, message); }} style={{
           position: 'absolute', top: 'var(--layout-row-py, 11px)', right: 'var(--layout-row-px, 14px)',
           padding: 4, margin: '-4px -6px 0 0', background: 'none', border: 0,
