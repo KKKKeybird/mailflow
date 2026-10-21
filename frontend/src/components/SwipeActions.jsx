@@ -46,4 +46,3 @@ export function SwipeBackground({ side, actionView, innerRef, fullWidth = false 
     </div>
   );
 }
-
