@@ -1,13 +1,14 @@
 import { useRef, useEffect, useCallback } from 'react';
 
 const SWIPE_THRESHOLD = 72;
+const SWIPE_LIMIT = 160;
 
 export function isInteractiveSwipeTarget(target, rowControl = null) {
   const control = target?.closest?.('button, input, select, textarea, a, [role="button"]');
   return Boolean(control && control !== rowControl);
 }
 
-export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLongPress, onTap, rowIsButton = false, animateCommit = false, swipeLimit = 160, fadeOnSwipeLeft = false }) {
+export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLongPress, onTap, rowIsButton = false, animateCommit = false, fadeOnSwipeLeft = false }) {
   const contentRef = useRef(null);
   const commitTimerRef = useRef(null);
   const committingRef = useRef(false);
@@ -22,7 +23,7 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
   // tappedRef is set to true when onTap fires so the subsequent click event can be
   // suppressed — prevents handleSelect from being called twice on the same tap.
   const tappedRef = useRef(false);
-  latestRef.current = { message, onSwipeLeft, onSwipeRight, onLongPress, onTap, rowIsButton, animateCommit, swipeLimit, fadeOnSwipeLeft };
+  latestRef.current = { message, onSwipeLeft, onSwipeRight, onLongPress, onTap, rowIsButton, animateCommit, fadeOnSwipeLeft };
 
   const springBack = useCallback(() => {
     const el = contentRef.current;
@@ -111,7 +112,7 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
       }
       e.preventDefault();
       s.active = true;
-      s.x = Math.max(-latestRef.current.swipeLimit, Math.min(latestRef.current.swipeLimit, dx));
+      s.x = Math.max(-SWIPE_LIMIT, Math.min(SWIPE_LIMIT, dx));
       el.style.transition = 'none';
       el.style.transform = `translateX(${s.x}px)`;
       const progress = Math.min(Math.abs(s.x) / SWIPE_THRESHOLD, 1);
@@ -165,7 +166,7 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
         el.style.transition = reduced ? 'none' : 'transform 180ms ease-in, opacity 180ms ease-in';
         // Completion must obey the same stop as dragging. Only an archive
         // dismisses the card; marking read returns it without making it vanish.
-        el.style.transform = `translateX(${Math.sign(x) * latestRef.current.swipeLimit}px)`;
+        el.style.transform = `translateX(${Math.sign(x) * SWIPE_LIMIT}px)`;
         el.style.opacity = x < 0 && latestRef.current.fadeOnSwipeLeft ? '0' : '1';
         commitTimerRef.current = setTimeout(async () => {
           commitTimerRef.current = null;

@@ -1016,15 +1016,15 @@ describe('MessageList — mobile sender card swipes', () => {
     Object.defineProperty(event, 'touches', { value: type === 'touchend' || type === 'touchcancel' ? [] : [{ clientX: x, clientY: y }] });
     element.dispatchEvent(event);
   };
-  async function mobileScenario(run) {
+  async function mobileScenario(run, rows = [head]) {
     const originalWidth = dom.window.innerWidth, originalMedia = dom.window.matchMedia;
     const originalAction = useStore.getState().performSenderGroupAction;
     const actions = [];
     dom.window.innerWidth = 390;
     dom.window.matchMedia = query => ({ matches: !query.includes('prefers-reduced-motion'), addEventListener() {}, removeEventListener() {} });
-    useStore.setState({ performSenderGroupAction: async (...args) => { actions.push(args); return {}; }, senderGroupActionPending: {} });
+    useStore.setState({ performSenderGroupAction: async (...args) => { actions.push(args); return {}; }, senderGroupActionPending: {}, swipeActions: { left: 'archive', right: 'markRead' } });
     try {
-      await mount({ rows: [head], threadedView: false });
+      await mount({ rows, threadedView: false });
       const card = container.querySelector('[data-sender-group] button[aria-expanded]');
       assert.ok(card);
       await run(card, actions);
@@ -1037,23 +1037,37 @@ describe('MessageList — mobile sender card swipes', () => {
   test('right swipe reads the whole group without opening it or acting on its preview', async () => {
     await mobileScenario(async (card, actions) => {
       await React.act(async () => { touch(card, 'touchstart', 20); touch(card, 'touchmove', 140); touch(card, 'touchend', 140); card.click(); });
-      assert.equal(card.style.transform, 'translateX(96px)');
+      assert.equal(card.style.transform, 'translateX(160px)');
       assert.equal(card.style.opacity, '1');
       await React.act(async () => { await new Promise(r => setTimeout(r, 220)); });
       assert.deepEqual(actions, [[sender, { accountId: ACCOUNT.id, folder: 'INBOX' }, 'read']]);
       assert.ok(!container.querySelector('[data-sender-list]'));
     });
   });
-  test('both drag directions and completion stay inside the 96px stop', async () => {
+  test('ordinary mail and group cards stop at exactly the same distance in both directions', async () => {
+    await mobileScenario(async (card) => {
+      const ordinary = container.querySelector('[data-msgid="msg-1"] [draggable]');
+      assert.ok(ordinary);
+      for (const endX of [900, -500]) {
+        for (const row of [ordinary, card]) {
+          await React.act(async () => { touch(row, 'touchstart', 200); touch(row, 'touchmove', endX); });
+        }
+        assert.equal(card.style.transform, ordinary.style.transform);
+        assert.equal(card.style.transform, endX > 0 ? 'translateX(160px)' : 'translateX(-160px)');
+        await React.act(async () => { touch(ordinary, 'touchcancel', endX); touch(card, 'touchcancel', endX); });
+      }
+    }, [MESSAGE, head]);
+  });
+  test('both drag directions and completion use the ordinary mail 160px stop', async () => {
     await mobileScenario(async (card, actions) => {
       await React.act(async () => { touch(card, 'touchstart', 200); touch(card, 'touchmove', 900); });
-      assert.equal(card.style.transform, 'translateX(96px)');
+      assert.equal(card.style.transform, 'translateX(160px)');
       await React.act(async () => { touch(card, 'touchcancel', 900); });
       assert.equal(card.style.transform, 'translateX(0)');
       await React.act(async () => { touch(card, 'touchstart', 200); touch(card, 'touchmove', -500); });
-      assert.equal(card.style.transform, 'translateX(-96px)');
+      assert.equal(card.style.transform, 'translateX(-160px)');
       await React.act(async () => { touch(card, 'touchend', -500); });
-      assert.equal(card.style.transform, 'translateX(-96px)');
+      assert.equal(card.style.transform, 'translateX(-160px)');
       assert.equal(card.style.opacity, '0');
       await React.act(async () => { await new Promise(r => setTimeout(r, 220)); });
       assert.equal(actions.length, 1);
