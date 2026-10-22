@@ -373,6 +373,7 @@ export const api = {
   getIntegrationsStatus: () => request('GET', '/integrations/status'),
   saveIntegration: (provider, config) => request('POST', `/integrations/${provider}`, config),
   deleteIntegration: (provider) => request('DELETE', `/integrations/${provider}`),
+  setMsBuiltinApp: (enabled) => request('PUT', '/integrations/microsoft/builtin-app', { enabled }),
   startMsDeviceFlow: async () => {
     const res = await fetch('/oauth/microsoft/device', { method: 'POST', credentials: 'include' });
     const data = await res.json();

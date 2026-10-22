@@ -60,16 +60,18 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: true },
+      microsoft: { configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: true },
       google: { configured: false },
     });
   });
 
+  // This build still carries the built-in app's placeholder ID (#674), so nothing changes
+  // for personal accounts either.
   it('reports configured=false when MS_CLIENT_ID is unset', async () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: false },
+      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false },
       google: { configured: false },
     });
   });
@@ -79,9 +81,20 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: false },
+      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false },
       google: { configured: true },
     });
+  });
+
+  it('reports personal accounts unavailable for an own app on the organizations tenant (#674)', async () => {
+    process.env.MS_CLIENT_ID = 'some-client-id';
+    process.env.MS_TENANT_ID = 'organizations';
+    try {
+      const res = await fetch(`${base}/api/integrations/status`);
+      expect((await res.json()).microsoft).toEqual({ configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: false });
+    } finally {
+      delete process.env.MS_TENANT_ID;
+    }
   });
 
   it('never leaks credentials in the response', async () => {
