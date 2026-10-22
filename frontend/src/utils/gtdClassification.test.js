@@ -5,6 +5,7 @@ import {
   beginGtdClassification, endGtdClassification,
   rememberGtdRailSelection, clearGtdRailSelection, getGtdRailSelection,
 } from './gtdHotkeys.js';
+import { clearGtdMetadata, getGtdMetadata, getGtdMetadataRefreshGeneration, patchGtdMetadata } from '../plugins/gtd/metadataStore.js';
 
 function createHarness(classifyResult = {}) {
   const notifications = [];
@@ -190,6 +191,60 @@ describe('GTD state switch safety', () => {
     await classifyWithUndo('message-2', 'todo', harness);
     assert.equal(typeof harness.notifications[0].onUndo, 'function');
   });
+});
+
+describe('classification metadata', () => {
+  it('updates indicators immediately and refreshes on classify and exact undo', async () => {
+    const message = { id: 'metadata-classify', account_id: 'account', date: '2026-08-01T00:00:00.000Z' };
+    const harness = createHarness({ applied: true, undoToken: { uid: 900 } });
+    harness.message = message;
+    const before = getGtdMetadataRefreshGeneration();
+    await classifyWithUndo(message.id, 'todo', harness);
+    assert.deepEqual(getGtdMetadata(message.id).states, ['todo']);
+    assert.equal(getGtdMetadataRefreshGeneration(), before + 1);
+    await harness.notifications[0].onUndo();
+    assert.equal(getGtdMetadata(message.id), null);
+    assert.equal(getGtdMetadataRefreshGeneration(), before + 2);
+  });
+
+  it('clears outdated labels after a state switch', async () => {
+    const message = { id: 'metadata-switch', account_id: 'account' };
+    patchGtdMetadata(message, 'todo', null);
+    const harness = createHarness({ applied: true, switched: true });
+    harness.message = message;
+    const before = getGtdMetadataRefreshGeneration();
+    await classifyWithUndo(message.id, 'watch', harness);
+    assert.equal(getGtdMetadata(message.id), null);
+    assert.equal(getGtdMetadataRefreshGeneration(), before + 1);
+  });
+
+  it('invalidates uncertain mutations without inventing successful classification', async () => {
+    const message = { id: 'metadata-failure', account_id: 'account' };
+    patchGtdMetadata(message, 'todo', null);
+    const harness = createHarness();
+    harness.message = message;
+    harness.api.gtdClassify = async () => { throw new Error('disconnected after mutation'); };
+    const before = getGtdMetadataRefreshGeneration();
+    await classifyWithUndo(message.id, 'watch', harness);
+    assert.equal(getGtdMetadata(message.id), null);
+    assert.equal(getGtdMetadataRefreshGeneration(), before + 1);
+  });
+});
+
+
+it('ignores metadata writes from classify that completes after session teardown', async () => {
+  const message = { id: 'old-session-classify', account_id: 'account' };
+  const harness = createHarness();
+  harness.message = message;
+  let finish;
+  harness.api.gtdClassify = () => new Promise(resolve => { finish = resolve; });
+  const pending = classifyWithUndo(message.id, 'todo', harness);
+  clearGtdMetadata();
+  const generation = getGtdMetadataRefreshGeneration();
+  finish({ applied: true });
+  await pending;
+  assert.equal(getGtdMetadata(message.id), null);
+  assert.equal(getGtdMetadataRefreshGeneration(), generation);
 });
 
 describe('classifyManyWithUndo', () => {
@@ -439,5 +494,69 @@ describe('classifyManyWithUndo', () => {
     );
     await classifyManyWithUndo(messages.slice(0, 2), 'watch', harness);
     assert.deepEqual(harness.notifications.filter(n => n.id?.startsWith('old-')).map(n => n.id), ['old-t2']);
+  });
+});
+
+describe('bulk classification metadata', () => {
+  const rows = [
+    { id: 'bulk-meta-1', account_id: 'a1', thread_key: 'bt1', date: '2026-09-01T00:00:00.000Z' },
+    { id: 'bulk-meta-2', account_id: 'a1', thread_key: 'bt2', date: '2026-09-02T00:00:00.000Z' },
+    { id: 'bulk-meta-3', account_id: 'a1', thread_key: 'bt3', date: '2026-09-03T00:00:00.000Z' },
+  ];
+  const harnessFor = results => {
+    const harness = createHarness();
+    harness.api.gtdClassify = async id => {
+      const result = results[id];
+      if (result instanceof Error) throw result;
+      return result;
+    };
+    return harness;
+  };
+  const applied = id => ({ applied: true, undoToken: { messageId: id } });
+
+  it('shows each tagged row\'s chip at once and refetches once after the run', async () => {
+    clearGtdMetadata();
+    const harness = harnessFor({ 'bulk-meta-1': applied('bulk-meta-1'), 'bulk-meta-2': new Error('offline'), 'bulk-meta-3': applied('bulk-meta-3') });
+    const before = getGtdMetadataRefreshGeneration();
+    await classifyManyWithUndo(rows, 'watch', harness);
+    assert.deepEqual(getGtdMetadata('bulk-meta-1'), { states: ['watch'], dates: { watch: rows[0].date }, date: rows[0].date });
+    assert.equal(getGtdMetadata('bulk-meta-2'), null, 'a failed tag invents no chip');
+    assert.deepEqual(getGtdMetadata('bulk-meta-3').states, ['watch']);
+    // One refresh for the failed row, one for the run.
+    assert.equal(getGtdMetadataRefreshGeneration(), before + 2);
+  });
+
+  it('bulk Undo removes the chips it put there', async () => {
+    clearGtdMetadata();
+    const harness = harnessFor({ 'bulk-meta-1': applied('bulk-meta-1'), 'bulk-meta-2': applied('bulk-meta-2') });
+    await classifyManyWithUndo(rows.slice(0, 2), 'todo', harness);
+    assert.deepEqual(getGtdMetadata('bulk-meta-2').states, ['todo']);
+    const before = getGtdMetadataRefreshGeneration();
+    assert.equal(await harness.notifications[0].onUndo(), true);
+    assert.equal(getGtdMetadata('bulk-meta-1'), null);
+    assert.equal(getGtdMetadata('bulk-meta-2'), null);
+    assert.ok(getGtdMetadataRefreshGeneration() > before, 'and refetches the real state');
+  });
+
+  it('a switched row drops its old chip instead of adding one', async () => {
+    clearGtdMetadata();
+    patchGtdMetadata(rows[0], 'todo', null);
+    const harness = harnessFor({ 'bulk-meta-1': { applied: true, switched: true } });
+    await classifyManyWithUndo(rows.slice(0, 1), 'watch', harness);
+    assert.equal(getGtdMetadata('bulk-meta-1'), null);
+  });
+
+  it('a run that outlives the session writes no chips', async () => {
+    clearGtdMetadata();
+    const harness = createHarness();
+    let finish;
+    harness.api.gtdClassify = () => new Promise(resolve => { finish = resolve; });
+    const run = classifyManyWithUndo(rows.slice(0, 1), 'todo', harness);
+    clearGtdMetadata();
+    const generation = getGtdMetadataRefreshGeneration();
+    finish(applied('bulk-meta-1'));
+    await run;
+    assert.equal(getGtdMetadata('bulk-meta-1'), null);
+    assert.equal(getGtdMetadataRefreshGeneration(), generation);
   });
 });

@@ -36,6 +36,7 @@ import {
 import { usePluginCollected } from '../plugins/PluginSlot.jsx';
 import SpamBadge from './SpamBadge.jsx';
 import ReplyDraftIndicator from './ReplyDraftIndicator.jsx';
+import { PluginSlot } from '../plugins/PluginSlot.jsx';
 import SpamExplainModal from './SpamExplainModal.jsx';
 import { shortcutBus } from '../utils/shortcutBus.js';
 import { createLatestRequest } from '../utils/latestRequest.js';
@@ -4795,6 +4796,7 @@ function ThreadRow({ message, isExpanded, threadMsgs, isLoadingThread, selectedM
             <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
               {message.subject || t('common.noSubject')}
             </span>
+            <PluginSlot name="message-row-meta" ctx={{ message }} />
             <ReplyDraftIndicator message={message} listRow />
             <SpamBadge message={message} onClick={onExplainSpam} />
           </div>
@@ -5124,6 +5126,7 @@ function MessageRow({ message, selected, lastViewed, isChecked, selectionMode, s
           <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {message.subject || t('message.noSubject')}
           </span>
+          <PluginSlot name="message-row-meta" ctx={{ message }} />
           <ReplyDraftIndicator message={message} listRow />
           <SpamBadge message={message} onClick={onExplainSpam} />
         </div>
