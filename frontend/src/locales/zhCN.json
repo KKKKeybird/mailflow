@@ -1705,7 +1705,8 @@
       "sourceCode": "源代码",
       "sponsor": "支持开发",
       "kofi": "Ko-fi",
-      "githubSponsors": "GitHub Sponsors"
+      "githubSponsors": "GitHub Sponsors",
+      "sponsorBlurb": "MailFlow 由一人开发和维护。赞助用于支付修复问题、审查代码和发布新版本所需的时间。"
     },
     "search": {
       "placeholder": "搜索设置…",

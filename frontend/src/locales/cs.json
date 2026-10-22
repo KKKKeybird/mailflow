@@ -1079,7 +1079,8 @@
       "sourceCode": "Zdrojový kód",
       "sponsor": "Podpořit vývoj",
       "kofi": "Ko-fi",
-      "githubSponsors": "GitHub Sponsors"
+      "githubSponsors": "GitHub Sponsors",
+      "sponsorBlurb": "MailFlow vyvíjí a udržuje jediný člověk. Sponzorské příspěvky pokrývají čas věnovaný opravám, revizím kódu a vydávání nových verzí."
     },
     "appearance": {
       "title": "Vzhled",

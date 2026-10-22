@@ -1630,7 +1630,8 @@
       "sourceCode": "Quellcode",
       "sponsor": "Entwicklung unterstützen",
       "kofi": "Ko-fi",
-      "githubSponsors": "GitHub Sponsors"
+      "githubSponsors": "GitHub Sponsors",
+      "sponsorBlurb": "MailFlow wird von einer einzelnen Person entwickelt und gepflegt. Sponsoring finanziert die Zeit für Fehlerbehebungen, Reviews und Releases."
     },
     "rules": {
       "conditionLogicOr": "eine Bedingung (ODER)",

@@ -6156,6 +6156,9 @@ function AboutTab() {
       <div style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 8px 4px' }}>
         {t('admin.about.sponsor')}
       </div>
+      <div style={{ fontSize: 12.5, color: 'var(--text-secondary)', margin: '0 4px 10px', lineHeight: 1.5 }}>
+        {t('admin.about.sponsorBlurb')}
+      </div>
       <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid var(--border-subtle)' }}>
         {supportRows.map(([label, href], i) => (
           <div key={label} style={rowStyle(i === supportRows.length - 1)}>

@@ -1702,7 +1702,8 @@
       "backendBuild": "백엔드 빌드",
       "frontendBuild": "프런트엔드 빌드",
       "sponsor": "개발 지원",
-      "githubSponsors": "GitHub 후원자"
+      "githubSponsors": "GitHub 후원자",
+      "sponsorBlurb": "MailFlow는 한 사람이 개발하고 유지 관리합니다. 후원금은 버그 수정, 코드 리뷰, 릴리스에 들어가는 시간을 충당합니다."
     },
     "ssoError": {
       "title": "SSO 오류"

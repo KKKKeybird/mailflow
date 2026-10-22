@@ -1705,7 +1705,8 @@
       "sourceCode": "Source code",
       "sponsor": "Support development",
       "kofi": "Ko-fi",
-      "githubSponsors": "GitHub Sponsors"
+      "githubSponsors": "GitHub Sponsors",
+      "sponsorBlurb": "MailFlow is built and maintained by one person. Sponsorships pay for the time that goes into fixes, reviews and releases."
     },
     "search": {
       "placeholder": "Search settings…",
