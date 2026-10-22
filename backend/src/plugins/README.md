@@ -53,7 +53,7 @@ npm test               # full suite
 
 Everything a plugin may do, grouped:
 
-- **Labels (read):** `listThreadHeadsByLabels`, `getLabelMetadata` (up to 100 account-scoped row IDs; live thread/message copies and oldest message date per folder), `notifyOnLabelTouch`, `hasMessageCopy` (checks one copy on the server), `isLabelStoreAccount` (Gmail: folders are labels)
+- **Labels (read):** `listThreadHeadsByLabels`, `getLabelMetadata` (up to 100 account-scoped row IDs; live thread/message copies and oldest message date per folder), `notifyOnLabelTouch`, `hasMessageCopy` (checks one copy on the server), `isLabelStoreAccount` (Gmail: folders are labels), `supportsUidPlus` (whether a move names the new uid; false when unknown)
 - **Labels (write):** `applyLabel`, `removeLabel`, `markThreadRead`, `markCopySeen`, `ensureLabelFolders`, `resolveLabelCopyUid`
 - **Archive:** `archiveInboxCopy`
 - **Realtime:** `broadcast` (scoped to one user)
