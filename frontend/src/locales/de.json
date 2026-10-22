@@ -1827,7 +1827,7 @@
       "all": "Alle Konten"
     },
     "records": "Datensätze",
-    "howItWorks": "So funktioniert es: Ihre manuellen Als-Spam/Nicht-Spam-Entscheidungen trainieren das Modell. Automatisch klassifizierte Nachrichten trainieren es nie erneut. Regeln sind immer aktiv; das ML-Modell kommt ab 50+ Datensätzen dazu.",
+    "howItWorks": "Manuelles Markieren als Spam / Kein Spam trainiert das Modell. Ab 50 Einträgen, Training beider Klassen und genügend gelerntem Text haben sichere Modellentscheidungen Vorrang; sonst gelten Regeln. Automatische Entscheidungen trainieren das Modell nicht.",
     "badgeLabel": "SPAM-INDEX",
     "badgeTitle": "Automatisch als Spam klassifiziert — klicken für Details",
     "explainTitle": "Warum wurde dies als Spam markiert?",
@@ -1841,6 +1841,7 @@
     },
     "method": {
       "rules": "Regeln",
+      "ml": "Maschinelles Lernen",
       "blended": "Regeln + ML"
     },
     "rulesFiredTitle": "Ausgelöste Regeln",

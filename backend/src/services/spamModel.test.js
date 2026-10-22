@@ -4,7 +4,6 @@ import {
   updateIncremental,
   classifyMessage,
   pruneVocabulary,
-  blendScores,
   extractTopTokens,
   flagTokensFor,
   retrainFromRecords,
@@ -245,26 +244,6 @@ describe('pruneVocabulary', () => {
   it('is a no-op on an empty model', () => {
     const pruned = pruneVocabulary(createEmptyModel());
     expect(pruned).toEqual(createEmptyModel());
-  });
-});
-
-// ---------------------------------------------------------------------------
-// blendScores
-// ---------------------------------------------------------------------------
-
-describe('blendScores', () => {
-  it('uses rules-only below 50 records', () => {
-    expect(blendScores(0.9, 0.2, 10)).toBe(0.2);
-  });
-
-  it('blends 60/40 rules/ML between 50 and 500', () => {
-    expect(blendScores(0.5, 0.5, 100)).toBe(0.5);
-    expect(blendScores(1, 0, 100)).toBe(0.4);
-  });
-
-  it('blends 20/80 rules/ML above 500', () => {
-    expect(blendScores(1, 0, 600)).toBe(0.8);
-    expect(blendScores(0, 1, 600)).toBe(0.2);
   });
 });
 

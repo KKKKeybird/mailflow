@@ -908,7 +908,7 @@
       "all": "Všechny účty"
     },
     "records": "záznamů",
-    "howItWorks": "Jak to funguje: vaše ruční volby „Označit jako spam“ / „Není spam“ trénují model. Automaticky klasifikované zprávy ho nikdy nepřeškolují. Pravidla jsou vždy aktivní; ML model se přidá od 50 záznamů.",
+    "howItWorks": "Model se učí z ručního označení Spam / Není spam. Při alespoň 50 záznamech, obou třídách a dostatku naučeného textu má jisté rozhodnutí modelu přednost; jinak se použijí pravidla. Automatická rozhodnutí model netrénují.",
     "badgeLabel": "spam",
     "badgeTitle": "Automaticky klasifikováno jako spam — kliknutím zobrazíte podrobnosti",
     "explainTitle": "Proč bylo označeno jako spam?",
@@ -922,6 +922,7 @@
     },
     "method": {
       "rules": "Pravidla",
+      "ml": "Strojové učení",
       "blended": "Pravidla + ML"
     },
     "rulesFiredTitle": "Aktivovaná pravidla",

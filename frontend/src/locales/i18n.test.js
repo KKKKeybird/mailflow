@@ -651,6 +651,7 @@ const DYNAMIC_KEYS = new Set([
   'spam.verdict.ham',
   'spam.verdict.unsure',
   'spam.method.rules',
+  'spam.method.ml',
   'spam.method.blended',
   // Attachment risk badges (MessagePane): t(`message.attachmentRisk.${risk.level}`),
   // where the level comes from classifyAttachmentRisk.

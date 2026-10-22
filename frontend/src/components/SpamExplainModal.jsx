@@ -66,7 +66,9 @@ export default function SpamExplainModal({ messageId, onClose }) {
               <div>
                 <span style={{ color: 'var(--text-secondary)' }}>{t('spam.explainConfidence')}: </span>
                 <strong>
-                  {data.mlProbability != null
+                  {data.storedDetails?.policyVersion === 2
+                    ? `${Math.round(data.storedDetails.blendedScore * 100)}%`
+                    : data.mlProbability != null
                     ? `${Math.round(data.mlProbability * 100)}%`
                     : `${Math.round((data.confidence ?? 0) * 100)}%`}
                 </strong>

@@ -1846,7 +1846,7 @@
       "all": "Wszystkie konta"
     },
     "records": "rekordów",
-    "howItWorks": "Jak to działa: Twoje ręczne oznaczenia „Oznacz jako spam” / „Nie spam” trenują model. Wiadomości sklasyfikowane automatycznie nigdy go nie douczają. Reguły są zawsze aktywne; model ML dołącza od 50 rekordów.",
+    "howItWorks": "Ręczne oznaczenia Spam / Nie spam uczą model. Przy co najmniej 50 przykładach, obu klasach i wystarczającej ilości poznanego tekstu pewne decyzje modelu mają pierwszeństwo; w pozostałych przypadkach działają reguły. Automatyczne decyzje nie uczą modelu.",
     "badgeLabel": "spam",
     "badgeTitle": "Automatycznie sklasyfikowano jako spam — kliknij, aby zobaczyć szczegóły",
     "explainTitle": "Dlaczego oznaczono to jako spam?",
@@ -1860,6 +1860,7 @@
     },
     "method": {
       "rules": "Reguły",
+      "ml": "Uczenie maszynowe",
       "blended": "Reguły + ML"
     },
     "rulesFiredTitle": "Aktywowane reguły",

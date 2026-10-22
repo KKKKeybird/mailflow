@@ -1,7 +1,7 @@
 // Anti-spam auto-classification pipeline (v0.2) — V2-6.
 //
 // Called right after a NEW message row is inserted (imapManager processMsg,
-// is_new branch). Performs the hybrid classification and, on very high
+// is_new branch). Performs confidence-gated classification and, on very high
 // confidence, optionally moves the message to the account spam folder.
 //
 // Layers (design §2 / §9):
@@ -29,10 +29,10 @@ import { tokenize, extractFlagFeatures } from './spamTokenizer.js';
 import { scoreRules } from './spamRules.js';
 import { extractAuthservIds, normalizeAuthservId } from './spamParser.js';
 import { getModelForUser } from './spamModelStore.js';
+import { selectSpamScore } from './spamDecision.js';
 import { DEFAULT_SPAM_THRESHOLDS, resolveSpamScoreThresholds } from './spamPolicy.js';
 import {
   classifyMessage,
-  blendScores,
   extractTopTokens,
 } from './spamModel.js';
 
@@ -111,22 +111,17 @@ export async function classifyAndTagMessage(messageId, opts = {}) {
     trustedAuthservIds: trustedAuthservId,
   });
 
-  // Layer 2: per-user MNB model when mature enough.
+  // Layer 2: a confident, supported model decision wins; otherwise rules apply.
   const model = await getModelForUser(row.owner_id);
   const trainingRecords = model?.trainingRecords ?? 0;
   const mlActive = trainingRecords >= MIN_TRAINING_RECORDS;
 
-  let mlProbability = null;
-  let mlConfidence = null;
-  let blended = rules.score;
-  let method = 'rules';
-  if (mlActive) {
-    const ml = classifyMessage(model, tokens, flagFeatures);
-    mlProbability = ml.probability;
-    mlConfidence = ml.confidence;
-    blended = blendScores(ml.probability, rules.score, trainingRecords);
-    method = 'blended';
-  }
+  const ml = mlActive ? classifyMessage(model, tokens, flagFeatures) : null;
+  const mlProbability = ml?.probability ?? null;
+  const mlConfidence = ml?.confidence ?? null;
+  const decision = selectSpamScore(model, tokens, rules.score, mlProbability, thresholds.spamThreshold);
+  const blended = decision.score; // Retain the stored/API field name for compatibility.
+  const method = decision.method;
 
   // Persisted verdicts must use the vocabulary the schema already defines
   // (migration 0021 CHECK): spam | ham | unsure | pending. The ambiguous middle
@@ -155,6 +150,9 @@ export async function classifyAndTagMessage(messageId, opts = {}) {
 
   const details = {
     method,
+    decisionReason: decision.reason,
+    mlEvidence: decision.evidence,
+    policyVersion: 2,
     thresholds,
     trainingRecords,
     blendedScore: round(blended),
