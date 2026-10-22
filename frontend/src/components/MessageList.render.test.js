@@ -1037,10 +1037,38 @@ describe('MessageList — mobile sender card swipes', () => {
   test('right swipe reads the whole group without opening it or acting on its preview', async () => {
     await mobileScenario(async (card, actions) => {
       await React.act(async () => { touch(card, 'touchstart', 20); touch(card, 'touchmove', 140); touch(card, 'touchend', 140); card.click(); });
-      assert.equal(card.style.opacity, '0');
+      assert.equal(card.style.transform, 'translateX(96px)');
+      assert.equal(card.style.opacity, '1');
       await React.act(async () => { await new Promise(r => setTimeout(r, 220)); });
       assert.deepEqual(actions, [[sender, { accountId: ACCOUNT.id, folder: 'INBOX' }, 'read']]);
       assert.ok(!container.querySelector('[data-sender-list]'));
+    });
+  });
+  test('both drag directions and completion stay inside the 96px stop', async () => {
+    await mobileScenario(async (card, actions) => {
+      await React.act(async () => { touch(card, 'touchstart', 200); touch(card, 'touchmove', 900); });
+      assert.equal(card.style.transform, 'translateX(96px)');
+      await React.act(async () => { touch(card, 'touchcancel', 900); });
+      assert.equal(card.style.transform, 'translateX(0)');
+      await React.act(async () => { touch(card, 'touchstart', 200); touch(card, 'touchmove', -500); });
+      assert.equal(card.style.transform, 'translateX(-96px)');
+      await React.act(async () => { touch(card, 'touchend', -500); });
+      assert.equal(card.style.transform, 'translateX(-96px)');
+      assert.equal(card.style.opacity, '0');
+      await React.act(async () => { await new Promise(r => setTimeout(r, 220)); });
+      assert.equal(actions.length, 1);
+      assert.equal(actions[0][2], 'archive');
+    });
+  });
+  test('reversing into a disabled direction cancels the previous action', async () => {
+    await mobileScenario(async (card, actions) => {
+      await React.act(async () => { useStore.setState({ messages: [{ ...head, sender_unread_count: 0 }] }); });
+      await React.act(async () => {
+        touch(card, 'touchstart', 200); touch(card, 'touchmove', 60); touch(card, 'touchmove', 400); touch(card, 'touchend', 400);
+        await new Promise(r => setTimeout(r, 220));
+      });
+      assert.equal(card.style.transform, 'translateX(0)');
+      assert.equal(actions.length, 0);
     });
   });
   test('left swipe archives the whole group and collapses the card', async () => {

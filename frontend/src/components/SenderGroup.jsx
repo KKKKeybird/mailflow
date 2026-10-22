@@ -33,7 +33,7 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
     }
   };
   const { contentRef, swipeBgLeftRef, swipeBgRightRef, tappedRef } = useSwipeRow({
-    isMobile: isMobile && !detail, message, rowIsButton: true, animateCommit: true,
+    isMobile: isMobile && !detail, message, rowIsButton: true, animateCommit: true, swipeLimit: 96, fadeOnSwipeLeft: true,
     onSwipeLeft: actionPending || swipeDisabled ? undefined : () => performSwipe('archive'),
     onSwipeRight: actionPending || swipeDisabled || !Number(message.sender_unread_count) ? undefined : () => performSwipe('read'),
     onTap: onToggle,
