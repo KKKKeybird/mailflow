@@ -1796,7 +1796,7 @@
     "statusHelp": "模型按用户划分，在所有账户间共享。训练记录少于 50 条时仅使用内置规则。",
     "statMaturity": "成熟度",
     "statRecords": "训练记录",
-    "statVersion": "模型版本",
+    "statVersion": "模型格式版本",
     "statLastTrained": "最近训练",
     "statDecay": "衰减窗口",
     "never": "从未",

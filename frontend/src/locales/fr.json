@@ -1796,7 +1796,7 @@
     "statusHelp": "Le modèle est par utilisateur et partagé entre les comptes. Sous 50 enregistrements, seules les règles intégrées sont utilisées.",
     "statMaturity": "Maturité",
     "statRecords": "Enregistrements",
-    "statVersion": "Version du modèle",
+    "statVersion": "Version du format du modèle",
     "statLastTrained": "Dernier entraînement",
     "statDecay": "Fenêtre de decay",
     "never": "jamais",

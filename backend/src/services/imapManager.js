@@ -4017,11 +4017,13 @@ export class ImapManager {
         // classification above keeps running concurrently, only the IMAP move is
         // queued, so a burst of classified messages cannot fan out that many
         // moves — and fresh overflow logins — at the provider.
-        moveMessage: async (acct, uid, fromFolder, toFolder) => {
-          const key = acct?.id || account.id;
+        moveMessage: async (_acct, uid, fromFolder, toFolder) => {
+          const key = account.id;
           await this._autoMoveSem.acquire(key, { timeoutMs: AUTO_MOVE_QUEUE_TIMEOUT_MS });
           try {
-            return await this.moveMessage(acct, uid, fromFolder, toFolder);
+            // The pipeline supplies only id/email. A cold pool needs the full
+            // account (host, authentication and proxy) to establish a connection.
+            return await this.moveMessage(account, uid, fromFolder, toFolder);
           } finally {
             this._autoMoveSem.release(key);
           }

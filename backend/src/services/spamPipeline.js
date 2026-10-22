@@ -29,16 +29,17 @@ import { tokenize, extractFlagFeatures } from './spamTokenizer.js';
 import { scoreRules } from './spamRules.js';
 import { extractAuthservIds, normalizeAuthservId } from './spamParser.js';
 import { getModelForUser } from './spamModelStore.js';
+import { DEFAULT_SPAM_THRESHOLDS, resolveSpamScoreThresholds } from './spamPolicy.js';
 import {
   classifyMessage,
   blendScores,
   extractTopTokens,
 } from './spamModel.js';
 
-// Thresholds (design §6.3 defaults; per-user configurability ships in V2-7).
-export const SPAM_THRESHOLD = 0.85; // verdict spam when blended score >= this
-export const AUTO_MOVE_THRESHOLD = 0.95; // auto-move to spam folder when >= this
-export const MIN_TRAINING_RECORDS = 50; // below: rules-only
+// Default thresholds. Ingestion resolves per-user saved score thresholds below.
+export const SPAM_THRESHOLD = DEFAULT_SPAM_THRESHOLDS.spamThreshold; // verdict spam when blended score >= this
+export const AUTO_MOVE_THRESHOLD = DEFAULT_SPAM_THRESHOLDS.autoMoveThreshold; // auto-move to spam folder when >= this
+export const MIN_TRAINING_RECORDS = DEFAULT_SPAM_THRESHOLDS.minRecords; // below: rules-only
 
 const round = (n, places = 3) => Math.round(n * 10 ** places) / 10 ** places;
 
@@ -62,7 +63,8 @@ export async function classifyAndTagMessage(messageId, opts = {}) {
   const data = await query(`
     SELECT m.*, a.user_id AS owner_id, a.email_address AS account_email,
            a.antispam_enabled, a.folder_mappings, a.trusted_authserv_id,
-           u.preferences->>'spamEnabled' AS master_spam_enabled
+           u.preferences->>'spamEnabled' AS master_spam_enabled,
+           u.preferences->'spam_thresholds' AS spam_thresholds
     FROM messages m
     JOIN email_accounts a ON m.account_id = a.id
     JOIN users u ON u.id = a.user_id
@@ -79,6 +81,8 @@ export async function classifyAndTagMessage(messageId, opts = {}) {
   if (row.master_spam_enabled === 'false' || !row.antispam_enabled) {
     return { skipped: row.master_spam_enabled === 'false' ? 'spam_disabled' : 'antispam_disabled' };
   }
+
+  const thresholds = resolveSpamScoreThresholds(row.spam_thresholds);
 
   const attachments = Array.isArray(row.attachments) ? row.attachments : [];
   const msg = {
@@ -128,14 +132,14 @@ export async function classifyAndTagMessage(messageId, opts = {}) {
   // (migration 0021 CHECK): spam | ham | unsure | pending. The ambiguous middle
   // band is therefore 'unsure', not 'uncertain' — writing 'uncertain' violated
   // the constraint and silently dropped the verdict on the UPDATE.
-  const verdict = blended >= SPAM_THRESHOLD ? 'spam' : blended < 0.3 ? 'ham' : 'unsure';
+  const verdict = blended >= thresholds.spamThreshold ? 'spam' : blended < 0.3 ? 'ham' : 'unsure';
 
   const spamFolder = row.folder_mappings?.spam || null;
 
   // Auto-move ONLY on very high confidence AND with a configured spam folder.
   // Computed before `details` so the deferred intent is recorded alongside the verdict.
   const wouldAutoMove = verdict === 'spam'
-    && blended >= AUTO_MOVE_THRESHOLD
+    && blended >= thresholds.autoMoveThreshold
     && mlActive
     && Boolean(spamFolder)
     && row.folder !== spamFolder;
@@ -151,6 +155,8 @@ export async function classifyAndTagMessage(messageId, opts = {}) {
 
   const details = {
     method,
+    thresholds,
+    trainingRecords,
     blendedScore: round(blended),
     rulesScore: round(rules.score),
     rulesFired: rules.fired.map(r => ({ name: r.name, weight: r.weight })),

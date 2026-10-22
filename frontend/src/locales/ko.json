@@ -1803,7 +1803,7 @@
     "days": "일",
     "masterEnable": "스팸 방지 활성화",
     "statDecay": "학습 유지 기간",
-    "statVersion": "모델 버전",
+    "statVersion": "모델 형식 버전",
     "statLastTrained": "최근 학습 일시",
     "statusTitle": "모델 현황",
     "masterEnableHelp": "자동 분류를 위한 마스터 스위치입니다. 각 계정에는 자체 토글도 필요합니다.",

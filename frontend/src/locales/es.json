@@ -1796,7 +1796,7 @@
     "statusHelp": "El modelo es por usuario y compartido entre cuentas. Con menos de 50 registros de entrenamiento solo se usan las reglas integradas.",
     "statMaturity": "Madurez",
     "statRecords": "Registros de entrenamiento",
-    "statVersion": "Versión del modelo",
+    "statVersion": "Versión del formato del modelo",
     "statLastTrained": "Último entrenamiento",
     "statDecay": "Ventana de decay",
     "never": "nunca",

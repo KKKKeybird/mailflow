@@ -17,6 +17,7 @@ import { classifyMessage, extractTopTokens } from '../services/spamModel.js';
 import { getModelForUser, invalidateModelCache } from '../services/spamModelStore.js';
 import { runFullRetrain } from '../services/spamScheduler.js';
 import { detectAuthservIds } from '../services/spamAuthservIds.js';
+import { DEFAULT_SPAM_THRESHOLDS, resolveSpamScoreThresholds } from '../services/spamPolicy.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -24,13 +25,7 @@ router.use(requireAuth);
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 // Hardcoded structural thresholds (design §6.3 — not user-configurable).
-const DEFAULT_THRESHOLDS = {
-  minRecords: 50,
-  softRecords: 500,
-  hardRecords: 500,
-  spamThreshold: 0.85,
-  autoMoveThreshold: 0.95,
-};
+const DEFAULT_THRESHOLDS = DEFAULT_SPAM_THRESHOLDS;
 const DEFAULT_DECAY_DAYS = 90;
 
 async function getUserPreferences(userId) {
@@ -48,8 +43,7 @@ async function readThresholds(userId) {
     minRecords: stored.minRecords ?? DEFAULT_THRESHOLDS.minRecords,
     softRecords: stored.softRecords ?? DEFAULT_THRESHOLDS.softRecords,
     hardRecords: stored.hardRecords ?? DEFAULT_THRESHOLDS.hardRecords,
-    spamThreshold: stored.spamThreshold ?? DEFAULT_THRESHOLDS.spamThreshold,
-    autoMoveThreshold: stored.autoMoveThreshold ?? DEFAULT_THRESHOLDS.autoMoveThreshold,
+    ...resolveSpamScoreThresholds(stored),
   };
 }
 

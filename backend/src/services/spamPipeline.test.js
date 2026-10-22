@@ -467,3 +467,33 @@ describe('classifyAndTagMessage — auto-move failure does not throw', () => {
       warn.mockRestore();
     });
 });
+describe('per-user saved score thresholds', () => {
+  const sample = { subject: 'Cheap Viagra', body_text: 'click buy offer free' };
+  it('uses the saved auto-move threshold for an already classified spam message', async () => {
+    getModelForUser.mockResolvedValue(trainedModel(600));
+    query.mockResolvedValueOnce({ rows: [messageRow({ ...sample, spam_thresholds: { spamThreshold: 0.85, autoMoveThreshold: 0.89 } })] });
+    const imap = imapFacade();
+    const result = await classifyAndTagMessage(MESSAGE_ID, { imap });
+    expect(result.blendedScore).toBeGreaterThanOrEqual(0.89);
+    expect(result.blendedScore).toBeLessThan(0.95);
+    expect(result.moved).toBe(true);
+    const details = JSON.parse(query.mock.calls.find(([sql]) => sql.includes('UPDATE messages SET'))[1][2]);
+    expect(details.thresholds).toEqual({ spamThreshold: 0.85, autoMoveThreshold: 0.89 });
+    expect(details.trainingRecords).toBe(600);
+  });
+  it('honors a stricter spam threshold independently of the move threshold', async () => {
+    getModelForUser.mockResolvedValue(trainedModel(600));
+    query.mockResolvedValueOnce({ rows: [messageRow({ ...sample, spam_thresholds: { spamThreshold: 0.95, autoMoveThreshold: 0.89 } })] });
+    const imap = imapFacade();
+    const result = await classifyAndTagMessage(MESSAGE_ID, { imap });
+    expect(result.verdict).toBe('unsure');
+    expect(imap.moveMessage).not.toHaveBeenCalled();
+  });
+  it('keeps the current defaults when no valid saved score thresholds exist', async () => {
+    getModelForUser.mockResolvedValue(trainedModel(600));
+    query.mockResolvedValueOnce({ rows: [messageRow({ ...sample, spam_thresholds: { spamThreshold: '0.1', autoMoveThreshold: 0.1 } })] });
+    const result = await classifyAndTagMessage(MESSAGE_ID, { imap: imapFacade() });
+    expect(result.verdict).toBe('spam');
+    expect(result.shouldMove).toBe(false);
+  });
+});

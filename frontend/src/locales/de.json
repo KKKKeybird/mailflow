@@ -1796,7 +1796,7 @@
     "statusHelp": "Das Modell ist pro Benutzer und über alle Konten geteilt. Unter 50 Trainingdatensätzen werden nur die eingebauten Regeln verwendet.",
     "statMaturity": "Reifegrad",
     "statRecords": "Trainingdatensätze",
-    "statVersion": "Modellversion",
+    "statVersion": "Modellformatversion",
     "statLastTrained": "Zuletzt trainiert",
     "statDecay": "Decay-Fenster",
     "never": "nie",

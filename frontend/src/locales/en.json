@@ -1796,7 +1796,7 @@
     "statusHelp": "The model is per-user and shared across your accounts. Below 50 training records only the built-in rules are used.",
     "statMaturity": "Maturity",
     "statRecords": "Training records",
-    "statVersion": "Model version",
+    "statVersion": "Model format version",
     "statLastTrained": "Last trained",
     "statDecay": "Decay window",
     "never": "never",

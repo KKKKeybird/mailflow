@@ -1796,7 +1796,7 @@
     "statusHelp": "Il modello è per utente e condiviso tra le caselle. Con meno di 50 record di training vengono usate solo le regole integrate.",
     "statMaturity": "Livello",
     "statRecords": "Record di training",
-    "statVersion": "Versione modello",
+    "statVersion": "Versione del formato del modello",
     "statLastTrained": "Ultimo training",
     "statDecay": "Finestra decay",
     "never": "mai",

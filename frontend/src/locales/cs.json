@@ -877,7 +877,7 @@
     "statusHelp": "Model je určen pro jednoho uživatele a sdílí se mezi jeho účty. Při méně než 50 trénovacích záznamech se používají jen vestavěná pravidla.",
     "statMaturity": "Vyspělost",
     "statRecords": "Trénovací záznamy",
-    "statVersion": "Verze modelu",
+    "statVersion": "Verze formátu modelu",
     "statLastTrained": "Naposledy trénováno",
     "statDecay": "Okno útlumu",
     "never": "nikdy",

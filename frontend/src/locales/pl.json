@@ -1815,7 +1815,7 @@
     "statusHelp": "Model jest przypisany do użytkownika i współdzielony między jego kontami. Poniżej 50 rekordów treningowych używane są tylko wbudowane reguły.",
     "statMaturity": "Dojrzałość",
     "statRecords": "Rekordy treningowe",
-    "statVersion": "Wersja modelu",
+    "statVersion": "Wersja formatu modelu",
     "statLastTrained": "Ostatnie trenowanie",
     "statDecay": "Okno wygaszania",
     "never": "nigdy",

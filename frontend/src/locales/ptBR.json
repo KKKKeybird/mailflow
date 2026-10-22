@@ -1796,7 +1796,7 @@
     "statusHelp": "O modelo é por usuário e compartilhado entre suas contas. Com menos de 50 registros de treinamento, apenas as regras internas são usadas.",
     "statMaturity": "Maturidade",
     "statRecords": "Registros de treinamento",
-    "statVersion": "Versão do modelo",
+    "statVersion": "Versão do formato do modelo",
     "statLastTrained": "Último treinamento",
     "statDecay": "Janela de decaimento",
     "never": "nunca",
