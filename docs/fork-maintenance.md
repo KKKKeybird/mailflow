@@ -3,7 +3,7 @@
 ## Ownership and baseline
 
 Repository: `KKKKeybird/mailflow`; maintained branch: `main`; upstream: `maathimself/mailflow`.
-Current upstream baseline: `v4.0.2`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
+Current upstream baseline: `v4.0.4`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
 
 ## Sync policy
 
@@ -65,3 +65,12 @@ The live endpoint baseline and CI now use `v4.0.1`. Baseline modules resolve the
 Merged the stable upstream tag with ancestry preserved. Android OIDC login/logout uses upstream's embedded provider window while ordinary external web links retain the fork's complete browser picker, including Edge. The merged mail paths retain proxy-side target DNS, certificate-verified Gmail proxy recovery, sender identities and account isolation, and scoped read-only-by-default MCP tokens. Upstream's CardDAV merge fixes, conversation attachments, reading-pane refitting, Gmail Sent deduplication and OAuth relinking are included.
 
 The live endpoint benchmark and CI baseline now use `v4.0.2`. No migration was renamed or added by this integration. All 72 migrations applied on a fresh PostgreSQL 16 database and the second run reported the schema up to date. Proxy documentation now matches the existing implementation: mailbox domains are passed to the proxy for resolution. Production dependency audits pass `--audit-level=high`; moderate upstream dependency advisories remain.
+
+
+## Integration: v4.0.4 (2026-10-22)
+
+Merged stable v4.0.4 with ancestry preserved, including v4.0.3. Retained sender identity grouping, its separate list and shared 160px swipe limit, the borderless mark-all-read toolbar button, pending spam-move guards, model-first spam decisions, complete proxy account context and scoped MCP access. Upstream image repair and per-user AI access are integrated alongside these features.
+
+Upstream migrations `0067_users_ai_enabled` and `0068_split_same_sender_subject_threads` keep their full filenames; existing fork migrations with the same number prefixes are unchanged. Conversation splitting changes thread membership for unrelated same-subject receipts/alerts, independently of the opt-in sender grouping preference. Existing cached image bodies may be fetched once again when opened. The endpoint benchmark and CI baseline use v4.0.4. Database-backed regression tests also cover the upstream split and AI-access migrations. Android validation now also runs when frontend package metadata changes.
+
+Validation for this integration used Node 22 and an isolated PostgreSQL 16 instance: all 74 migrations applied to an empty database and reran without changes; an existing 72-migration fork schema applied only the two new upstream migrations and reran without changes. All 610 selected backend and real-database regression tests passed, as did the 84,000-message endpoint comparison against v4.0.4 with the additional identity, alias and account-isolation fixtures. Backend lint, plugin boundary, syntax, frontend lint and production build passed. The complete frontend suite passed all 3,427 tests locally; the backend CI suite passed 3,027 tests, with database-only cases also exercised in the PostgreSQL job. Production dependency audits passed the high-severity threshold; existing moderate upstream advisories remain.

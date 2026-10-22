@@ -1,6 +1,6 @@
 # MailFlow sender-grouping fork
 
-这是 [KKKKeybird/mailflow](https://github.com/KKKKeybird/mailflow) 独立维护的 fork，基于上游 **v4.0.2**，保留按发件人折叠收件箱及索引查询性能优化。它不是上游官方版本。功能操作与边界见 [发件人折叠说明](docs/sender-grouping.md)，维护、同步与验证流程见 [fork 维护说明](docs/fork-maintenance.md)。
+这是 [KKKKeybird/mailflow](https://github.com/KKKKeybird/mailflow) 独立维护的 fork，基于上游 **v4.0.4**，保留按发件人折叠收件箱及索引查询性能优化。它不是上游官方版本。功能操作与边界见 [发件人折叠说明](docs/sender-grouping.md)，维护、同步与验证流程见 [fork 维护说明](docs/fork-maintenance.md)。
 
 在收件箱的邮件菜单选择 **Group emails from this sender（按此发件人折叠）**，不同主题的邮件会合并成一个可展开的发件人分组；偏好保存到服务器并在设备间同步，原有会话模式、邮件操作和未读过滤继续可用。
 
@@ -72,7 +72,7 @@ If you contribute code, please read the [Contributor License Agreement](CLA.md).
 - **Block list** — automatically move mail from blocked senders to trash before inbox rules run
 - **Spam reporting** — mark messages as spam or not spam from the context menu, toolbar, or bulk actions; feedback will feed into automated filtering in a future release
 - **Snooze** — snooze messages until a chosen time; they reappear at the top of the inbox
-- **AI assistant** — use an OpenAI-compatible API provider or a ChatGPT Codex subscription; summarise threads, draft replies, ask questions about a message
+- **AI assistant** — use an OpenAI-compatible API provider or a ChatGPT Codex subscription; summarize threads, draft replies, ask questions about a message; admins choose which users may use it
 - **Password recovery** — recover your account via a recovery email address configured in profile settings
 - **User management** — admin panel, invite-only registration, invite emails
 - **Two-factor authentication** — TOTP (any authenticator app), email OTP fallback, persistent device trust; admin-configurable enforcement policy
