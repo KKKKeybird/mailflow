@@ -2708,7 +2708,7 @@ export default function MessageList() {
       title={t('sidebar.folderMenu.markAllRead')} aria-label={t('sidebar.folderMenu.markAllRead')}
       aria-busy={markingAllRead} style={{
         display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
-        background: 'none', border: '1px solid var(--border)', borderRadius: 6,
+        background: 'none', border: 'none', borderRadius: 6,
         padding: isMobile ? '5px 7px' : '4px 8px', minHeight: isMobile ? 44 : undefined,
         color: 'var(--text-tertiary)', fontSize: 11, fontWeight: 500,
         cursor: markingAllRead ? 'wait' : 'pointer', opacity: markingAllRead ? 0.5 : 1,

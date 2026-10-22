@@ -7,7 +7,7 @@ export function isInteractiveSwipeTarget(target, rowControl = null) {
   return Boolean(control && control !== rowControl);
 }
 
-export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLongPress, onTap, rowIsButton = false, animateCommit = false }) {
+export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLongPress, onTap, rowIsButton = false, animateCommit = false, swipeLimit = 160, fadeOnSwipeLeft = false }) {
   const contentRef = useRef(null);
   const commitTimerRef = useRef(null);
   const committingRef = useRef(false);
@@ -22,7 +22,7 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
   // tappedRef is set to true when onTap fires so the subsequent click event can be
   // suppressed — prevents handleSelect from being called twice on the same tap.
   const tappedRef = useRef(false);
-  latestRef.current = { message, onSwipeLeft, onSwipeRight, onLongPress, onTap, rowIsButton, animateCommit };
+  latestRef.current = { message, onSwipeLeft, onSwipeRight, onLongPress, onTap, rowIsButton, animateCommit, swipeLimit, fadeOnSwipeLeft };
 
   const springBack = useCallback(() => {
     const el = contentRef.current;
@@ -103,10 +103,15 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
         s.dir = Math.abs(dx) > Math.abs(dy) ? 'h' : 'v';
       }
       if (s.dir === 'v') return;
-      if ((dx < 0 && !latestRef.current.onSwipeLeft) || (dx > 0 && !latestRef.current.onSwipeRight)) return;
+      if ((dx < 0 && !latestRef.current.onSwipeLeft) || (dx > 0 && !latestRef.current.onSwipeRight)) {
+        s.active = false;
+        s.x = 0;
+        springBack();
+        return;
+      }
       e.preventDefault();
       s.active = true;
-      s.x = Math.max(-160, Math.min(160, dx));
+      s.x = Math.max(-latestRef.current.swipeLimit, Math.min(latestRef.current.swipeLimit, dx));
       el.style.transition = 'none';
       el.style.transform = `translateX(${s.x}px)`;
       const progress = Math.min(Math.abs(s.x) / SWIPE_THRESHOLD, 1);
@@ -156,10 +161,12 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
         suppressNextClick();
         committingRef.current = true;
         const message = latestRef.current.message;
-        const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+        const reduced = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
         el.style.transition = reduced ? 'none' : 'transform 180ms ease-in, opacity 180ms ease-in';
-        el.style.transform = `translateX(${x < 0 ? '-110%' : '110%'})`;
-        el.style.opacity = '0';
+        // Completion must obey the same stop as dragging. Only an archive
+        // dismisses the card; marking read returns it without making it vanish.
+        el.style.transform = `translateX(${Math.sign(x) * latestRef.current.swipeLimit}px)`;
+        el.style.opacity = x < 0 && latestRef.current.fadeOnSwipeLeft ? '0' : '1';
         commitTimerRef.current = setTimeout(async () => {
           commitTimerRef.current = null;
           try { await action(message); }
