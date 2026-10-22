@@ -1,3 +1,4 @@
+import { setPendingSpamMove, completeSpamMove, clearSpamMove, applySpamMoveGuard } from '../utils/pendingSpamMoves.js';
 import { messageRowTree, actionableMessageRows, selectedListMessage, uniqueActionRows, neighborMessageRow, senderCacheKey } from '../utils/messageRowTree.js';
 import SenderGroup from './SenderGroup.jsx';
 import { getSwipeActionView, SwipeBackground } from './SwipeActions.jsx';
@@ -133,7 +134,7 @@ export default function MessageList() {
   // Prevents a concurrent sync refresh from reverting a pending or recently-completed
   // mark-read before the IMAP flag has propagated back to the DB.
   const applyReadGuard = useCallback((msgs) => {
-    msgs = applyDeleteGuard(msgs);
+    msgs = applySpamMoveGuard(applyDeleteGuard(msgs));
     if (pendingMarkReadMap.size === 0 && completedMarkReadMap.size === 0) return msgs;
     return msgs.map(m => {
       const inFlight = pendingMarkReadMap.has(m.id);
@@ -1077,7 +1078,7 @@ export default function MessageList() {
     // Optimistic local update: remove from view + drop unread badge.
     const unreadCount = messages.reduce((sum, m) => sum + (m.is_read ? 0 : 1), 0);
     const accountId = messages[0].account_id;
-    messages.forEach(m => removeMessage(m.id, m));
+    messages.forEach(m => { setPendingSpamMove(m); removeMessage(m.id, m); });
     if (unreadCount > 0) decrementUnread(accountId, unreadCount);
 
     // Sidebar folder badges are not adjusted here. They render the counts the IMAP server
@@ -1089,7 +1090,9 @@ export default function MessageList() {
     const timers = new Map();
     let settled = false;
     const undo = () => {
+      if (settled) return;
       settled = true;
+      messages.forEach(clearSpamMove);
       timers.forEach(timer => clearTimeout(timer));
       timers.clear();
       // Restore the messages in their original position (re-sort by date).
@@ -1097,15 +1100,17 @@ export default function MessageList() {
       if (unreadCount > 0) incrementUnread(accountId, unreadCount);
     };
 
-    const performCall = (id) => {
+    const performCall = (message) => {
       const fn = label === 'spam' ? api.markSpam : api.markHam;
-      return fn(id).catch(err => ({ __failed: true, id, message: err.message }));
+      return fn(message.id).then(result => { completeSpamMove(message); return result; })
+        .catch(err => { clearSpamMove(message); return { __failed: true, id: message.id, message: err.message }; });
     };
 
     timers.set('__call__', setTimeout(async () => {
       if (settled) return;
+      settled = true;
       timers.delete('__call__');
-      const results = await Promise.allSettled(ids.map(performCall));
+      const results = await Promise.allSettled(messages.map(performCall));
       const failed = [];
       results.forEach((r, i) => {
         if (r.status === 'rejected' || r.value?.__failed) failed.push(ids[i]);

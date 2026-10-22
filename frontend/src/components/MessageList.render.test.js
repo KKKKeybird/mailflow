@@ -1128,3 +1128,27 @@ describe('MessageList — mobile sender card swipes', () => {
     });
   });
 });
+
+describe('MessageList — pending spam moves', () => {
+  test('refresh and list re-entry cannot bring a message back during Undo', async () => {
+    ROUTES = {};
+    await mount({ rows: [MESSAGE], threadedView: false,
+      accounts: [{ ...ACCOUNT, folder_mappings: { spam: '[Gmail]/Spam' } }] });
+    const row = container.querySelector('[data-msgid="msg-1"] [draggable]');
+    await React.act(async () => row.dispatchEvent(new dom.window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 20, clientY: 20 })));
+    const label = [...document.querySelectorAll('span')].find(el => el.textContent === 'contextMenu.markAsSpam');
+    assert.ok(label);
+    await React.act(async () => { label.parentElement.click(); await new Promise(r => setTimeout(r, 20)); });
+    const notice = useStore.getState().notifications.find(n => n.onUndo);
+    assert.ok(notice);
+    try {
+      await React.act(async () => { window.dispatchEvent(new CustomEvent('mailflow:refresh')); await new Promise(r => setTimeout(r, 30)); });
+      assert.equal(container.querySelector('[data-msgid="msg-1"]'), null);
+      await mount({ rows: [MESSAGE], threadedView: false });
+      assert.equal(container.querySelector('[data-msgid="msg-1"]'), null);
+    } finally {
+      await React.act(async () => { notice.onUndo(); });
+    }
+    assert.ok(container.querySelector('[data-msgid="msg-1"]'));
+  });
+});

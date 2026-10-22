@@ -1,3 +1,4 @@
+import { setPendingSpamMove, completeSpamMove, clearSpamMove } from '../utils/pendingSpamMoves.js';
 import { actionableMessageRows, selectedListMessage, neighborMessageRow } from '../utils/messageRowTree.js';
 import { useEffect, useLayoutEffect, useState, useRef, useCallback, useMemo } from 'react';
 import AccountMark from './AccountMark.jsx';
@@ -183,22 +184,28 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   const performSingleSpamLabel = useCallback(async (label) => {
     if (!message) return;
     const wasUnread = !message.is_read;
+    setPendingSpamMove(message);
     advanceSelectionAfterRemoval(message.id);
         removeMessage(message.id, { ...message, __list_kind: 'message', __list_thread: message.__list_thread || message.thread_id, message_count: undefined, unread_count: undefined });
     closeWindowIfWindowed();
     if (wasUnread) decrementUnread(message.account_id);
     let settled = false;
     const undo = () => {
+      if (settled) return;
       settled = true;
+      clearSpamMove(message);
       useStore.getState().restoreMessages([message]);
       if (wasUnread) incrementUnread(message.account_id);
     };
     setTimeout(async () => {
       if (settled) return;
+      settled = true;
       try {
         const fn = label === 'spam' ? api.markSpam : api.markHam;
         await fn(message.id);
+        completeSpamMove(message);
       } catch (err) {
+        clearSpamMove(message);
         useStore.getState().restoreMessages([message]);
         if (wasUnread) incrementUnread(message.account_id);
         addNotification({

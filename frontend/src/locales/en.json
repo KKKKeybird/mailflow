@@ -1796,7 +1796,7 @@
     "statusHelp": "The model is per-user and shared across your accounts. Below 50 training records only the built-in rules are used.",
     "statMaturity": "Maturity",
     "statRecords": "Training records",
-    "statVersion": "Model version",
+    "statVersion": "Model format version",
     "statLastTrained": "Last trained",
     "statDecay": "Decay window",
     "never": "never",
@@ -1827,7 +1827,7 @@
       "all": "All accounts"
     },
     "records": "records",
-    "howItWorks": "How it works: your manual Mark as spam / Not spam choices train the model. Auto-classified messages never re-train it. Rules are always on; the ML model joins once you have 50+ training records.",
+    "howItWorks": "Manual Spam / Not spam feedback trains your model. With at least 50 records, training in both classes and enough learned text, confident model decisions take priority; otherwise rules apply. Automatic decisions never train the model.",
     "badgeLabel": "SPAM INDEX",
     "badgeTitle": "Auto-classified as spam — click for details",
     "explainTitle": "Why was this marked as spam?",
@@ -1841,6 +1841,7 @@
     },
     "method": {
       "rules": "Rules",
+      "ml": "Machine learning",
       "blended": "Rules + ML"
     },
     "rulesFiredTitle": "Rules that fired",

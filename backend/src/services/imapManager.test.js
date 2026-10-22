@@ -3028,6 +3028,20 @@ describe('maybeClassifyNewMessage — antispam ingest hook', () => {
     expect(typeof opts.imap._unguardMoveUid).toBe('function');
   });
 
+  it('retains Gmail host, credentials and proxy when the pipeline asks for an auto-move', async () => {
+    const mgr = new ImapManager(null);
+    const account = { id: 'acct', email_address: 'fixture@gmail.com', antispam_enabled: true,
+      imap_host: 'imap.gmail.com', imap_port: 993, imap_tls: true,
+      auth_user: 'fixture@gmail.com', auth_pass: 'fixture-password', proxy_type: 'socks5', proxy_host: 'proxy.invalid', proxy_port: 1080 };
+    const move = vi.spyOn(mgr, 'moveMessage').mockResolvedValue(202);
+    classifyAndTagMessage.mockResolvedValue({ verdict: 'spam' });
+    mgr.maybeClassifyNewMessage(account, 'msg-config', {});
+    const facade = classifyAndTagMessage.mock.calls[0][1].imap;
+    await expect(facade.moveMessage({ id: account.id, email_address: account.email_address }, 42, 'INBOX', '[Gmail]/Spam')).resolves.toBe(202);
+    expect(move).toHaveBeenCalledWith(account, 42, 'INBOX', '[Gmail]/Spam');
+    move.mockRestore();
+  });
+
   it('defaults to an empty header list when the parsed message has none', () => {
     const mgr = new ImapManager(null);
     classifyAndTagMessage.mockResolvedValue(null);

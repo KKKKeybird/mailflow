@@ -1796,7 +1796,7 @@
     "statusHelp": "O modelo é por usuário e compartilhado entre suas contas. Com menos de 50 registros de treinamento, apenas as regras internas são usadas.",
     "statMaturity": "Maturidade",
     "statRecords": "Registros de treinamento",
-    "statVersion": "Versão do modelo",
+    "statVersion": "Versão do formato do modelo",
     "statLastTrained": "Último treinamento",
     "statDecay": "Janela de decaimento",
     "never": "nunca",
@@ -1827,7 +1827,7 @@
       "all": "Todas as contas"
     },
     "records": "registros",
-    "howItWorks": "Como funciona: suas escolhas manuais de Marcar como spam / Não spam treinam o modelo. Mensagens classificadas automaticamente nunca o retreinam. As regras estão sempre ativas; o modelo de ML entra em ação quando você tiver 50+ registros de treinamento.",
+    "howItWorks": "As marcações manuais de Spam / Não spam treinam o modelo. Com ao menos 50 registros, ambas as classes e texto aprendido suficiente, decisões claras do modelo têm prioridade; caso contrário, são usadas regras. Decisões automáticas não treinam o modelo.",
     "badgeLabel": "ÍNDICE DE SPAM",
     "badgeTitle": "Classificada automaticamente como spam — clique para ver detalhes",
     "explainTitle": "Por que isto foi marcado como spam?",
@@ -1841,6 +1841,7 @@
     },
     "method": {
       "rules": "Regras",
+      "ml": "Aprendizado de máquina",
       "blended": "Regras + ML"
     },
     "rulesFiredTitle": "Regras acionadas",

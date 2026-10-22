@@ -1796,7 +1796,7 @@
     "statusHelp": "模型按用户划分，在所有账户间共享。训练记录少于 50 条时仅使用内置规则。",
     "statMaturity": "成熟度",
     "statRecords": "训练记录",
-    "statVersion": "模型版本",
+    "statVersion": "模型格式版本",
     "statLastTrained": "最近训练",
     "statDecay": "衰减窗口",
     "never": "从未",
@@ -1827,7 +1827,7 @@
       "all": "所有账户"
     },
     "records": "条记录",
-    "howItWorks": "工作原理：您手动的标记为垃圾/非垃圾选择训练模型。自动分类的邮件永远不会重新训练它。规则始终启用；拥有 50 条以上记录后 ML 模型加入。",
+    "howItWorks": "手动标记垃圾/非垃圾会训练模型。至少 50 条记录、包含两类训练且文本证据足够时，优先采用模型的明确判断，否则使用规则。自动判定不参与训练。",
     "badgeLabel": "垃圾指数",
     "badgeTitle": "自动分类为垃圾邮件 — 点击查看详情",
     "explainTitle": "为什么标记为垃圾邮件？",
@@ -1841,6 +1841,7 @@
     },
     "method": {
       "rules": "规则",
+      "ml": "机器学习",
       "blended": "规则 + ML"
     },
     "rulesFiredTitle": "触发的规则",

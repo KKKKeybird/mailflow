@@ -132,7 +132,7 @@ describe('classifyAndTagMessage — scenario: fresh install (0 records)', () => 
 });
 
 describe('classifyAndTagMessage — scenario 2: active user moves spam', () => {
-  it('blends rules + ML and auto-moves on very high confidence', async () => {
+  it('uses a supported ML decision and auto-moves on very high confidence', async () => {
       getModelForUser.mockResolvedValue(trainedModel(200));
       query.mockResolvedValueOnce({
         rows: [messageRow({
@@ -148,7 +148,7 @@ describe('classifyAndTagMessage — scenario 2: active user moves spam', () => {
       const result = await classifyAndTagMessage(MESSAGE_ID, { imap });
 
       expect(result.verdict).toBe('spam');
-      expect(result.method).toBe('blended');
+      expect(result.method).toBe('ml');
       expect(result.blendedScore).toBeGreaterThanOrEqual(AUTO_MOVE_THRESHOLD);
       expect(result.shouldMove).toBe(true);
       expect(result.moved).toBe(true);
@@ -229,8 +229,8 @@ describe('classifyAndTagMessage — scenario 3: borderline stays ham/unsure', ()
   });
 });
 
-describe('classifyAndTagMessage — scenario 5: blend weights shift with training', () => {
-  it('uses rules-only below 50, 60/40 at 100, 20/80 above 500', async () => {
+describe('classifyAndTagMessage — scenario 5: model activates after sufficient training', () => {
+  it('uses rules-only below 50 and supported ML above it', async () => {
     // Zero records: rules only.
     getModelForUser.mockResolvedValue(null);
     query.mockResolvedValueOnce({ rows: [messageRow({ subject: 'Cheap Viagra', body_text: '' })] });
@@ -238,18 +238,18 @@ describe('classifyAndTagMessage — scenario 5: blend weights shift with trainin
     expect(r0.method).toBe('rules');
     expect(r0.blendedScore).toBe(r0.blendedScore); // rules score only
 
-    // 100 records: blended 60/40.
+    // 100 records: supported model decision.
     getModelForUser.mockResolvedValue(trainedModel(100));
     query.mockResolvedValueOnce({ rows: [messageRow({ subject: 'Cheap Viagra', body_text: '' })] });
     const r100 = await classifyAndTagMessage(MESSAGE_ID, {});
-    expect(r100.method).toBe('blended');
+    expect(r100.method).toBe('ml');
     expect(r100.mlProbability).not.toBeNull();
 
-    // 600 records: blended 20/80.
+    // 600 records: the same confidence gate; no weight discontinuity.
     getModelForUser.mockResolvedValue(trainedModel(600));
     query.mockResolvedValueOnce({ rows: [messageRow({ subject: 'Cheap Viagra', body_text: '' })] });
     const r600 = await classifyAndTagMessage(MESSAGE_ID, {});
-    expect(r600.method).toBe('blended');
+    expect(r600.method).toBe('ml');
   });
 
   it('exposes the documented threshold constants', () => {
@@ -466,4 +466,48 @@ describe('classifyAndTagMessage — auto-move failure does not throw', () => {
       expect(warn).toHaveBeenCalled();
       warn.mockRestore();
     });
+});
+describe('per-user saved score thresholds', () => {
+  const sample = { subject: 'Viagra prize', body_text: '' };
+  it('uses the saved auto-move threshold for an already classified spam message', async () => {
+    getModelForUser.mockResolvedValue(trainedModel(600));
+    query.mockResolvedValueOnce({ rows: [messageRow({ ...sample, spam_thresholds: { spamThreshold: 0.85, autoMoveThreshold: 0.89 } })] });
+    const imap = imapFacade();
+    const result = await classifyAndTagMessage(MESSAGE_ID, { imap });
+    expect(result.blendedScore).toBeGreaterThanOrEqual(0.89);
+    expect(result.blendedScore).toBeLessThan(0.95);
+    expect(result.moved).toBe(true);
+    const details = JSON.parse(query.mock.calls.find(([sql]) => sql.includes('UPDATE messages SET'))[1][2]);
+    expect(details.thresholds).toEqual({ spamThreshold: 0.85, autoMoveThreshold: 0.89 });
+    expect(details.trainingRecords).toBe(600);
+  });
+  it('honors a stricter spam threshold independently of the move threshold', async () => {
+    getModelForUser.mockResolvedValue(trainedModel(600));
+    query.mockResolvedValueOnce({ rows: [messageRow({ ...sample, spam_thresholds: { spamThreshold: 0.95, autoMoveThreshold: 0.89 } })] });
+    const imap = imapFacade();
+    const result = await classifyAndTagMessage(MESSAGE_ID, { imap });
+    expect(result.verdict).toBe('unsure');
+    expect(imap.moveMessage).not.toHaveBeenCalled();
+  });
+  it('keeps the current defaults when no valid saved score thresholds exist', async () => {
+    getModelForUser.mockResolvedValue(trainedModel(600));
+    query.mockResolvedValueOnce({ rows: [messageRow({ ...sample, spam_thresholds: { spamThreshold: '0.1', autoMoveThreshold: 0.1 } })] });
+    const result = await classifyAndTagMessage(MESSAGE_ID, { imap: imapFacade() });
+    expect(result.verdict).toBe('spam');
+    expect(result.shouldMove).toBe(false);
+  });
+});
+
+
+describe('model-first ingest regression', () => {
+  it('moves familiar low-rule spam at 108 records without score dilution', async () => {
+    getModelForUser.mockResolvedValue(trainedModel(108));
+    query.mockResolvedValueOnce({ rows: [messageRow({ subject: 'cheap offer', body_text: 'click buy free' })] });
+    const imap = imapFacade();
+    const result = await classifyAndTagMessage(MESSAGE_ID, { imap });
+    expect(result).toMatchObject({ method: 'ml', verdict: 'spam', moved: true });
+    const details = JSON.parse(query.mock.calls.find(([sql]) => sql.includes('UPDATE messages SET'))[1][2]);
+    expect(details).toMatchObject({ rulesScore: 0, policyVersion: 2, decisionReason: 'confident_spam' });
+    expect(details.blendedScore).toBeGreaterThanOrEqual(0.95);
+  });
 });

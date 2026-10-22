@@ -263,24 +263,6 @@ function chiSquare(a, b, totalSpam, totalHam, totalTokens) {
 }
 
 // ---------------------------------------------------------------------------
-// Blending (design §6.3 / rules-detail §Integration with ML)
-// ---------------------------------------------------------------------------
-
-/**
- * Blend rules score with ML score based on training maturity.
- *
- * @param {number} mlScore — probability from classifyMessage() in [0,1]
- * @param {number} rulesScore — scoreRules() score in [0,1]
- * @param {number} trainingRecords
- * @returns {number} blended score in [0,1]
- */
-export function blendScores(mlScore, rulesScore, trainingRecords) {
-  if (trainingRecords < 50) return rulesScore; // rules-only
-  if (trainingRecords <= 500) return 0.6 * rulesScore + 0.4 * mlScore;
-  return 0.2 * rulesScore + 0.8 * mlScore;
-}
-
-// ---------------------------------------------------------------------------
 // Full retrain (scheduled nightly job / admin "retrain now")
 // ---------------------------------------------------------------------------
 
