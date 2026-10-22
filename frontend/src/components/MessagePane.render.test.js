@@ -399,6 +399,18 @@ describe('attachment viewer', () => {
     assert.deepEqual(saved, [], 'nothing is saved to disk');
   });
 
+  test("the viewer's toolbar pads below a status bar drawn over the page", async () => {
+    // jsdom does no layout, so the content area measures 0 wide and the toolbar takes its
+    // wide padding; what matters is --sat in it: the viewer covers the whole screen, and in
+    // a standalone PWA the status bar is drawn over the page, so the old plain padding put
+    // the zoom row underneath it.
+    await open('g7');
+    await clickChip('boleto.pdf');
+    const close = dialog().querySelector('button[aria-label="message.preview.close"]');
+    assert.equal(close.parentElement.style.paddingTop, 'calc(var(--sat) + 10px)');
+    assert.equal(close.parentElement.style.paddingBottom, 'calc(10px - var(--sat-trim))');
+  });
+
   test('an image is shown from its bytes, and Download saves those same bytes', async () => {
     await open('g7');
     await clickChip('foto.jpg');
@@ -684,6 +696,19 @@ describe('message body rendering', () => {
     const card = [...document.querySelectorAll('.msg-card')].find(el => /Plain text with/.test(el.textContent));
     assert.ok(card, 'the plain-text body is rendered');
     assert.equal(card.closest('[translate]')?.getAttribute('translate'), 'yes');
+  });
+
+  test('an HTML body stays translatable under the translate="no" UI', async () => {
+    // Chrome's translator carries the page's translate="no" into the same-origin frame, so the
+    // email has to opt back in inside its own document. jsdom does not parse srcdoc (see above),
+    // so the test parses it.
+    await open('h1');
+    const srcdoc = document.querySelector('iframe')?.getAttribute('srcdoc') ?? '';
+    const text = new dom.window.DOMParser().parseFromString(srcdoc, 'text/html').getElementById('hello');
+    assert.ok(text, 'the HTML body reaches the frame');
+    assert.equal(text.closest('[translate]')?.getAttribute('translate'), 'yes');
+    // Not on the <iframe>, where Chrome would also translate the frame's localized title.
+    assert.equal(document.querySelector('iframe').getAttribute('translate'), null);
   });
 
   test('switching messages resets the frame height', async () => {
