@@ -90,7 +90,9 @@ const state = () => doc.querySelector('[data-sign-in-state]')?.dataset.signInSta
 
 const CONFIGS = {
   builtin: { configured: false, builtinApp: true, builtinAppShipped: true, personalAccounts: true, personalVia: 'shared', workAccounts: false, workRedirect: false },
-  ownCommon: { configured: true, builtinApp: true, builtinAppShipped: true, personalAccounts: true, personalVia: 'own', workAccounts: true, workRedirect: true },
+  ownCommon: { configured: true, builtinApp: true, builtinAppShipped: true, personalAccounts: true, personalVia: 'own', workAccounts: true, workRedirect: true, personalRedirect: true },
+  // An own app on common without a secret: personal accounts use its device code.
+  ownCommonNoSecret: { configured: true, builtinApp: true, builtinAppShipped: true, personalAccounts: true, personalVia: 'own', workAccounts: true, workRedirect: false, personalRedirect: false },
   // An own app limited to work accounts, with the shared app on: personal accounts fall back to it.
   ownOrganizations: { configured: true, builtinApp: true, builtinAppShipped: true, personalAccounts: true, personalVia: 'shared', workAccounts: true, workRedirect: false },
   ownOrganizationsSharedOff: { configured: true, builtinApp: false, builtinAppShipped: true, personalAccounts: false, personalVia: null, workAccounts: true, workRedirect: false },
@@ -321,6 +323,25 @@ describe('review follow-ups', () => {
     await click(byText('button', 'msSignIn.titlePersonal'));
     assert.ok(text().includes('msSignIn.titleWork'));
     assert.ok(!text().includes('msSignIn.beforeTitle'));
+  });
+});
+
+describe('personal accounts on an own app', () => {
+  test('with its secret set up, Microsoft\'s page is the main path and the code the alternative', async () => {
+    await openAdd('ownCommon');
+    await click(tile('microsoftPersonal'));
+    assert.ok(text().includes('msSignIn.beforeTitle'), 'the Outlook.com note still applies');
+    assert.ok(byText('button', 'msSignIn.continueMicrosoft'));
+    assert.equal(deviceStarts, 0);
+    await click(byText('button', 'msSignIn.useCode'));
+    assert.equal(deviceStarts, 1);
+  });
+
+  test('without one, the code', async () => {
+    await openAdd('ownCommonNoSecret');
+    await click(tile('microsoftPersonal'));
+    assert.equal(deviceStarts, 1);
+    assert.ok(!byText('button', 'msSignIn.continueMicrosoft'));
   });
 });
 

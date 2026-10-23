@@ -63,7 +63,7 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: true, personalVia: 'own', workAccounts: true, workRedirect: false },
+      microsoft: { configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: true, personalVia: 'own', workAccounts: true, workRedirect: false, personalRedirect: false },
       google: { configured: false, signIn: false },
     });
   });
@@ -74,7 +74,7 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false, personalVia: null, workAccounts: false, workRedirect: false },
+      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false, personalVia: null, workAccounts: false, workRedirect: false, personalRedirect: false },
       google: { configured: false, signIn: false },
     });
   });
@@ -84,7 +84,7 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false, personalVia: null, workAccounts: false, workRedirect: false },
+      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false, personalVia: null, workAccounts: false, workRedirect: false, personalRedirect: false },
       google: { configured: true, signIn: false },
     });
   });
@@ -94,7 +94,7 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     process.env.MS_TENANT_ID = 'organizations';
     try {
       const res = await fetch(`${base}/api/integrations/status`);
-      expect((await res.json()).microsoft).toEqual({ configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: false, personalVia: null, workAccounts: true, workRedirect: false });
+      expect((await res.json()).microsoft).toEqual({ configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: false, personalVia: null, workAccounts: true, workRedirect: false, personalRedirect: false });
     } finally {
       delete process.env.MS_TENANT_ID;
     }
@@ -126,6 +126,22 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     } finally {
       delete process.env.GOOGLE_CLIENT_SECRET;
       delete process.env.GOOGLE_REDIRECT_URI;
+    }
+  });
+
+  // An own app that signs personal accounts in with a secret and redirect URI offers its page to
+  // them too: it may not allow the device code (#674).
+  it.each([
+    [{ MS_CLIENT_ID: 'id', MS_TENANT_ID: 'common', MS_CLIENT_SECRET: 's', MS_REDIRECT_URI: 'https://m.example/cb' }, { personalRedirect: true, workRedirect: true }],
+    [{ MS_CLIENT_ID: 'id', MS_TENANT_ID: 'consumers', MS_CLIENT_SECRET: 's', MS_REDIRECT_URI: 'https://m.example/cb' }, { personalRedirect: true, workRedirect: false }],
+    [{ MS_CLIENT_ID: 'id', MS_TENANT_ID: 'organizations', MS_CLIENT_SECRET: 's', MS_REDIRECT_URI: 'https://m.example/cb' }, { personalRedirect: false, workRedirect: true }],
+    [{ MS_CLIENT_ID: 'id', MS_TENANT_ID: 'common' }, { personalRedirect: false, workRedirect: false }],
+  ])('reports the redirect for personal accounts for %o as %o', async (env, expected) => {
+    Object.assign(process.env, env);
+    try {
+      expect((await (await fetch(`${base}/api/integrations/status`)).json()).microsoft).toMatchObject(expected);
+    } finally {
+      for (const k of Object.keys(env)) delete process.env[k];
     }
   });
 

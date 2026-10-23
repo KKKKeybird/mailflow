@@ -112,6 +112,9 @@ router.get('/status', async (req, res) => {
       // with a secret and redirect URI it can also sign in through Microsoft's page (redirect).
       workAccounts: msWorkAccountsAvailable(),
       workRedirect: msWorkAccountsAvailable() && !!process.env.MS_CLIENT_SECRET && !!process.env.MS_REDIRECT_URI,
+      // The same for personal accounts when the own app signs them in: its page is then the
+      // main path, as in v4.0.4, since such an app may not allow public client flows.
+      personalRedirect: msPersonalSignInVia() === 'own' && !!process.env.MS_CLIENT_SECRET && !!process.env.MS_REDIRECT_URI,
     },
     google: {
       configured: !!process.env.GOOGLE_CLIENT_ID,

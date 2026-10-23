@@ -12,7 +12,10 @@ import { OUTLOOK_WEB_URL } from '../utils/accountErrors.js';
 // to go back.
 export default function MicrosoftSignIn({ mode, status, onSignedIn, onDone, onCancel }) {
   const { t } = useTranslation();
-  const redirectAvailable = mode === 'work' && !!status?.workRedirect;
+  // Microsoft's page is the main path whenever the instance's own app signs this kind of
+  // account in with a secret and redirect URI: such an app may not allow the device code
+  // ("Allow public client flows" off, AADSTS7000218). The code stays as the alternative.
+  const redirectAvailable = mode === 'work' ? !!status?.workRedirect : !!status?.personalRedirect;
   const [useCode, setUseCode] = useState(!redirectAvailable);
   const [redirect, setRedirect] = useState(null); // null | 'waiting' | { result } | { error }
   const [deviceStatus, setDeviceStatus] = useState(null);
