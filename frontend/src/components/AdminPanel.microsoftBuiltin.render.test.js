@@ -276,10 +276,30 @@ describe('Edit form for an account connected through a sign-in', () => {
     await openEdit(ACCOUNT('microsoft'));
     await click(button('admin.accounts.saveChanges'));
     assert.ok(updates, 'saved');
-    for (const field of ['imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'auth_user', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass']) {
+    for (const field of ['imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass']) {
       assert.equal(field in updates, false, field);
     }
     assert.equal(updates.name, 'Maria');
+    // The mailbox to open stays as it was.
+    assert.equal(updates.auth_user, 'maria');
+  });
+
+  test('the mailbox to open can be changed, for a shared or delegated mailbox', async () => {
+    await openEdit(ACCOUNT('microsoft'));
+    assert.ok(text().includes('accountForm.mailboxLabel'));
+    assert.ok(text().includes('accountForm.mailboxHelp'));
+    const input = [...document.querySelectorAll('input')].find(i => i.value === 'maria');
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    await React.act(async () => { setter.call(input, 'shared@contoso.example'); input.dispatchEvent(new window.Event('input', { bubbles: true })); });
+    await click(button('admin.accounts.saveChanges'));
+    assert.equal(updates.auth_user, 'shared@contoso.example');
+    await React.act(async () => root.unmount());
+    // Emptied, it goes back to the account's own address.
+    await openEdit(ACCOUNT('microsoft'));
+    const again = [...document.querySelectorAll('input')].find(i => i.value === 'maria');
+    await React.act(async () => { setter.call(again, ''); again.dispatchEvent(new window.Event('input', { bubbles: true })); });
+    await click(button('admin.accounts.saveChanges'));
+    assert.equal(updates.auth_user, 'maria.lopez@outlook.com');
   });
 
   test('saves even when the hidden login and server are empty on the stored account', async () => {

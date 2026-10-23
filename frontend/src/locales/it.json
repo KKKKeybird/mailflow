@@ -2073,7 +2073,9 @@
   "accountForm": {
     "signedInMicrosoft": "Accesso con Microsoft come {{email}}",
     "signedInGoogle": "Accesso con Google come {{email}}",
-    "signedInNote": "Il server e l'accesso provengono da questo login. Se l'account smette di connettersi, accedi di nuovo."
+    "signedInNote": "Il server e l'accesso provengono da questo login. Se l'account smette di connettersi, accedi di nuovo.",
+    "mailboxLabel": "Casella da aprire",
+    "mailboxHelp": "Per una casella condivisa o delegata, inserisci il suo indirizzo. Lascia così per la tua casella."
   },
   "googleSignIn": {
     "title": "Accedi con Google",

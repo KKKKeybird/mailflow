@@ -55,6 +55,16 @@ describe('PUT /api/accounts/:id for an OAuth account', () => {
     for (const field of OAUTH_OWNED_FIELDS) expect(sql).not.toMatch(new RegExp(`\\b${field} = \\$`));
   });
 
+  // XOAUTH2 logs in as auth_user: editing it is how a shared or delegated mailbox is opened.
+  it('the mailbox to open (auth_user) still saves for an OAuth account; an empty one is ignored', async () => {
+    provider = 'microsoft';
+    expect((await put({ name: 'Shared', auth_user: 'shared@contoso.example' })).status).toBe(200);
+    expect(updateSql()).toMatch(/auth_user = \$/);
+    query.mockClear();
+    expect((await put({ name: 'Shared', auth_user: '  ' })).status).toBe(200);
+    expect(updateSql()).not.toMatch(/auth_user = \$/);
+  });
+
   it('a password account still changes them', async () => {
     provider = null;
     expect((await put(everything)).status).toBe(200);

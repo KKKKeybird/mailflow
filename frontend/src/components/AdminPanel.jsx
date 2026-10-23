@@ -90,7 +90,9 @@ const OAUTH_PROVIDERS = new Set(['microsoft', 'google']);
 // Google's page for creating an app password (needs 2-Step Verification on the account).
 const GOOGLE_APP_PASSWORDS_URL = 'https://myaccount.google.com/apppasswords';
 // What a sign-in owns on the account; saving other settings never sends these for it.
-const OAUTH_OWNED_FIELDS = ['imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'auth_user', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass'];
+// The mailbox to open (auth_user) stays editable: it is how a shared or delegated mailbox is
+// reached with one's own sign-in.
+const OAUTH_OWNED_FIELDS = ['imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass'];
 function isMicrosoftImapHost(host) {
   const h = (host || '').toLowerCase();
   return h.includes('.outlook.com') || h.includes('office365.com') || h.includes('.hotmail.com') || h.includes('.live.com');
@@ -316,7 +318,19 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, on
             }}>{t('accountErrors.action.signIn')}</button>
           )}
         </div>
-      ) : (<>
+      ) : null}
+      {signedInWith && (
+        <div style={{ marginTop: 14 }}>
+          <Field label={t('accountForm.mailboxLabel')}>
+            <input value={form.auth_user || ''} onChange={e => set('auth_user', e.target.value)}
+              placeholder={initial.email_address} style={inputStyle}
+              onFocus={e => e.target.style.borderColor = 'var(--accent)'}
+              onBlur={e => e.target.style.borderColor = 'var(--border)'} />
+            <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 5, lineHeight: 1.5 }}>{t('accountForm.mailboxHelp')}</div>
+          </Field>
+        </div>
+      )}
+      {signedInWith ? null : (<>
       <div style={{ height: 1, background: 'var(--border-subtle)', margin: '16px 0' }} />
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
         {t('admin.accounts.imapSection')}
@@ -800,6 +814,8 @@ function AccountsTab() {
     Object.assign(updates, autoRecipientFields(form), { signature_enabled: form.signature_enabled !== false });
     if (form.auth_pass) updates.auth_pass = form.auth_pass;
     if (form.auth_user) updates.auth_user = form.auth_user;
+    // A signed-in account's mailbox left empty means its own: the account's address.
+    else if (OAUTH_PROVIDERS.has(editTarget.oauth_provider)) updates.auth_user = editTarget.email_address;
     // Separate SMTP credentials (optional). A username sends both (a blank password on
     // edit keeps the stored one); a blank username clears both back to the IMAP login.
     if (form.smtp_auth_user) {

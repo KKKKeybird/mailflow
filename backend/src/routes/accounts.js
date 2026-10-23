@@ -194,12 +194,14 @@ router.post('/', async (req, res) => {
   }
 });
 
-// The fields an OAuth sign-in owns: the server and login it was set up with. The settings form
-// does not show them for such an account, and they are ignored here too, so no request can
-// point a Microsoft or Google sign-in at another server or swap its login.
+// The fields an OAuth sign-in owns: the server it was set up with and the passwords it does
+// not use. The settings form does not show them for such an account, and they are ignored here
+// too, so no request can point a Microsoft or Google sign-in at another server. auth_user stays
+// editable: XOAUTH2 logs in as auth_user (or the address), which is how a shared or delegated
+// Microsoft 365 mailbox is opened with one's own sign-in.
 export const OAUTH_OWNED_FIELDS = [
   'imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls',
-  'auth_user', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass',
+  'auth_pass', 'smtp_auth_user', 'smtp_auth_pass',
 ];
 
 router.put('/:id', async (req, res) => {
@@ -211,6 +213,8 @@ router.put('/:id', async (req, res) => {
   if (!check.rows.length) return res.status(404).json({ error: 'Account not found' });
   if (check.rows[0].oauth_provider) {
     for (const field of OAUTH_OWNED_FIELDS) delete updates[field];
+    // An empty mailbox is not a login: ignored, the stored one stays.
+    if ('auth_user' in updates && !String(updates.auth_user ?? '').trim()) delete updates.auth_user;
   }
 
   if ('name' in updates && hasHeaderInjectionChars(updates.name)) {

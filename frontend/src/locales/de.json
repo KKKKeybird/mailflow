@@ -2073,7 +2073,9 @@
   "accountForm": {
     "signedInMicrosoft": "Mit Microsoft angemeldet als {{email}}",
     "signedInGoogle": "Mit Google angemeldet als {{email}}",
-    "signedInNote": "Server und Anmeldung stammen aus dieser Anmeldung. Wenn das Konto keine Verbindung mehr herstellt, melden Sie sich erneut an."
+    "signedInNote": "Server und Anmeldung stammen aus dieser Anmeldung. Wenn das Konto keine Verbindung mehr herstellt, melden Sie sich erneut an.",
+    "mailboxLabel": "Zu öffnendes Postfach",
+    "mailboxHelp": "Für ein freigegebenes oder delegiertes Postfach geben Sie dessen Adresse ein. Für Ihr eigenes Postfach lassen Sie es, wie es ist."
   },
   "googleSignIn": {
     "title": "Mit Google anmelden",

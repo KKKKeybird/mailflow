@@ -2092,7 +2092,9 @@
   "accountForm": {
     "signedInMicrosoft": "Zalogowano przez Microsoft jako {{email}}",
     "signedInGoogle": "Zalogowano przez Google jako {{email}}",
-    "signedInNote": "Serwer i login pochodzą z tego logowania. Jeśli konto przestanie się łączyć, zaloguj się ponownie."
+    "signedInNote": "Serwer i login pochodzą z tego logowania. Jeśli konto przestanie się łączyć, zaloguj się ponownie.",
+    "mailboxLabel": "Skrzynka do otwarcia",
+    "mailboxHelp": "W przypadku skrzynki udostępnionej lub delegowanej wpisz jej adres. Dla własnej skrzynki zostaw bez zmian."
   },
   "googleSignIn": {
     "title": "Zaloguj się przez Google",
