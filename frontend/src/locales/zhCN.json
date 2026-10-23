@@ -2073,7 +2073,7 @@
   "accountForm": {
     "signedInMicrosoft": "已以 {{email}} 使用 Microsoft 登录",
     "signedInGoogle": "已以 {{email}} 使用 Google 登录",
-    "signedInNote": "服务器和登录信息来自此次登录。如果帐户无法连接，请重新登录。",
+    "signedInNote": "服务器信息来自此次登录。如果帐户无法连接，请重新登录。",
     "mailboxLabel": "要打开的邮箱",
     "mailboxHelp": "如需打开共享或委托的邮箱，请输入其地址。打开自己的邮箱时保持不变即可。"
   },

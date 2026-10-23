@@ -306,7 +306,7 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, on
         </Field>
       )}
 
-      {/* A Microsoft or Google sign-in owns the server and login: shown, not editable (#674). */}
+      {/* A Microsoft or Google sign-in owns the server: shown, not editable (#674). */}
       {signedInWith ? (
         <div data-signed-in-with={signedInWith} style={{
           margin: '16px 0 0', padding: '12px 14px', borderRadius: 8, background: 'var(--bg-tertiary)',

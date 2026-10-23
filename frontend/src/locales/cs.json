@@ -2092,7 +2092,7 @@
   "accountForm": {
     "signedInMicrosoft": "Přihlášeno přes Microsoft jako {{email}}",
     "signedInGoogle": "Přihlášeno přes Google jako {{email}}",
-    "signedInNote": "Server a přihlašovací údaje pocházejí z tohoto přihlášení. Pokud se účet přestane připojovat, přihlaste se znovu.",
+    "signedInNote": "Server pochází z tohoto přihlášení. Pokud se účet přestane připojovat, přihlaste se znovu.",
     "mailboxLabel": "Schránka k otevření",
     "mailboxHelp": "U sdílené nebo delegované schránky zadejte její adresu. U vlastní schránky ponechte beze změny."
   },

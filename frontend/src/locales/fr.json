@@ -2073,7 +2073,7 @@
   "accountForm": {
     "signedInMicrosoft": "Connecté avec Microsoft en tant que {{email}}",
     "signedInGoogle": "Connecté avec Google en tant que {{email}}",
-    "signedInNote": "Le serveur et l'identifiant proviennent de cette connexion. Si le compte ne se connecte plus, reconnectez-vous.",
+    "signedInNote": "Le serveur provient de cette connexion. Si le compte ne se connecte plus, reconnectez-vous.",
     "mailboxLabel": "Boîte aux lettres à ouvrir",
     "mailboxHelp": "Pour une boîte partagée ou déléguée, saisissez son adresse. Laissez tel quel pour votre propre boîte."
   },
