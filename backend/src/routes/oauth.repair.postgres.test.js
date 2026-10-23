@@ -23,7 +23,8 @@ vi.mock('../services/db.js', () => ({
     }
   },
 }));
-vi.mock('../index.js', () => ({ imapManager: { clearConnectCooldown: vi.fn(), connectAccount: vi.fn(async () => true) } }));
+const engine = vi.hoisted(() => ({ clearConnectCooldown: () => {}, connectAccount: async () => true }));
+vi.mock('../index.js', () => ({ imapManager: engine }));
 vi.mock('../services/encryption.js', () => ({ encrypt: (v) => v, decrypt: (v) => v }));
 const signedIn = vi.hoisted(() => ({ email: 'maria.lopez@outlook.com' }));
 vi.mock('jose', () => ({
@@ -128,9 +129,30 @@ describe.skipIf(!ADMIN_URL)('account error codes and repair sign-in on PostgreSQ
   });
 
   it('repairs the account for its own address, whatever the case, and clears its error', async () => {
-    expect(await signIn('maria.lopez@outlook.com')).toEqual({ status: 'success', accountId: account.id });
+    // The mailbox refuses the first connection: the engine records it, and the next poll
+    // reports it from the row.
+    engine.connectAccount = async (acct) => {
+      const self = { _syncErrorState: new Map(), _accountErrorStreak: new Map(), broadcast: () => {} };
+      await ImapManager.prototype._recordAccountError.call(self, acct, 'User is authenticated but not connected.');
+      return false;
+    };
+    expect(await signIn('maria.lopez@outlook.com')).toEqual({ status: 'checking', accountId: account.id, email: 'maria.lopez@outlook.com' });
+    const headers = { 'x-user': user.id };
+    expect(await (await realFetch(`${base}/oauth/microsoft/device/poll`, { headers })).json()).toEqual({
+      status: 'success', accountId: account.id, email: 'maria.lopez@outlook.com',
+      connection: 'failed', code: 'ms_imap_disabled_personal', error: 'User is authenticated but not connected.',
+    });
+    // Turned on in Outlook.com, the account connects: the error goes.
+    engine.connectAccount = async (acct) => {
+      const self = { _syncErrorState: new Map(), _accountErrorStreak: new Map(), broadcast: () => {} };
+      await ImapManager.prototype._clearAccountError.call(self, acct);
+      return true;
+    };
+    expect(await signIn('maria.lopez@outlook.com')).toMatchObject({ status: 'checking' });
+    expect(await (await realFetch(`${base}/oauth/microsoft/device/poll`, { headers })).json()).toMatchObject({ status: 'success', connection: 'connected' });
     const { rows } = await h.pool.query(
       'SELECT id, oauth_refresh_token, sync_error, sync_error_code FROM email_accounts WHERE user_id = $1', [user.id]);
     expect(rows).toEqual([{ id: account.id, oauth_refresh_token: 'rt-new', sync_error: null, sync_error_code: null }]);
+    engine.connectAccount = async () => true;
   });
 });

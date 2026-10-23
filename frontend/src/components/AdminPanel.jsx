@@ -38,6 +38,8 @@ import AdminUserEditor from './AdminUserEditor.jsx';
 import MicrosoftDeviceCode from './MicrosoftDeviceCode.jsx';
 import AccountErrorCallout from './AccountErrorCallout.jsx';
 import SignInAgainDialog from './SignInAgainDialog.jsx';
+import AddAccountChooser from './AddAccountChooser.jsx';
+import MicrosoftSignIn from './MicrosoftSignIn.jsx';
 import { describeAccountError } from '../utils/accountErrors.js';
 import { formatRelativeTime, daysSince } from '../utils/relativeTime.js';
 import { formatDateTime, formatDay, formatTime } from '../utils/formatDate.js';
@@ -88,18 +90,21 @@ function isMicrosoftImapHost(host) {
   return h.includes('.outlook.com') || h.includes('office365.com') || h.includes('.hotmail.com') || h.includes('.live.com');
 }
 
-function AccountForm({ initial, onSave, onCancel }) {
+// prefill (add only): { email, preset } from the Add account chooser.
+// onMicrosoftSignIn (add only): switch to "Sign in with Microsoft" when an Outlook.com host is typed.
+function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn }) {
   const { t } = useTranslation();
   const { categorizationEnabled } = useStore();
 
   const isEdit = !!initial?.id;
-  const [form, setForm] = useState(initial || {
-    name: '', email_address: '', color: '#6366f1', protocol: 'imap',
+  const [form, setForm] = useState(() => initial || {
+    name: '', email_address: prefill?.email || '', color: '#6366f1', protocol: 'imap',
     imap_host: '', imap_port: 993, imap_skip_tls_verify: false,
     smtp_host: '', smtp_port: 587, smtp_tls: 'STARTTLS',
     smtp_auth_user: '', smtp_auth_pass: '',
-    auth_user: '', auth_pass: '', categorization_enabled: false, antispam_enabled: false,
+    auth_user: prefill?.email || '', auth_pass: '', categorization_enabled: false, antispam_enabled: false,
     trusted_authserv_id: '',
+    ...(prefill?.preset && PRESETS[prefill.preset]?.imap_host ? { ...PRESETS[prefill.preset], label: undefined } : {}),
   });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -109,7 +114,7 @@ function AccountForm({ initial, onSave, onCancel }) {
   const [detectedAuthservIds, setDetectedAuthservIds] = useState(null);
   const [showPass, setShowPass] = useState(false);
   const [showSmtpPass, setShowSmtpPass] = useState(false);
-  const [selectedPreset, setSelectedPreset] = useState(null);
+  const [selectedPreset, setSelectedPreset] = useState(prefill?.preset || null);
   const [mailPolicy, setMailPolicy] = useState({ allowPrivateHosts: false, allowInsecureTls: false, allowNonstandardPorts: false });
   // Whether an Outlook.com address can be connected right away through Integrations, with the
   // instance's own app or MailFlow's built-in one (#674). Asked only once one is typed, and
@@ -359,8 +364,15 @@ function AccountForm({ initial, onSave, onCancel }) {
           <div>
             <div style={{ fontWeight: 600, marginBottom: 3 }}>{t('admin.accounts.microsoftImapUnsupported')}</div>
             <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              {msPersonalReady ? t('admin.accounts.microsoftImapNoteReady') : t('admin.accounts.microsoftImapNote')}
+              {!isEdit && msPersonalReady && onMicrosoftSignIn ? t('admin.accounts.microsoftImapNoteSignIn')
+                : msPersonalReady ? t('admin.accounts.microsoftImapNoteReady') : t('admin.accounts.microsoftImapNote')}
             </div>
+            {!isEdit && msPersonalReady && onMicrosoftSignIn && (
+              <button type="button" onClick={onMicrosoftSignIn} style={{
+                marginTop: 10, padding: '7px 14px', background: 'var(--accent)', border: 'none', borderRadius: 7,
+                color: 'var(--accent-text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+              }}>{t('msSignIn.titlePersonal')}</button>
+            )}
           </div>
         </div>
       )}
@@ -647,10 +659,37 @@ function AccountsTab() {
   const [signInTarget, setSignInTarget] = useState(null); // account being signed in again
   const [focusedId, setFocusedId] = useState(null); // account row opened from the sidebar
   const rowRefs = useRef({});
+  // Add account: the chooser, then the IMAP form or "Sign in with Microsoft" (#674).
+  const [addStep, setAddStep] = useState({ step: 'choose' }); // { step: 'choose' } | { step: 'form', preset, email } | { step: 'microsoft', mode }
+  const [msStatus, setMsStatus] = useState(null); // GET /api/integrations/status's microsoft entry
+  const startAdd = () => { setAddStep({ step: 'choose' }); setSubview('add'); };
 
-  // Opened for one account from the sidebar: show its row, and start "Sign in again" if asked.
+  useEffect(() => {
+    if (subview !== 'add') return undefined;
+    let cancelled = false;
+    setMsStatus(null);
+    api.getIntegrationsStatus()
+      .then(d => { if (!cancelled) setMsStatus(d?.microsoft || {}); })
+      .catch(() => { if (!cancelled) setMsStatus({}); });
+    return () => { cancelled = true; };
+  }, [subview]);
+
+  const chooseProvider = (choice, email) => {
+    if (choice === 'microsoftPersonal') setAddStep({ step: 'microsoft', mode: 'personal' });
+    else if (choice === 'microsoftWork') setAddStep({ step: 'microsoft', mode: 'work' });
+    else setAddStep({ step: 'form', preset: choice === 'other' ? null : choice, email });
+  };
+  const reloadAccounts = () => api.getAccounts().then(setAccounts).catch(console.error);
+
+  // Opened from elsewhere: the empty inbox's Add account, or one account's row from the
+  // sidebar (and "Sign in again" if asked).
   useEffect(() => {
     if (!accountsIntent) return;
+    if (accountsIntent.action === 'add') {
+      setAccountsIntent(null);
+      startAdd();
+      return;
+    }
     const target = accounts.find(a => a.id === accountsIntent.accountId);
     setAccountsIntent(null);
     if (!target) return;
@@ -842,9 +881,11 @@ function AccountsTab() {
   };
 
   if (subview === 'add') {
+    const toChooser = () => setAddStep({ step: 'choose' });
+    const toList = () => setSubview('list');
     return (
       <div>
-        <button onClick={() => setSubview('list')} style={{
+        <button onClick={addStep.step === 'choose' ? toList : toChooser} style={{
           display: 'flex', alignItems: 'center', gap: 6,
           background: 'none', border: 'none', color: 'var(--text-secondary)',
           cursor: 'pointer', fontSize: 13, padding: '0 0 16px 0',
@@ -852,12 +893,27 @@ function AccountsTab() {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <polyline points="15 18 9 12 15 6"/>
           </svg>
-          {t('sidebar.backToAccounts')}
+          {addStep.step === 'choose' ? t('sidebar.backToAccounts') : t('msSignIn.back')}
         </button>
-        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 20 }}>
-          {t('admin.accounts.addTitle')}
-        </div>
-        <AccountForm onSave={handleAdd} onCancel={() => setSubview('list')} />
+        {addStep.step === 'choose' && (
+          <AddAccountChooser status={msStatus} isAdmin={isAdmin} onChoose={chooseProvider}
+            onOpenSettings={() => setAdminTab('integrations')} />
+        )}
+        {addStep.step === 'microsoft' && (
+          <MicrosoftSignIn mode={addStep.mode} status={msStatus}
+            onSignedIn={reloadAccounts}
+            onDone={() => { reloadAccounts(); toList(); }}
+            onCancel={toChooser} />
+        )}
+        {addStep.step === 'form' && (
+          <>
+            <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 20 }}>
+              {t('admin.accounts.addTitle')}
+            </div>
+            <AccountForm key={`${addStep.preset}:${addStep.email}`} prefill={addStep} onSave={handleAdd} onCancel={toChooser}
+              onMicrosoftSignIn={() => setAddStep({ step: 'microsoft', mode: 'personal' })} />
+          </>
+        )}
       </div>
     );
   }
@@ -1150,7 +1206,7 @@ function AccountsTab() {
         <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
           {t('admin.accounts.title')}
         </div>
-        <button onClick={() => setSubview('add')} style={{
+        <button onClick={startAdd} style={{
           display: 'flex', alignItems: 'center', gap: 6,
           padding: '7px 12px', background: 'var(--accent)',
           border: 'none', borderRadius: 7, color: 'var(--accent-text)',
@@ -1165,7 +1221,11 @@ function AccountsTab() {
 
       {accounts.length === 0 && (
         <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-tertiary)', fontSize: 14 }}>
-          {t('admin.accounts.empty')}
+          <div>{t('admin.accounts.empty')}</div>
+          <button type="button" onClick={startAdd} style={{
+            marginTop: 14, padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 8,
+            color: 'var(--accent-text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+          }}>{t('admin.accounts.addButton')}</button>
         </div>
       )}
 
@@ -2441,7 +2501,6 @@ function IntegrationsTab() {
   const [saveMsg, setSaveMsg] = useState('');
   const [connectingMs, setConnectingMs] = useState(false);
   const [deviceOpen, setDeviceOpen] = useState(false); // the device-code sign-in is showing
-  const deviceCloseTimer = useRef(null);
 
   // Todoist state
   const [tdConnected, setTdConnected] = useState(false);
@@ -2526,7 +2585,6 @@ function IntegrationsTab() {
     window.addEventListener('message', handleMessage);
     return () => {
       window.removeEventListener('message', handleMessage);
-      clearTimeout(deviceCloseTimer.current);
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only: listeners and status for this panel
 
@@ -2553,10 +2611,7 @@ function IntegrationsTab() {
     }
   };
 
-  const stopDeviceFlow = () => {
-    clearTimeout(deviceCloseTimer.current);
-    setDeviceOpen(false);
-  };
+  const stopDeviceFlow = () => setDeviceOpen(false);
 
   // Whether personal accounts may use MailFlow's built-in app while no Client ID is saved.
   // A setting of its own, apart from the app config above. (#674)
@@ -2570,10 +2625,9 @@ function IntegrationsTab() {
     }
   };
 
-  const handleDeviceSuccess = () => {
-    setSaveMsg(t('admin.integrations.microsoft.connectedNote'));
+  // The sign-in view reports the outcome itself; the account list needs the new account.
+  const handleDeviceSignedIn = () => {
     api.getAccounts().then(setAccounts).catch(console.error);
-    deviceCloseTimer.current = setTimeout(stopDeviceFlow, 3000);
   };
 
   const handleConnectMs = () => {
@@ -3134,7 +3188,7 @@ function IntegrationsTab() {
                     </button>
                   )}
 
-                  {deviceOpen && <MicrosoftDeviceCode onSuccess={handleDeviceSuccess} onCancel={stopDeviceFlow} />}
+                  {deviceOpen && <MicrosoftDeviceCode onSignedIn={handleDeviceSignedIn} onDone={stopDeviceFlow} onCancel={stopDeviceFlow} />}
                 </div>
               </div>
             )}

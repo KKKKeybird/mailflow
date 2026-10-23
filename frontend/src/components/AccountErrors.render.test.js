@@ -195,13 +195,13 @@ describe('Settings > Accounts: the callout on the account row', () => {
   });
 
   test('a successful repair reloads the accounts', async () => {
-    pollResult = { status: 'success', accountId: 'acct-1' };
+    pollResult = { status: 'success', accountId: 'acct-1', email: 'maria.lopez@outlook.com', connection: 'connected' };
     let reloaded = 0;
     await openAccounts(account('oauth_reauth'));
     api.getAccounts = async () => { reloaded++; return [account(null)]; };
     await click(byText('button', 'accountErrors.action.signIn'));
     await wait(80);
-    assert.ok(text().includes('accountErrors.signInDialog.success'));
+    assert.ok(text().includes('msSignIn.connected {"email":"maria.lopez@outlook.com"}'));
     assert.equal(reloaded, 1);
   });
 

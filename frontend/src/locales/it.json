@@ -997,7 +997,8 @@
       "trustedAuthservDetected": "Visti sui messaggi recenti (clicca per usare):",
       "trustedAuthservDetectedNone": "Nessun dato ancora: i messaggi vengono esaminati quando l'antispam è attivo per questo account.",
       "trustedAuthservWarn": "Considera attendibile solo un ID che riconosci come il server di ricezione del tuo provider.",
-      "enabledGlobally": "Abilitato globalmente"
+      "enabledGlobally": "Abilitato globalmente",
+      "microsoftImapNoteSignIn": "Microsoft non accetta più password per le caselle Outlook.com, Hotmail, Live e MSN. Accedi invece con Microsoft: non serve una password per le app."
     },
     "folderMappings": {
       "title": "Mappatura cartelle",
@@ -1607,14 +1608,6 @@
         "deviceCodeTitle": "Connetti con codice dispositivo",
         "deviceCodeNote": "Nessun URI di reindirizzamento o segreto client richiesto. In Azure, vai su Autenticazione e imposta 'Consenti flussi di client pubblici' su Sì. Ideale per account personali Outlook.com / Hotmail.",
         "deviceCodeStart": "Avvia flusso codice dispositivo",
-        "deviceCodeInstructions": "Visita il link qui sotto su qualsiasi dispositivo e inserisci il codice per autorizzare MailFlow:",
-        "deviceCodeVisit": "Visita:",
-        "deviceCodeEnter": "Inserisci il codice:",
-        "deviceCodeWaiting": "In attesa di autorizzazione…",
-        "deviceCodeExpired": "Codice scaduto. Riprova.",
-        "deviceCodeDeclined": "L'autorizzazione è stata rifiutata.",
-        "deviceCodeError": "Si è verificato un errore. Riprova.",
-        "deviceCodeCancel": "Annulla",
         "personalReady": "Account personali pronti",
         "builtinTitle": "Collega un account Microsoft personale",
         "builtinNote": "Nessuna configurazione necessaria per gli account Outlook.com, Hotmail, Live e MSN. Questo usa l'app Microsoft condivisa di MailFlow, che Microsoft potrebbe indicare come non verificata. Accedi sulla pagina di Microsoft nel tuo browser e Microsoft invia i token direttamente a questo server: i manutentori di MailFlow non vedono mai la tua posta né i tuoi token. Gli account aziendali o scolastici richiedono un'app registrata dal tuo amministratore.",
@@ -2010,8 +2003,7 @@
       "retry": "Riprova",
       "signIn": "Accedi di nuovo",
       "edit": "Modifica account",
-      "openIntegrations": "Apri Integrazioni",
-      "startOver": "Ricomincia"
+      "openIntegrations": "Apri Integrazioni"
     },
     "details": "Dettagli",
     "wrongAccount": "Hai effettuato l'accesso come {{signedInAs}}, non come {{expected}}. Accedi con {{expected}} per sistemare questo account.",
@@ -2022,5 +2014,58 @@
       "continueGoogle": "Continua su Google",
       "waitingGoogle": "Completa l'accesso nella pagina di Google, poi torna qui."
     }
+  },
+  "addAccount": {
+    "title": "Aggiungi un account di posta",
+    "emailLabel": "Il tuo indirizzo email",
+    "continue": "Continua",
+    "invalidEmail": "Inserisci un indirizzo email come tu@example.com.",
+    "orChoose": "Oppure scegli il tuo provider",
+    "tile": {
+      "outlook": "Outlook.com, Hotmail, Live, MSN",
+      "outlookSub": "Accedi con Microsoft",
+      "work": "Microsoft 365 (lavoro o scuola)",
+      "workSub": "Accedi con l'account Microsoft della tua organizzazione",
+      "gmail": "Gmail",
+      "gmailSub": "Usa una password per le app",
+      "yahoo": "Yahoo Mail",
+      "yahooSub": "Usa una password per le app",
+      "icloud": "iCloud Mail",
+      "icloudSub": "Usa una password specifica per le app",
+      "other": "Altro (IMAP)",
+      "otherSub": "Inserisci le impostazioni del server"
+    },
+    "personalOff": "Il tuo amministratore ha disattivato l'accesso a Outlook.com.",
+    "workOff": "Il tuo amministratore non l'ha ancora configurato.",
+    "openSettings": "Apri le impostazioni di accesso Microsoft"
+  },
+  "msSignIn": {
+    "titlePersonal": "Accedi con Microsoft",
+    "titleWork": "Accedi con il tuo account di lavoro o della scuola",
+    "beforeTitle": "Prima di iniziare",
+    "beforeBody": "Outlook.com deve consentire le app di posta. Se non l'hai mai fatto:",
+    "step1": "Apri la pagina di accesso di Microsoft.",
+    "step1Button": "Apri l'accesso Microsoft",
+    "step2": "Inserisci lì questo codice, poi segui i passaggi nella pagina di Microsoft.",
+    "copy": "Copia codice",
+    "copied": "Copiato",
+    "waiting": "In attesa che completi l'accesso nella pagina di Microsoft…",
+    "starting": "Richiesta di un codice a Microsoft…",
+    "checking": "Verifica che MailFlow possa raggiungere la tua casella…",
+    "connected": "{{email}} è connesso. La posta si sta sincronizzando.",
+    "stillConnecting": "Accesso effettuato come {{email}}. MailFlow si sta ancora connettendo e continua a riprovare da solo. L'elenco degli account mostra quando è pronto.",
+    "declined": "Hai annullato l'accesso nella pagina di Microsoft.",
+    "expired": "Il codice è scaduto prima della fine dell'accesso. I codici durano 15 minuti.",
+    "error": "L'accesso a Microsoft non è riuscito.",
+    "newCode": "Ottieni un nuovo codice",
+    "startOver": "Ricomincia",
+    "done": "Fatto",
+    "finePrintShared": "Microsoft potrebbe indicare MailFlow come app non verificata. È normale: l'app condivisa di MailFlow serve solo a identificare MailFlow presso Microsoft. Accedi nella pagina di Microsoft, e Microsoft invia l'accesso direttamente a questo server.",
+    "finePrintOwn": "Accedi nella pagina di Microsoft, e Microsoft invia l'accesso direttamente a questo server.",
+    "continueMicrosoft": "Continua su Microsoft",
+    "redirectWaiting": "Completa l'accesso nella pagina di Microsoft che si è aperta, poi torna qui.",
+    "useCode": "Usa invece un codice",
+    "useRedirect": "Accedi invece nella pagina di Microsoft",
+    "back": "Indietro"
   }
 }

@@ -63,7 +63,7 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: true },
+      microsoft: { configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: true, workAccounts: true, workRedirect: false },
       google: { configured: false },
     });
   });
@@ -74,7 +74,7 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false },
+      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false, workAccounts: false, workRedirect: false },
       google: { configured: false },
     });
   });
@@ -84,7 +84,7 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false },
+      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false, workAccounts: false, workRedirect: false },
       google: { configured: true },
     });
   });
@@ -94,9 +94,25 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     process.env.MS_TENANT_ID = 'organizations';
     try {
       const res = await fetch(`${base}/api/integrations/status`);
-      expect((await res.json()).microsoft).toEqual({ configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: false });
+      expect((await res.json()).microsoft).toEqual({ configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: false, workAccounts: true, workRedirect: false });
     } finally {
       delete process.env.MS_TENANT_ID;
+    }
+  });
+
+  // Work accounts need an own app that is not limited to personal accounts; the redirect
+  // sign-in also needs its secret and redirect URI (#674).
+  it.each([
+    [{ MS_CLIENT_ID: 'id', MS_TENANT_ID: 'consumers' }, { workAccounts: false, workRedirect: false }],
+    [{ MS_CLIENT_ID: 'id', MS_TENANT_ID: 'contoso.example' }, { workAccounts: true, workRedirect: false }],
+    [{ MS_CLIENT_ID: 'id', MS_CLIENT_SECRET: 's', MS_REDIRECT_URI: 'https://mail.example/oauth/microsoft/callback' }, { workAccounts: true, workRedirect: true }],
+  ])('reports work accounts for %o as %o', async (env, expected) => {
+    Object.assign(process.env, env);
+    try {
+      const res = await fetch(`${base}/api/integrations/status`);
+      expect((await res.json()).microsoft).toMatchObject(expected);
+    } finally {
+      for (const k of Object.keys(env)) delete process.env[k];
     }
   });
 

@@ -54,6 +54,13 @@ export function msPersonalAccountsAvailable() {
   return msBuiltinAppEnabled();
 }
 
+// Whether a work or school account can sign in now: only through the instance's own app, and
+// not when that app is limited to personal accounts (the consumers tenant).
+export function msWorkAccountsAvailable() {
+  const { clientId, tenantId } = getMsConfig();
+  return !!clientId && tenantId.trim().toLowerCase() !== 'consumers';
+}
+
 // Client a stored account refreshes through. Accounts connected before the identity was
 // recorded have none and use the instance config, as they always did. The configured
 // secret belongs to the configured app only: it is never offered for the built-in client

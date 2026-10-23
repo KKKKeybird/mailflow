@@ -115,7 +115,8 @@ describe('repairing an account by signing in again', () => {
   it('updates the account it was started for when the address matches without regard to case', async () => {
     noteRefreshFailure('ms-1', { code: 'oauth_reauth', detail: 'AADSTS700082: expired' });
     await startDevice({ accountId: 'ms-1' });
-    expect(await poll()).toEqual({ status: 'success', accountId: 'ms-1' });
+    expect(await poll()).toEqual({ status: 'checking', accountId: 'ms-1', email: 'maria.lopez@outlook.com' });
+    expect(await poll()).toEqual({ status: 'success', accountId: 'ms-1', email: 'maria.lopez@outlook.com', connection: 'connected' });
 
     const [sql, params] = writes()[0];
     expect(writes()).toHaveLength(1);
@@ -149,7 +150,7 @@ describe('repairing an account by signing in again', () => {
   it('still adds or updates by address when no account is named', async () => {
     signedInAs = 'new.person@outlook.com';
     await startDevice({});
-    expect((await poll()).status).toBe('success');
+    expect((await poll()).status).toBe('checking');
     expect(writes().some(([sql]) => /INSERT INTO email_accounts/.test(sql))).toBe(true);
   });
 
@@ -171,6 +172,37 @@ describe('repairing an account by signing in again', () => {
     expect(session.oauthRepairAccountId).toBeUndefined();
   });
 
+  // After Microsoft approves, the page shows "checking" and the next poll answers with how
+  // the first connection went (#674).
+  it('reports a mailbox that refuses the first connection, with its recorded error', async () => {
+    signedInAs = 'new.person@outlook.com';
+    mocks.imapManager.connectAccount.mockResolvedValue(false);
+    mocks.query.mockImplementation(async (sql, params) => (/SELECT sync_error, sync_error_code/.test(sql)
+      ? { rows: [{ sync_error: 'User is authenticated but not connected.', sync_error_code: 'ms_imap_disabled_personal' }] }
+      : pick(sql, params) || { rows: [] }));
+    await startDevice({});
+    expect((await poll()).status).toBe('checking');
+    expect(await poll()).toEqual({
+      status: 'success', accountId: 'new-1', email: 'new.person@outlook.com',
+      connection: 'failed', code: 'ms_imap_disabled_personal', error: 'User is authenticated but not connected.',
+    });
+    // The flow is finished.
+    expect((await poll()).status).toBe('error');
+  });
+
+  it('reports connected as soon as the login is live, while the first sync is still running', async () => {
+    signedInAs = 'new.person@outlook.com';
+    mocks.imapManager.connectAccount.mockReturnValue(new Promise(() => {}));
+    mocks.imapManager.isConnected = vi.fn(() => true);
+    try {
+      await startDevice({});
+      await poll();
+      expect(await poll()).toMatchObject({ status: 'success', connection: 'connected' });
+    } finally {
+      delete mocks.imapManager.isConnected;
+    }
+  });
+
   it('carries a repair through the Microsoft redirect', async () => {
     process.env.MS_CLIENT_ID = 'own-app-id';
     process.env.MS_CLIENT_SECRET = 'secret';
@@ -178,7 +210,10 @@ describe('repairing an account by signing in again', () => {
     await realFetch(`${base}/oauth/microsoft?accountId=ms-1`, { redirect: 'manual' });
     expect(session.oauthRepairAccountId).toBe('ms-1');
     const cb = await realFetch(`${base}/oauth/microsoft/callback?code=c&state=${session.oauthNonce}`, { redirect: 'manual' });
-    expect(cb.headers.get('location')).toBe('/?oauth_success=microsoft');
+    // Back to the page with how the first connection went, for it to report honestly.
+    expect(Object.fromEntries(new URL(cb.headers.get('location'), base).searchParams)).toEqual({
+      oauth_success: 'microsoft', oauth_account_id: 'ms-1', oauth_email: 'maria.lopez@outlook.com', oauth_connection: 'connected',
+    });
     expect(writes()[0][1][5]).toBe('ms-1');
   });
 });

@@ -1013,7 +1013,8 @@
       "trustedAuthservDetected": "Widziane w ostatnich wiadomościach (kliknij, aby użyć):",
       "trustedAuthservDetectedNone": "Brak danych — wiadomości są analizowane, gdy antyspam jest włączony dla tego konta.",
       "trustedAuthservWarn": "Ufaj tylko identyfikatorowi, który rozpoznajesz jako serwer odbierający Twojego dostawcy.",
-      "enabledGlobally": "Włączone globalnie"
+      "enabledGlobally": "Włączone globalnie",
+      "microsoftImapNoteSignIn": "Microsoft nie przyjmuje już haseł do skrzynek Outlook.com, Hotmail, Live i MSN. Zaloguj się przez Microsoft: hasło aplikacji nie jest potrzebne."
     },
     "folderMappings": {
       "title": "Mapowania folderów",
@@ -1626,14 +1627,6 @@
         "deviceCodeTitle": "Połącz za pomocą kodu urządzenia",
         "deviceCodeNote": "Przekierowanie ani sekret klienta nie są wymagane. W Azure przejdź do Uwierzytelnianie i ustaw opcję „Zezwalaj na przepływy klientów publicznych” na „Tak”. Najlepsze rozwiązanie dla osobistych kont Outlook.com/Hotmail.",
         "deviceCodeStart": "Uruchom przepływ kodu urządzenia",
-        "deviceCodeInstructions": "Otwórz poniższy adres na dowolnym urządzeniu i wpisz kod, aby autoryzować MailFlow:",
-        "deviceCodeVisit": "Otwórz:",
-        "deviceCodeEnter": "Wpisz kod:",
-        "deviceCodeWaiting": "Oczekiwanie na autoryzację…",
-        "deviceCodeExpired": "Kod wygasł. Kliknij, aby rozpocząć ponownie.",
-        "deviceCodeDeclined": "Autoryzacja została odrzucona.",
-        "deviceCodeError": "Wystąpił błąd. Spróbuj ponownie.",
-        "deviceCodeCancel": "Anuluj",
         "personalReady": "Konta prywatne gotowe",
         "builtinTitle": "Połącz prywatne konto Microsoft",
         "builtinNote": "Konta Outlook.com, Hotmail, Live i MSN nie wymagają konfiguracji. Korzysta to ze wspólnej aplikacji Microsoft MailFlow, którą Microsoft może oznaczyć jako niezweryfikowaną. Logujesz się na stronie Microsoft w swojej przeglądarce, a Microsoft wysyła tokeny bezpośrednio do tego serwera: opiekunowie MailFlow nigdy nie widzą Twojej poczty ani tokenów. Konta służbowe lub szkolne wymagają aplikacji zarejestrowanej przez administratora.",
@@ -2029,8 +2022,7 @@
       "retry": "Spróbuj ponownie",
       "signIn": "Zaloguj się ponownie",
       "edit": "Edytuj konto",
-      "openIntegrations": "Otwórz Integracje",
-      "startOver": "Zacznij od nowa"
+      "openIntegrations": "Otwórz Integracje"
     },
     "details": "Szczegóły",
     "wrongAccount": "Zalogowano jako {{signedInAs}}, a nie {{expected}}. Zaloguj się jako {{expected}}, aby naprawić to konto.",
@@ -2041,5 +2033,58 @@
       "continueGoogle": "Przejdź do Google",
       "waitingGoogle": "Dokończ logowanie na stronie Google, a potem wróć tutaj."
     }
+  },
+  "addAccount": {
+    "title": "Dodaj konto e-mail",
+    "emailLabel": "Twój adres e-mail",
+    "continue": "Dalej",
+    "invalidEmail": "Wpisz adres e-mail, np. ty@example.com.",
+    "orChoose": "Albo wybierz dostawcę",
+    "tile": {
+      "outlook": "Outlook.com, Hotmail, Live, MSN",
+      "outlookSub": "Zaloguj się przez Microsoft",
+      "work": "Microsoft 365 (praca lub szkoła)",
+      "workSub": "Zaloguj się kontem Microsoft swojej organizacji",
+      "gmail": "Gmail",
+      "gmailSub": "Użyj hasła aplikacji",
+      "yahoo": "Yahoo Mail",
+      "yahooSub": "Użyj hasła aplikacji",
+      "icloud": "iCloud Mail",
+      "icloudSub": "Użyj hasła dla aplikacji",
+      "other": "Inne (IMAP)",
+      "otherSub": "Wpisz ustawienia serwera"
+    },
+    "personalOff": "Administrator wyłączył logowanie do Outlook.com.",
+    "workOff": "Administrator jeszcze tego nie skonfigurował.",
+    "openSettings": "Otwórz ustawienia logowania Microsoft"
+  },
+  "msSignIn": {
+    "titlePersonal": "Zaloguj się przez Microsoft",
+    "titleWork": "Zaloguj się kontem służbowym lub szkolnym",
+    "beforeTitle": "Zanim zaczniesz",
+    "beforeBody": "Outlook.com musi zezwalać na aplikacje pocztowe. Jeśli jeszcze tego nie robiono:",
+    "step1": "Otwórz stronę logowania Microsoft.",
+    "step1Button": "Otwórz logowanie Microsoft",
+    "step2": "Wpisz tam ten kod i wykonaj kroki na stronie Microsoft.",
+    "copy": "Kopiuj kod",
+    "copied": "Skopiowano",
+    "waiting": "Czekamy, aż dokończysz logowanie na stronie Microsoft…",
+    "starting": "Pobieranie kodu z Microsoft…",
+    "checking": "Sprawdzanie, czy MailFlow ma dostęp do Twojej skrzynki…",
+    "connected": "{{email}} jest połączone. Poczta właśnie się synchronizuje.",
+    "stillConnecting": "Zalogowano jako {{email}}. MailFlow wciąż się łączy i sam ponawia próby. Lista kont pokaże, kiedy będzie gotowe.",
+    "declined": "Logowanie na stronie Microsoft zostało anulowane.",
+    "expired": "Kod wygasł przed zakończeniem logowania. Kody są ważne 15 minut.",
+    "error": "Logowanie do Microsoft się nie udało.",
+    "newCode": "Pobierz nowy kod",
+    "startOver": "Zacznij od nowa",
+    "done": "Gotowe",
+    "finePrintShared": "Microsoft może pokazać MailFlow jako niezweryfikowaną aplikację. To normalne: współdzielona aplikacja MailFlow tylko przedstawia MailFlow firmie Microsoft. Logujesz się na stronie Microsoft, a Microsoft przesyła dostęp bezpośrednio na ten serwer.",
+    "finePrintOwn": "Logujesz się na stronie Microsoft, a Microsoft przesyła dostęp bezpośrednio na ten serwer.",
+    "continueMicrosoft": "Przejdź do Microsoft",
+    "redirectWaiting": "Dokończ logowanie na otwartej stronie Microsoft, a potem wróć tutaj.",
+    "useCode": "Użyj kodu",
+    "useRedirect": "Zaloguj się na stronie Microsoft",
+    "back": "Wstecz"
   }
 }

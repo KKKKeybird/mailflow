@@ -16,7 +16,7 @@ export default function AccountErrorCallout({ account, isAdmin, onRetry, onSignI
     color: 'var(--accent-text)', cursor: 'pointer', fontSize: 12, fontWeight: 500,
   };
   const secondary = {
-    padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'transparent',
+    padding: '6px 12px', borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg-secondary)',
     color: 'var(--text-primary)', cursor: 'pointer', fontSize: 12, fontWeight: 500,
   };
   // The first action is the one that fixes it; the rest are secondary.

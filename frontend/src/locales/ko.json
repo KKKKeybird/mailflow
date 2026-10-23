@@ -997,7 +997,8 @@
       "antispamEnabled": "이 계정에 스팸 방지 활성화",
       "enabledGlobally": "전체에서 활성화됨",
       "trustedAuthservPlaceholder": "mx.example.com",
-      "errorPasswordRequired": "새 계정에는 비밀번호가 필요합니다"
+      "errorPasswordRequired": "새 계정에는 비밀번호가 필요합니다",
+      "microsoftImapNoteSignIn": "Microsoft는 더 이상 Outlook.com, Hotmail, Live, MSN 사서함의 비밀번호를 받지 않습니다. 대신 Microsoft로 로그인하세요. 앱 비밀번호가 필요 없습니다."
     },
     "folderMappings": {
       "title": "폴더 매핑",
@@ -1604,17 +1605,9 @@
         "deviceCodeTitle": "기기 코드로 연결",
         "deviceCodeStart": "기기 코드 연결 시작",
         "savedNote": "구성이 저장되었습니다. 승인하려면 \"계정 연결\"을 클릭하세요.",
-        "deviceCodeVisit": "접속 주소:",
         "deviceCodeNote": "리디렉션 URI나 클라이언트 비밀번호가 필요하지 않습니다. Azure에서 인증으로 이동하여 '공용 클라이언트 흐름 허용'을 예로 설정합니다. 개인 Outlook.com/Hotmail 계정에 가장 적합합니다.",
-        "deviceCodeInstructions": "어느 기기에서나 아래 링크를 방문하고 코드를 입력하여 MailFlow를 인증하세요.",
         "userNoteConfigured": "관리자가 Microsoft 365 로그인을 설정했습니다. 아래에서 Outlook.com, Hotmail 또는 Microsoft 365 계정을 연결하세요.",
-        "deviceCodeError": "오류가 발생했습니다. 다시 시도해 주세요.",
         "userNoteNotConfigured": "아직 관리자가 Microsoft 365 로그인을 설정하지 않았습니다. 관리자에게 구성을 요청하세요.",
-        "deviceCodeCancel": "취소",
-        "deviceCodeExpired": "코드가 만료되었습니다. 다시 시작을 클릭하세요.",
-        "deviceCodeEnter": "코드 입력:",
-        "deviceCodeDeclined": "승인이 거부되었습니다.",
-        "deviceCodeWaiting": "승인을 기다리는 중…",
         "personalReady": "개인 계정 사용 가능",
         "builtinTitle": "개인 Microsoft 계정 연결",
         "builtinNote": "Outlook.com, Hotmail, Live 및 MSN 계정은 설정이 필요하지 않습니다. MailFlow의 공유 Microsoft 앱을 사용하며, Microsoft에서 확인되지 않은 앱으로 표시할 수 있습니다. 브라우저에서 Microsoft의 자체 페이지에 로그인하면 Microsoft가 토큰을 이 서버로 직접 보냅니다. MailFlow 관리자는 메일이나 토큰을 볼 수 없습니다. 회사 또는 학교 계정에는 관리자가 등록한 앱이 필요합니다.",
@@ -2010,8 +2003,7 @@
       "retry": "다시 시도",
       "signIn": "다시 로그인",
       "edit": "계정 편집",
-      "openIntegrations": "통합 열기",
-      "startOver": "처음부터 다시"
+      "openIntegrations": "통합 열기"
     },
     "details": "세부 정보",
     "wrongAccount": "{{expected}}이(가) 아니라 {{signedInAs}}(으)로 로그인했습니다. 이 계정을 고치려면 {{expected}}(으)로 로그인하세요.",
@@ -2022,5 +2014,58 @@
       "continueGoogle": "Google로 계속",
       "waitingGoogle": "Google 페이지에서 로그인을 마친 다음 여기로 돌아오세요."
     }
+  },
+  "addAccount": {
+    "title": "이메일 계정 추가",
+    "emailLabel": "이메일 주소",
+    "continue": "계속",
+    "invalidEmail": "you@example.com 같은 이메일 주소를 입력하세요.",
+    "orChoose": "또는 제공업체 선택",
+    "tile": {
+      "outlook": "Outlook.com, Hotmail, Live, MSN",
+      "outlookSub": "Microsoft로 로그인",
+      "work": "Microsoft 365(회사 또는 학교)",
+      "workSub": "조직의 Microsoft 계정으로 로그인",
+      "gmail": "Gmail",
+      "gmailSub": "앱 비밀번호 사용",
+      "yahoo": "Yahoo Mail",
+      "yahooSub": "앱 비밀번호 사용",
+      "icloud": "iCloud Mail",
+      "icloudSub": "앱 전용 비밀번호 사용",
+      "other": "기타(IMAP)",
+      "otherSub": "서버 설정 입력"
+    },
+    "personalOff": "관리자가 Outlook.com 로그인을 꺼 두었습니다.",
+    "workOff": "관리자가 아직 설정하지 않았습니다.",
+    "openSettings": "Microsoft 로그인 설정 열기"
+  },
+  "msSignIn": {
+    "titlePersonal": "Microsoft로 로그인",
+    "titleWork": "회사 또는 학교 계정으로 로그인",
+    "beforeTitle": "시작하기 전에",
+    "beforeBody": "Outlook.com에서 메일 앱을 허용해야 합니다. 아직 한 적이 없다면:",
+    "step1": "Microsoft 로그인 페이지를 엽니다.",
+    "step1Button": "Microsoft 로그인 열기",
+    "step2": "거기에 이 코드를 입력한 다음 Microsoft 페이지의 안내를 따르세요.",
+    "copy": "코드 복사",
+    "copied": "복사됨",
+    "waiting": "Microsoft 페이지에서 로그인을 마칠 때까지 기다리는 중…",
+    "starting": "Microsoft에서 코드를 받는 중…",
+    "checking": "MailFlow가 사서함에 연결할 수 있는지 확인하는 중…",
+    "connected": "{{email}}이(가) 연결되었습니다. 메일을 동기화하는 중입니다.",
+    "stillConnecting": "{{email}}(으)로 로그인했습니다. MailFlow가 아직 연결 중이며 계속 자동으로 시도합니다. 준비되면 계정 목록에 표시됩니다.",
+    "declined": "Microsoft 페이지에서 로그인을 취소했습니다.",
+    "expired": "로그인을 마치기 전에 코드가 만료되었습니다. 코드는 15분 동안 유효합니다.",
+    "error": "Microsoft 로그인이 되지 않았습니다.",
+    "newCode": "새 코드 받기",
+    "startOver": "처음부터 다시",
+    "done": "완료",
+    "finePrintShared": "Microsoft에서 MailFlow를 확인되지 않은 앱으로 표시할 수 있습니다. 정상입니다. MailFlow 공용 앱은 Microsoft에 MailFlow를 알리는 역할만 합니다. Microsoft 페이지에서 직접 로그인하며, Microsoft는 접근 권한을 이 서버로 바로 보냅니다.",
+    "finePrintOwn": "Microsoft 페이지에서 직접 로그인하며, Microsoft는 접근 권한을 이 서버로 바로 보냅니다.",
+    "continueMicrosoft": "Microsoft로 계속",
+    "redirectWaiting": "열린 Microsoft 페이지에서 로그인을 마친 다음 여기로 돌아오세요.",
+    "useCode": "대신 코드 사용",
+    "useRedirect": "대신 Microsoft 페이지에서 로그인",
+    "back": "뒤로"
   }
 }

@@ -12,6 +12,7 @@ import { pluginRegistry } from '../plugins/registry.js';
 import { createKeyedSerializer } from '../utils/keyedSerializer.js';
 import { uuidParam } from '../utils/uuid.js';
 import { normalizeAddressList } from '../utils/addressList.js';
+import { reportConnect } from '../services/connectReport.js';
 
 // Serialize an account's reconnect triggers so a rapid settings change (e.g. a
 // gtd_enabled double-toggle) can't fire two overlapping disconnect→connect chains —
@@ -402,7 +403,12 @@ router.post('/:id/reconnect', async (req, res) => {
   // failures back off for up to six hours, and without this the button would answer
   // { ok: true } while connectAccount early-returned on the cooldown: a silent no-op.
   imapManager.clearConnectCooldown(id);
-  imapManager.connectAccount(result.rows[0]).catch(console.error);
+  const connecting = imapManager.connectAccount(result.rows[0]).catch((err) => { console.error(err); return false; });
+  // ?wait=1 answers with how the attempt went (bounded), for a "Try again" that has to say
+  // whether it worked; without it the reconnect runs in the background as before.
+  if (req.query.wait) {
+    return res.json({ ok: true, ...(await reportConnect(connecting, id, { isConnected: () => !!imapManager.isConnected?.(id) })) });
+  }
   res.json({ ok: true });
 });
 

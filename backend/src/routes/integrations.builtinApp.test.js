@@ -67,12 +67,12 @@ describe('Microsoft built-in app status and opt-out', () => {
   const removeApp = () => fetch(`${base}/microsoft`, { method: 'DELETE' });
 
   it('reports personal accounts available through the built-in app when no Client ID is set', async () => {
-    expect(await status()).toEqual({ configured: false, builtinApp: true, builtinAppShipped: true, personalAccounts: true });
+    expect(await status()).toEqual({ configured: false, builtinApp: true, builtinAppShipped: true, personalAccounts: true, workAccounts: false, workRedirect: false });
   });
 
   it('MS_BUILTIN_APP=false in .env withdraws it', async () => {
     process.env.MS_BUILTIN_APP = 'false';
-    expect(await status()).toEqual({ configured: false, builtinApp: false, builtinAppShipped: true, personalAccounts: false });
+    expect(await status()).toEqual({ configured: false, builtinApp: false, builtinAppShipped: true, personalAccounts: false, workAccounts: false, workRedirect: false });
   });
 
   // With its own app the instance signs personal accounts in through that app, which can
@@ -95,14 +95,14 @@ describe('Microsoft built-in app status and opt-out', () => {
     expect((await setBuiltin({ enabled: false })).status).toBe(200);
     expect((await removeApp()).status).toBe(200);
 
-    expect(await status()).toEqual({ configured: false, builtinApp: false, builtinAppShipped: true, personalAccounts: false });
+    expect(await status()).toEqual({ configured: false, builtinApp: false, builtinAppShipped: true, personalAccounts: false, workAccounts: false, workRedirect: false });
     expect(db.settings.get('ms_builtin_app')).toBe('false');
   });
 
   it('the switch overrides .env and turns the shared app back on', async () => {
     process.env.MS_BUILTIN_APP = 'false';
     expect((await setBuiltin({ enabled: true })).status).toBe(200);
-    expect(await status()).toMatchObject({ builtinApp: true, personalAccounts: true });
+    expect(await status()).toMatchObject({ builtinApp: true, personalAccounts: true, workAccounts: false, workRedirect: false });
   });
 
   it('rejects a switch value that is not a boolean', async () => {

@@ -922,7 +922,8 @@
       "trustedAuthservDetected": "In Ihren letzten Nachrichten gesehen (zum Übernehmen klicken):",
       "trustedAuthservDetectedNone": "Noch keine Daten — Nachrichten werden geprüft, sobald Antispam für dieses Konto aktiv ist.",
       "trustedAuthservWarn": "Vertrauen Sie nur einer ID, die Sie als empfangenden Server Ihres Anbieters erkennen.",
-      "enabledGlobally": "Global aktiviert"
+      "enabledGlobally": "Global aktiviert",
+      "microsoftImapNoteSignIn": "Microsoft akzeptiert für Postfächer von Outlook.com, Hotmail, Live und MSN keine Passwörter mehr. Melden Sie sich stattdessen mit Microsoft an: Ein App-Passwort ist nicht nötig."
     },
     "folderMappings": {
       "title": "Ordnerzuordnungen",
@@ -1532,14 +1533,6 @@
         "deviceCodeTitle": "Mit Gerätecode verbinden",
         "deviceCodeNote": "Keine Weiterleitungs-URI oder Client-Secret erforderlich. In Azure unter Authentifizierung 'Öffentliche Clientflows zulassen' auf Ja setzen. Ideal für persönliche Outlook.com / Hotmail-Konten.",
         "deviceCodeStart": "Gerätecode-Flow starten",
-        "deviceCodeInstructions": "Besuche den Link unten auf einem beliebigen Gerät und gib den Code ein, um MailFlow zu autorisieren:",
-        "deviceCodeVisit": "Besuche:",
-        "deviceCodeEnter": "Code eingeben:",
-        "deviceCodeWaiting": "Warte auf Autorisierung…",
-        "deviceCodeExpired": "Code abgelaufen. Erneut starten.",
-        "deviceCodeDeclined": "Autorisierung wurde abgelehnt.",
-        "deviceCodeError": "Ein Fehler ist aufgetreten. Bitte erneut versuchen.",
-        "deviceCodeCancel": "Abbrechen",
         "personalReady": "Private Konten bereit",
         "builtinTitle": "Privates Microsoft-Konto verbinden",
         "builtinNote": "Für Outlook.com-, Hotmail-, Live- und MSN-Konten ist keine Einrichtung nötig. Dies nutzt die gemeinsame Microsoft-App von MailFlow, die Microsoft eventuell als nicht verifiziert kennzeichnet. Sie melden sich in Ihrem Browser auf der Seite von Microsoft an, und Microsoft sendet die Tokens direkt an diesen Server: Die Maintainer von MailFlow sehen weder Ihre E-Mails noch Ihre Tokens. Geschäfts- oder Schulkonten benötigen eine von Ihrem Administrator registrierte App.",
@@ -2010,8 +2003,7 @@
       "retry": "Erneut versuchen",
       "signIn": "Erneut anmelden",
       "edit": "Konto bearbeiten",
-      "openIntegrations": "Integrationen öffnen",
-      "startOver": "Neu beginnen"
+      "openIntegrations": "Integrationen öffnen"
     },
     "details": "Einzelheiten",
     "wrongAccount": "Sie haben sich als {{signedInAs}} angemeldet, nicht als {{expected}}. Melden Sie sich mit {{expected}} an, um dieses Konto zu reparieren.",
@@ -2022,5 +2014,58 @@
       "continueGoogle": "Weiter zu Google",
       "waitingGoogle": "Schließen Sie die Anmeldung auf der Google-Seite ab und kommen Sie dann hierher zurück."
     }
+  },
+  "addAccount": {
+    "title": "E-Mail-Konto hinzufügen",
+    "emailLabel": "Ihre E-Mail-Adresse",
+    "continue": "Weiter",
+    "invalidEmail": "Geben Sie eine E-Mail-Adresse wie du@example.com ein.",
+    "orChoose": "Oder wählen Sie Ihren Anbieter",
+    "tile": {
+      "outlook": "Outlook.com, Hotmail, Live, MSN",
+      "outlookSub": "Mit Microsoft anmelden",
+      "work": "Microsoft 365 (Arbeit oder Schule)",
+      "workSub": "Mit dem Microsoft-Konto Ihrer Organisation anmelden",
+      "gmail": "Gmail",
+      "gmailSub": "App-Passwort verwenden",
+      "yahoo": "Yahoo Mail",
+      "yahooSub": "App-Passwort verwenden",
+      "icloud": "iCloud Mail",
+      "icloudSub": "App-spezifisches Passwort verwenden",
+      "other": "Andere (IMAP)",
+      "otherSub": "Servereinstellungen eingeben"
+    },
+    "personalOff": "Ihr Administrator hat die Anmeldung für Outlook.com ausgeschaltet.",
+    "workOff": "Ihr Administrator hat das noch nicht eingerichtet.",
+    "openSettings": "Microsoft-Anmeldeeinstellungen öffnen"
+  },
+  "msSignIn": {
+    "titlePersonal": "Mit Microsoft anmelden",
+    "titleWork": "Mit Ihrem Arbeits- oder Schulkonto anmelden",
+    "beforeTitle": "Bevor Sie beginnen",
+    "beforeBody": "Outlook.com muss E-Mail-Apps erlauben. Falls Sie das noch nie getan haben:",
+    "step1": "Öffnen Sie die Anmeldeseite von Microsoft.",
+    "step1Button": "Microsoft-Anmeldung öffnen",
+    "step2": "Geben Sie dort diesen Code ein und folgen Sie den Schritten auf der Microsoft-Seite.",
+    "copy": "Code kopieren",
+    "copied": "Kopiert",
+    "waiting": "Warten, bis Sie die Anmeldung auf der Microsoft-Seite abgeschlossen haben…",
+    "starting": "Code wird von Microsoft abgerufen…",
+    "checking": "Es wird geprüft, ob MailFlow Ihr Postfach erreicht…",
+    "connected": "{{email}} ist verbunden. Ihre E-Mails werden jetzt synchronisiert.",
+    "stillConnecting": "Als {{email}} angemeldet. MailFlow stellt die Verbindung noch her und versucht es weiter von selbst. Die Kontoliste zeigt, wann es bereit ist.",
+    "declined": "Sie haben die Anmeldung auf der Microsoft-Seite abgebrochen.",
+    "expired": "Der Code ist abgelaufen, bevor die Anmeldung abgeschlossen war. Codes gelten 15 Minuten.",
+    "error": "Die Microsoft-Anmeldung hat nicht funktioniert.",
+    "newCode": "Neuen Code holen",
+    "startOver": "Neu beginnen",
+    "done": "Fertig",
+    "finePrintShared": "Microsoft zeigt MailFlow möglicherweise als nicht überprüfte App an. Das ist zu erwarten: Die gemeinsame App von MailFlow weist MailFlow nur gegenüber Microsoft aus. Sie melden sich auf der Seite von Microsoft an, und Microsoft schickt den Zugang direkt an diesen Server.",
+    "finePrintOwn": "Sie melden sich auf der Seite von Microsoft an, und Microsoft schickt den Zugang direkt an diesen Server.",
+    "continueMicrosoft": "Weiter zu Microsoft",
+    "redirectWaiting": "Schließen Sie die Anmeldung auf der geöffneten Microsoft-Seite ab und kommen Sie dann hierher zurück.",
+    "useCode": "Stattdessen einen Code verwenden",
+    "useRedirect": "Stattdessen auf der Microsoft-Seite anmelden",
+    "back": "Zurück"
   }
 }

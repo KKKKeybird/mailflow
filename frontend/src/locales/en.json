@@ -997,7 +997,8 @@
       "trustedAuthservDetected": "Seen on your recent mail (click to use):",
       "trustedAuthservDetectedNone": "No data yet — messages are inspected once antispam is enabled for this account.",
       "trustedAuthservWarn": "Only trust an ID you recognize as your mail provider's receiving server.",
-      "enabledGlobally": "Enabled globally"
+      "enabledGlobally": "Enabled globally",
+      "microsoftImapNoteSignIn": "Microsoft no longer accepts passwords for Outlook.com, Hotmail, Live and MSN mailboxes. Sign in with Microsoft instead: no app password is needed."
     },
     "folderMappings": {
       "title": "Folder mappings",
@@ -1607,14 +1608,6 @@
         "deviceCodeTitle": "Connect with device code",
         "deviceCodeNote": "No redirect URI or client secret needed. In Azure, go to Authentication and set 'Allow public client flows' to Yes. Best for personal Outlook.com / Hotmail accounts.",
         "deviceCodeStart": "Start device code flow",
-        "deviceCodeInstructions": "Visit the link below on any device and enter the code to authorize MailFlow:",
-        "deviceCodeVisit": "Visit:",
-        "deviceCodeEnter": "Enter code:",
-        "deviceCodeWaiting": "Waiting for authorization…",
-        "deviceCodeExpired": "Code expired. Click start again.",
-        "deviceCodeDeclined": "Authorization was declined.",
-        "deviceCodeError": "An error occurred. Please try again.",
-        "deviceCodeCancel": "Cancel",
         "personalReady": "Personal accounts ready",
         "builtinTitle": "Connect a personal Microsoft account",
         "builtinNote": "No setup needed for Outlook.com, Hotmail, Live and MSN accounts. This uses MailFlow's shared Microsoft app, which Microsoft may label as unverified. You sign in on Microsoft's own page in your browser, and Microsoft sends the tokens straight to this server: MailFlow's maintainers never see your mail or tokens. Work or school accounts need an app registered by your administrator.",
@@ -2010,8 +2003,7 @@
       "retry": "Try again",
       "signIn": "Sign in again",
       "edit": "Edit account",
-      "openIntegrations": "Open Integrations",
-      "startOver": "Start over"
+      "openIntegrations": "Open Integrations"
     },
     "details": "Details",
     "wrongAccount": "You signed in as {{signedInAs}}, not {{expected}}. Sign in with {{expected}} to fix this account.",
@@ -2022,5 +2014,58 @@
       "continueGoogle": "Continue to Google",
       "waitingGoogle": "Finish signing in on the Google page, then come back here."
     }
+  },
+  "addAccount": {
+    "title": "Add an email account",
+    "emailLabel": "Your email address",
+    "continue": "Continue",
+    "invalidEmail": "Enter an email address like you@example.com.",
+    "orChoose": "Or choose your provider",
+    "tile": {
+      "outlook": "Outlook.com, Hotmail, Live, MSN",
+      "outlookSub": "Sign in with Microsoft",
+      "work": "Microsoft 365 (work or school)",
+      "workSub": "Sign in with your organization's Microsoft account",
+      "gmail": "Gmail",
+      "gmailSub": "Use an app password",
+      "yahoo": "Yahoo Mail",
+      "yahooSub": "Use an app password",
+      "icloud": "iCloud Mail",
+      "icloudSub": "Use an app-specific password",
+      "other": "Other (IMAP)",
+      "otherSub": "Enter your server settings"
+    },
+    "personalOff": "Your administrator has turned off Outlook.com sign-in.",
+    "workOff": "Your administrator has not set this up yet.",
+    "openSettings": "Open Microsoft sign-in settings"
+  },
+  "msSignIn": {
+    "titlePersonal": "Sign in with Microsoft",
+    "titleWork": "Sign in with your work or school account",
+    "beforeTitle": "Before you start",
+    "beforeBody": "Outlook.com has to allow mail apps. If you have never done this:",
+    "step1": "Open Microsoft's sign-in page.",
+    "step1Button": "Open Microsoft sign-in",
+    "step2": "Enter this code there, then follow the steps on Microsoft's page.",
+    "copy": "Copy code",
+    "copied": "Copied",
+    "waiting": "Waiting for you to finish signing in on Microsoft's page…",
+    "starting": "Getting a code from Microsoft…",
+    "checking": "Checking that MailFlow can reach your mailbox…",
+    "connected": "{{email}} is connected. Your mail is syncing now.",
+    "stillConnecting": "Signed in as {{email}}. MailFlow is still connecting and keeps trying on its own. The account list shows when it is ready.",
+    "declined": "You canceled the sign-in on Microsoft's page.",
+    "expired": "The code expired before sign-in finished. Codes last 15 minutes.",
+    "error": "Microsoft sign-in didn't work.",
+    "newCode": "Get a new code",
+    "startOver": "Start over",
+    "done": "Done",
+    "finePrintShared": "Microsoft may show MailFlow as an unverified app. That is expected: MailFlow's shared app only identifies MailFlow to Microsoft. You sign in on Microsoft's own page, and Microsoft sends access straight to this server.",
+    "finePrintOwn": "You sign in on Microsoft's own page, and Microsoft sends access straight to this server.",
+    "continueMicrosoft": "Continue to Microsoft",
+    "redirectWaiting": "Finish signing in on the Microsoft page that opened, then come back here.",
+    "useCode": "Use a code instead",
+    "useRedirect": "Sign in on Microsoft's page instead",
+    "back": "Back"
   }
 }

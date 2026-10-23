@@ -305,7 +305,8 @@ export const api = {
   addAccount: (data) => request('POST', '/accounts', data),
   updateAccount: (id, data) => request('PUT', `/accounts/${id}`, data),
   deleteAccount: (id) => request('DELETE', `/accounts/${id}`),
-  reconnectAccount: (id) => request('POST', `/accounts/${id}/reconnect`),
+  // { wait: true } answers with how the attempt went: { connection, code, error }.
+  reconnectAccount: (id, { wait = false } = {}) => request('POST', `/accounts/${id}/reconnect${wait ? '?wait=1' : ''}`),
   reindexAccount: (id) => request('POST', `/accounts/${id}/reindex`),
   getFolders: (accountId) => request('GET', `/accounts/${accountId}/folders`),
   getAliases: (accountId) => request('GET', `/accounts/${accountId}/aliases`),

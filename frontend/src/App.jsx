@@ -48,7 +48,13 @@ export default function App() {
     const oauthError = params.get('oauth_error');
     if ((oauthSuccess || oauthError) && window.opener) {
       if (oauthSuccess) {
-        window.opener.postMessage({ type: 'oauth_success', provider: oauthSuccess }, window.location.origin);
+        // A Microsoft sign-in also reports how the first connection went, for the page that
+        // started it to show.
+        window.opener.postMessage({
+          type: 'oauth_success', provider: oauthSuccess,
+          accountId: params.get('oauth_account_id'), email: params.get('oauth_email'),
+          connection: params.get('oauth_connection'), code: params.get('oauth_code'), detail: params.get('oauth_detail'),
+        }, window.location.origin);
       } else {
         // A repair signed in as another address reports both, for the page to explain.
         window.opener.postMessage({

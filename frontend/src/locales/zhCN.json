@@ -997,7 +997,8 @@
       "trustedAuthservDetected": "在您最近的邮件中出现过（点击使用）：",
       "trustedAuthservDetectedNone": "暂无数据——为该账户启用反垃圾邮件后才会分析邮件。",
       "trustedAuthservWarn": "只信任您确认为邮件服务商接收服务器的 ID。",
-      "enabledGlobally": "已全局启用"
+      "enabledGlobally": "已全局启用",
+      "microsoftImapNoteSignIn": "Microsoft 不再接受 Outlook.com、Hotmail、Live 和 MSN 邮箱的密码。请改用 Microsoft 登录：无需应用密码。"
     },
     "folderMappings": {
       "title": "文件夹映射",
@@ -1607,14 +1608,6 @@
         "deviceCodeTitle": "使用设备码连接",
         "deviceCodeNote": "无需重定向 URI 或客户端密钥。在 Azure 中，前往「身份验证」并将「允许公共客户端流」设置为「是」。最适合 Outlook.com / Hotmail 个人账户。",
         "deviceCodeStart": "启动设备码流程",
-        "deviceCodeInstructions": "在任意设备上访问以下链接，输入代码以授权 MailFlow：",
-        "deviceCodeVisit": "访问：",
-        "deviceCodeEnter": "输入代码：",
-        "deviceCodeWaiting": "等待授权中…",
-        "deviceCodeExpired": "代码已过期，请重新开始。",
-        "deviceCodeDeclined": "授权被拒绝。",
-        "deviceCodeError": "发生错误，请重试。",
-        "deviceCodeCancel": "取消",
         "personalReady": "个人账户可用",
         "builtinTitle": "连接个人 Microsoft 账户",
         "builtinNote": "Outlook.com、Hotmail、Live 和 MSN 账户无需任何设置。此功能使用 MailFlow 的共享 Microsoft 应用，Microsoft 可能会将其标记为未验证。你在浏览器中的 Microsoft 官方页面上登录，Microsoft 会将令牌直接发送到此服务器：MailFlow 的维护者永远看不到你的邮件或令牌。工作或学校账户需要由管理员注册的应用。",
@@ -2010,8 +2003,7 @@
       "retry": "重试",
       "signIn": "重新登录",
       "edit": "编辑帐户",
-      "openIntegrations": "打开集成",
-      "startOver": "重新开始"
+      "openIntegrations": "打开集成"
     },
     "details": "详细信息",
     "wrongAccount": "你登录的是 {{signedInAs}}，而不是 {{expected}}。请使用 {{expected}} 登录以修复此帐户。",
@@ -2022,5 +2014,58 @@
       "continueGoogle": "前往 Google",
       "waitingGoogle": "请在 Google 页面完成登录，然后回到这里。"
     }
+  },
+  "addAccount": {
+    "title": "添加邮件帐户",
+    "emailLabel": "你的电子邮件地址",
+    "continue": "继续",
+    "invalidEmail": "请输入电子邮件地址，例如 you@example.com。",
+    "orChoose": "或选择你的服务商",
+    "tile": {
+      "outlook": "Outlook.com, Hotmail, Live, MSN",
+      "outlookSub": "使用 Microsoft 登录",
+      "work": "Microsoft 365（工作或学校）",
+      "workSub": "使用你所在组织的 Microsoft 帐户登录",
+      "gmail": "Gmail",
+      "gmailSub": "使用应用密码",
+      "yahoo": "Yahoo Mail",
+      "yahooSub": "使用应用密码",
+      "icloud": "iCloud Mail",
+      "icloudSub": "使用 App 专用密码",
+      "other": "其他（IMAP）",
+      "otherSub": "输入服务器设置"
+    },
+    "personalOff": "你的管理员已关闭 Outlook.com 登录。",
+    "workOff": "你的管理员尚未设置此项。",
+    "openSettings": "打开 Microsoft 登录设置"
+  },
+  "msSignIn": {
+    "titlePersonal": "使用 Microsoft 登录",
+    "titleWork": "使用你的工作或学校帐户登录",
+    "beforeTitle": "开始之前",
+    "beforeBody": "Outlook.com 需要允许邮件应用。如果你从未设置过：",
+    "step1": "打开 Microsoft 的登录页面。",
+    "step1Button": "打开 Microsoft 登录",
+    "step2": "在那里输入此代码，然后按照 Microsoft 页面上的步骤操作。",
+    "copy": "复制代码",
+    "copied": "已复制",
+    "waiting": "正在等待你在 Microsoft 页面完成登录…",
+    "starting": "正在从 Microsoft 获取代码…",
+    "checking": "正在检查 MailFlow 能否访问你的邮箱…",
+    "connected": "{{email}} 已连接。正在同步你的邮件。",
+    "stillConnecting": "已以 {{email}} 登录。MailFlow 仍在连接，并会自动继续尝试。帐户列表会显示何时就绪。",
+    "declined": "你在 Microsoft 页面取消了登录。",
+    "expired": "登录完成前代码已过期。代码有效期为 15 分钟。",
+    "error": "Microsoft 登录未成功。",
+    "newCode": "获取新代码",
+    "startOver": "重新开始",
+    "done": "完成",
+    "finePrintShared": "Microsoft 可能会将 MailFlow 显示为未验证的应用。这是正常的：MailFlow 的共享应用只是向 Microsoft 表明 MailFlow 的身份。你在 Microsoft 自己的页面登录，Microsoft 会将访问权限直接发送到此服务器。",
+    "finePrintOwn": "你在 Microsoft 自己的页面登录，Microsoft 会将访问权限直接发送到此服务器。",
+    "continueMicrosoft": "继续前往 Microsoft",
+    "redirectWaiting": "请在打开的 Microsoft 页面完成登录，然后回到这里。",
+    "useCode": "改用代码",
+    "useRedirect": "改为在 Microsoft 页面登录",
+    "back": "返回"
   }
 }

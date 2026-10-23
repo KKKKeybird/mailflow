@@ -997,7 +997,8 @@
       "trustedAuthservDetected": "Встречались в ваших последних письмах (нажмите, чтобы использовать):",
       "trustedAuthservDetectedNone": "Данных пока нет — письма анализируются, когда антиспам включён для этого аккаунта.",
       "trustedAuthservWarn": "Доверяйте только тому ID, который вы узнаёте как принимающий сервер вашего провайдера.",
-      "enabledGlobally": "Включено глобально"
+      "enabledGlobally": "Включено глобально",
+      "microsoftImapNoteSignIn": "Microsoft больше не принимает пароли для ящиков Outlook.com, Hotmail, Live и MSN. Войдите через Microsoft: пароль приложения не нужен."
     },
     "folderMappings": {
       "title": "Сопоставление папок",
@@ -1607,14 +1608,6 @@
         "deviceCodeTitle": "Подключить через код устройства",
         "deviceCodeNote": "URI перенаправления и client secret не требуются. В Azure перейдите в Аутентификацию и включите 'Разрешить потоки общедоступных клиентов'. Лучший вариант для личных аккаунтов Outlook.com / Hotmail.",
         "deviceCodeStart": "Начать поток кода устройства",
-        "deviceCodeInstructions": "Перейдите по ссылке ниже на любом устройстве и введите код для авторизации MailFlow:",
-        "deviceCodeVisit": "Перейдите:",
-        "deviceCodeEnter": "Введите код:",
-        "deviceCodeWaiting": "Ожидание авторизации…",
-        "deviceCodeExpired": "Код истёк. Начните заново.",
-        "deviceCodeDeclined": "Авторизация была отклонена.",
-        "deviceCodeError": "Произошла ошибка. Повторите попытку.",
-        "deviceCodeCancel": "Отмена",
         "personalReady": "Личные аккаунты доступны",
         "builtinTitle": "Подключить личный аккаунт Microsoft",
         "builtinNote": "Для аккаунтов Outlook.com, Hotmail, Live и MSN настройка не нужна. Используется общее приложение Microsoft от MailFlow, которое Microsoft может пометить как непроверенное. Вы входите на странице Microsoft в своём браузере, а Microsoft отправляет токены прямо на этот сервер: разработчики MailFlow никогда не видят вашу почту или токены. Для рабочих и учебных аккаунтов нужно приложение, зарегистрированное вашим администратором.",
@@ -2010,8 +2003,7 @@
       "retry": "Повторить",
       "signIn": "Войти снова",
       "edit": "Изменить аккаунт",
-      "openIntegrations": "Открыть Интеграции",
-      "startOver": "Начать заново"
+      "openIntegrations": "Открыть Интеграции"
     },
     "details": "Подробности",
     "wrongAccount": "Вы вошли как {{signedInAs}}, а не {{expected}}. Войдите как {{expected}}, чтобы исправить этот аккаунт.",
@@ -2022,5 +2014,58 @@
       "continueGoogle": "Перейти в Google",
       "waitingGoogle": "Завершите вход на странице Google, затем вернитесь сюда."
     }
+  },
+  "addAccount": {
+    "title": "Добавить почтовый аккаунт",
+    "emailLabel": "Ваш адрес электронной почты",
+    "continue": "Продолжить",
+    "invalidEmail": "Введите адрес почты, например you@example.com.",
+    "orChoose": "Или выберите почтовый сервис",
+    "tile": {
+      "outlook": "Outlook.com, Hotmail, Live, MSN",
+      "outlookSub": "Войти через Microsoft",
+      "work": "Microsoft 365 (работа или учеба)",
+      "workSub": "Войдите через аккаунт Microsoft вашей организации",
+      "gmail": "Gmail",
+      "gmailSub": "Использовать пароль приложения",
+      "yahoo": "Yahoo Mail",
+      "yahooSub": "Использовать пароль приложения",
+      "icloud": "iCloud Mail",
+      "icloudSub": "Использовать пароль для приложения",
+      "other": "Другой (IMAP)",
+      "otherSub": "Указать настройки сервера"
+    },
+    "personalOff": "Администратор отключил вход в Outlook.com.",
+    "workOff": "Администратор еще не настроил это.",
+    "openSettings": "Открыть настройки входа Microsoft"
+  },
+  "msSignIn": {
+    "titlePersonal": "Войти через Microsoft",
+    "titleWork": "Войдите с рабочей или учебной учетной записью",
+    "beforeTitle": "Перед началом",
+    "beforeBody": "Outlook.com должен разрешать почтовые приложения. Если вы этого еще не делали:",
+    "step1": "Откройте страницу входа Microsoft.",
+    "step1Button": "Открыть вход Microsoft",
+    "step2": "Введите там этот код и следуйте шагам на странице Microsoft.",
+    "copy": "Скопировать код",
+    "copied": "Скопировано",
+    "waiting": "Ждем, пока вы завершите вход на странице Microsoft…",
+    "starting": "Получаем код от Microsoft…",
+    "checking": "Проверяем, может ли MailFlow подключиться к вашему ящику…",
+    "connected": "{{email}} подключен. Почта синхронизируется.",
+    "stillConnecting": "Вход выполнен как {{email}}. MailFlow еще подключается и продолжает попытки сам. В списке аккаунтов будет видно, когда все готово.",
+    "declined": "Вы отменили вход на странице Microsoft.",
+    "expired": "Срок действия кода истек до завершения входа. Код действует 15 минут.",
+    "error": "Вход через Microsoft не удался.",
+    "newCode": "Получить новый код",
+    "startOver": "Начать заново",
+    "done": "Готово",
+    "finePrintShared": "Microsoft может показать MailFlow как непроверенное приложение. Это нормально: общее приложение MailFlow лишь представляет MailFlow для Microsoft. Вы входите на странице Microsoft, и Microsoft передает доступ напрямую на этот сервер.",
+    "finePrintOwn": "Вы входите на странице Microsoft, и Microsoft передает доступ напрямую на этот сервер.",
+    "continueMicrosoft": "Перейти в Microsoft",
+    "redirectWaiting": "Завершите вход на открывшейся странице Microsoft, затем вернитесь сюда.",
+    "useCode": "Использовать код",
+    "useRedirect": "Войти на странице Microsoft",
+    "back": "Назад"
   }
 }

@@ -997,7 +997,8 @@
       "trustedAuthservDetected": "Vistos en tus mensajes recientes (clic para usar):",
       "trustedAuthservDetectedNone": "Aún no hay datos: los mensajes se analizan cuando el antispam está activo en esta cuenta.",
       "trustedAuthservWarn": "Confía solo en un ID que reconozcas como servidor receptor de tu proveedor.",
-      "enabledGlobally": "Activado globalmente"
+      "enabledGlobally": "Activado globalmente",
+      "microsoftImapNoteSignIn": "Microsoft ya no acepta contraseñas para los buzones de Outlook.com, Hotmail, Live y MSN. Inicia sesión con Microsoft en su lugar: no hace falta una contraseña de aplicación."
     },
     "folderMappings": {
       "title": "Asignación de carpetas",
@@ -1607,14 +1608,6 @@
         "deviceCodeTitle": "Conectar con código de dispositivo",
         "deviceCodeNote": "No se necesita URI de redirección ni secreto de cliente. En Azure, ve a Autenticación y activa 'Permitir flujos de cliente público'. Ideal para cuentas personales de Outlook.com / Hotmail.",
         "deviceCodeStart": "Iniciar flujo de código de dispositivo",
-        "deviceCodeInstructions": "Visita el enlace de abajo en cualquier dispositivo e introduce el código para autorizar MailFlow:",
-        "deviceCodeVisit": "Visita:",
-        "deviceCodeEnter": "Introduce el código:",
-        "deviceCodeWaiting": "Esperando autorización…",
-        "deviceCodeExpired": "Código expirado. Inicia de nuevo.",
-        "deviceCodeDeclined": "La autorización fue rechazada.",
-        "deviceCodeError": "Ocurrió un error. Inténtalo de nuevo.",
-        "deviceCodeCancel": "Cancelar",
         "personalReady": "Cuentas personales listas",
         "builtinTitle": "Conectar una cuenta personal de Microsoft",
         "builtinNote": "Las cuentas de Outlook.com, Hotmail, Live y MSN no necesitan configuración. Esto usa la aplicación de Microsoft compartida de MailFlow, que Microsoft puede marcar como no verificada. Inicias sesión en la propia página de Microsoft en tu navegador, y Microsoft envía los tokens directamente a este servidor: los mantenedores de MailFlow nunca ven tu correo ni tus tokens. Las cuentas de trabajo o educativas necesitan una aplicación registrada por tu administrador.",
@@ -2010,8 +2003,7 @@
       "retry": "Reintentar",
       "signIn": "Volver a iniciar sesión",
       "edit": "Editar cuenta",
-      "openIntegrations": "Abrir Integraciones",
-      "startOver": "Empezar de nuevo"
+      "openIntegrations": "Abrir Integraciones"
     },
     "details": "Detalles",
     "wrongAccount": "Iniciaste sesión como {{signedInAs}}, no como {{expected}}. Inicia sesión con {{expected}} para reparar esta cuenta.",
@@ -2022,5 +2014,58 @@
       "continueGoogle": "Continuar a Google",
       "waitingGoogle": "Termina de iniciar sesión en la página de Google y luego vuelve aquí."
     }
+  },
+  "addAccount": {
+    "title": "Añadir una cuenta de correo",
+    "emailLabel": "Tu dirección de correo",
+    "continue": "Continuar",
+    "invalidEmail": "Escribe una dirección de correo como tu@example.com.",
+    "orChoose": "O elige tu proveedor",
+    "tile": {
+      "outlook": "Outlook.com, Hotmail, Live, MSN",
+      "outlookSub": "Iniciar sesión con Microsoft",
+      "work": "Microsoft 365 (trabajo o escuela)",
+      "workSub": "Inicia sesión con la cuenta Microsoft de tu organización",
+      "gmail": "Gmail",
+      "gmailSub": "Usar una contraseña de aplicación",
+      "yahoo": "Yahoo Mail",
+      "yahooSub": "Usar una contraseña de aplicación",
+      "icloud": "iCloud Mail",
+      "icloudSub": "Usar una contraseña específica de app",
+      "other": "Otra (IMAP)",
+      "otherSub": "Introduce los datos del servidor"
+    },
+    "personalOff": "Tu administrador desactivó el inicio de sesión de Outlook.com.",
+    "workOff": "Tu administrador aún no lo ha configurado.",
+    "openSettings": "Abrir la configuración de inicio de sesión de Microsoft"
+  },
+  "msSignIn": {
+    "titlePersonal": "Iniciar sesión con Microsoft",
+    "titleWork": "Inicia sesión con tu cuenta de trabajo o escuela",
+    "beforeTitle": "Antes de empezar",
+    "beforeBody": "Outlook.com tiene que permitir las aplicaciones de correo. Si nunca lo has hecho:",
+    "step1": "Abre la página de inicio de sesión de Microsoft.",
+    "step1Button": "Abrir el inicio de sesión de Microsoft",
+    "step2": "Escribe allí este código y sigue los pasos en la página de Microsoft.",
+    "copy": "Copiar código",
+    "copied": "Copiado",
+    "waiting": "Esperando a que termines de iniciar sesión en la página de Microsoft…",
+    "starting": "Obteniendo un código de Microsoft…",
+    "checking": "Comprobando que MailFlow puede llegar a tu buzón…",
+    "connected": "{{email}} está conectada. Tu correo se está sincronizando.",
+    "stillConnecting": "Sesión iniciada como {{email}}. MailFlow sigue conectando y lo intenta por su cuenta. La lista de cuentas muestra cuándo está lista.",
+    "declined": "Cancelaste el inicio de sesión en la página de Microsoft.",
+    "expired": "El código caducó antes de terminar el inicio de sesión. Los códigos duran 15 minutos.",
+    "error": "El inicio de sesión de Microsoft no funcionó.",
+    "newCode": "Obtener un código nuevo",
+    "startOver": "Empezar de nuevo",
+    "done": "Listo",
+    "finePrintShared": "Microsoft puede mostrar MailFlow como una aplicación no verificada. Es lo esperado: la aplicación compartida de MailFlow solo identifica a MailFlow ante Microsoft. Inicias sesión en la propia página de Microsoft, y Microsoft envía el acceso directamente a este servidor.",
+    "finePrintOwn": "Inicias sesión en la propia página de Microsoft, y Microsoft envía el acceso directamente a este servidor.",
+    "continueMicrosoft": "Continuar a Microsoft",
+    "redirectWaiting": "Termina de iniciar sesión en la página de Microsoft que se abrió y luego vuelve aquí.",
+    "useCode": "Usar un código en su lugar",
+    "useRedirect": "Iniciar sesión en la página de Microsoft en su lugar",
+    "back": "Atrás"
   }
 }

@@ -3470,6 +3470,11 @@ export class ImapManager {
 
   // Cleared when a human explicitly changes the account, so fixing a password retries at once
   // instead of waiting out a cooldown that may be hours long.
+  // Whether the account has a live IMAP session (logged in), for the sign-in flow to report.
+  isConnected(accountId) {
+    return this.connections.has(accountId);
+  }
+
   clearConnectCooldown(accountId) {
     this._connectCooldown.delete(accountId);
     // The secondary backoff goes too. This is the explicit human action (editing the account,

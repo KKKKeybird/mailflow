@@ -9,6 +9,7 @@ import { redactEmail } from '../utils/redact.js';
 import { getMsConfig, getMsDeviceClient, msBuiltinAppEnabled, msRefreshClient } from '../services/microsoftOAuthClient.js';
 import { MAILFLOW_MS_CLIENT_ID } from '../services/microsoftBuiltinApp.js';
 import { classifyRefreshFailure, clearRefreshFailure, terminalRefreshError } from '../services/accountErrorCode.js';
+import { reportConnect } from '../services/connectReport.js';
 
 // Cache JWKS fetchers per tenant — createRemoteJWKSet handles caching internally.
 const jwksCache = new Map();
@@ -140,10 +141,18 @@ router.get('/microsoft/callback', async (req, res) => {
     }
 
     // Authorization-code flow uses the client secret → confidential client.
-    await processMicrosoftTokens(userId, tokens, { tenantId, clientId, publicClient: false, repairAccountId });
+    const signedIn = await processMicrosoftTokens(userId, tokens, { tenantId, clientId, publicClient: false, repairAccountId });
 
-    // Redirect back to app with success
-    res.redirect('/?oauth_success=microsoft');
+    // Back to the app once the mailbox has answered (bounded), with how it went: the page that
+    // started the sign-in shows "connected" only when it is.
+    const report = await connectReportFor(signedIn);
+    const params = new URLSearchParams({
+      oauth_success: 'microsoft', oauth_account_id: String(signedIn.accountId), oauth_email: signedIn.email,
+      oauth_connection: report.connection,
+    });
+    if (report.code) params.set('oauth_code', report.code);
+    if (report.error) params.set('oauth_detail', report.error);
+    res.redirect(`/?${params}`);
   } catch (err) {
     if (err instanceof WrongAccountError) return res.redirect(wrongAccountRedirect(err));
     console.error('Microsoft OAuth callback error:', err);
@@ -269,10 +278,17 @@ async function processMicrosoftTokens(userId, tokens, { tenantId, clientId, publ
   // return early on it with sync_error already cleared: a silent no-op.
   imapManager.clearConnectCooldown(account.id);
   clearRefreshFailure(account.id);
-  imapManager.connectAccount(account).catch(err =>
-    console.error(`OAuth connect failed for ${redactEmail(email)}:`, err.message)
-  );
-  return { email, accountId: account.id };
+  const connecting = imapManager.connectAccount(account).catch((err) => {
+    console.error(`OAuth connect failed for ${redactEmail(email)}:`, err.message);
+    return false;
+  });
+  return { email, accountId: account.id, connecting };
+}
+
+// How the first connection after a sign-in went, waited for (bounded) so the sign-in reports
+// "connected" only once the mailbox has accepted the login.
+function connectReportFor({ accountId, connecting }) {
+  return reportConnect(connecting, accountId, { isConnected: () => !!imapManager.isConnected?.(accountId) });
 }
 
 // The client a repair signs in through: the one the account was connected with when it is
@@ -339,6 +355,13 @@ router.get('/microsoft/device/poll', async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
   const flow = deviceFlows.get(req.session.userId);
   if (!flow) return res.status(400).json({ status: 'error', error: 'No pending device code flow' });
+  // Signed in already: this poll answers with how the first connection went (waited for,
+  // bounded), so the page shows "checking" in between instead of announcing success early.
+  if (flow.phase === 'checking') {
+    const report = await flow.report;
+    if (deviceFlows.get(req.session.userId) === flow) deviceFlows.delete(req.session.userId);
+    return res.json({ status: 'success', accountId: flow.accountId, email: flow.email, ...report });
+  }
   if (Date.now() > flow.expiresAt) {
     deviceFlows.delete(req.session.userId);
     return res.json({ status: 'expired' });
@@ -374,10 +397,13 @@ router.get('/microsoft/device/poll', async (req, res) => {
     deviceFlows.delete(req.session.userId);
     // Device-code flow never uses a client secret → public client. Its refresh must
     // omit the secret too, or Microsoft rejects it with AADSTS90023 (#216).
-    const { accountId } = await processMicrosoftTokens(req.session.userId, tokens, {
+    const signedIn = await processMicrosoftTokens(req.session.userId, tokens, {
       tenantId: flow.tenantId, clientId: flow.clientId, publicClient: true, repairAccountId: flow.repairAccountId,
     });
-    res.json({ status: 'success', accountId });
+    deviceFlows.set(req.session.userId, {
+      phase: 'checking', accountId: signedIn.accountId, email: signedIn.email, report: connectReportFor(signedIn),
+    });
+    res.json({ status: 'checking', accountId: signedIn.accountId, email: signedIn.email });
   } catch (err) {
     deviceFlows.delete(req.session.userId);
     if (err instanceof WrongAccountError) {

@@ -997,7 +997,8 @@
       "trustedAuthservDetected": "Vus dans vos messages récents (cliquez pour utiliser) :",
       "trustedAuthservDetectedNone": "Pas encore de données : les messages sont analysés lorsque l'antispam est actif pour ce compte.",
       "trustedAuthservWarn": "Ne faites confiance qu'à un ID que vous reconnaissez comme le serveur de réception de votre fournisseur.",
-      "enabledGlobally": "Activé globalement"
+      "enabledGlobally": "Activé globalement",
+      "microsoftImapNoteSignIn": "Microsoft n'accepte plus les mots de passe pour les boîtes Outlook.com, Hotmail, Live et MSN. Connectez-vous plutôt avec Microsoft : aucun mot de passe d'application n'est nécessaire."
     },
     "folderMappings": {
       "title": "Mappage des dossiers",
@@ -1607,14 +1608,6 @@
         "deviceCodeTitle": "Connexion par code d'appareil",
         "deviceCodeNote": "Aucun URI de redirection ni secret client requis. Dans Azure, allez dans Authentification et activez 'Autoriser les flux de clients publics'. Idéal pour les comptes Outlook.com / Hotmail personnels.",
         "deviceCodeStart": "Démarrer le flux de code d'appareil",
-        "deviceCodeInstructions": "Visitez le lien ci-dessous sur n'importe quel appareil et entrez le code pour autoriser MailFlow :",
-        "deviceCodeVisit": "Visitez :",
-        "deviceCodeEnter": "Entrez le code :",
-        "deviceCodeWaiting": "En attente d'autorisation…",
-        "deviceCodeExpired": "Code expiré. Recommencez.",
-        "deviceCodeDeclined": "L'autorisation a été refusée.",
-        "deviceCodeError": "Une erreur s'est produite. Veuillez réessayer.",
-        "deviceCodeCancel": "Annuler",
         "personalReady": "Comptes personnels prêts",
         "builtinTitle": "Connecter un compte Microsoft personnel",
         "builtinNote": "Aucune configuration requise pour les comptes Outlook.com, Hotmail, Live et MSN. Cette connexion utilise l'application Microsoft partagée de MailFlow, que Microsoft peut signaler comme non vérifiée. Vous vous connectez sur la page de Microsoft dans votre navigateur, et Microsoft envoie les jetons directement à ce serveur : les mainteneurs de MailFlow ne voient jamais vos e-mails ni vos jetons. Les comptes professionnels ou scolaires nécessitent une application enregistrée par votre administrateur.",
@@ -2010,8 +2003,7 @@
       "retry": "Réessayer",
       "signIn": "Se reconnecter",
       "edit": "Modifier le compte",
-      "openIntegrations": "Ouvrir Intégrations",
-      "startOver": "Recommencer"
+      "openIntegrations": "Ouvrir Intégrations"
     },
     "details": "Détails",
     "wrongAccount": "Vous vous êtes connecté en tant que {{signedInAs}}, et non {{expected}}. Connectez-vous avec {{expected}} pour réparer ce compte.",
@@ -2022,5 +2014,58 @@
       "continueGoogle": "Continuer vers Google",
       "waitingGoogle": "Terminez la connexion sur la page Google, puis revenez ici."
     }
+  },
+  "addAccount": {
+    "title": "Ajouter un compte de messagerie",
+    "emailLabel": "Votre adresse e-mail",
+    "continue": "Continuer",
+    "invalidEmail": "Saisissez une adresse e-mail comme vous@example.com.",
+    "orChoose": "Ou choisissez votre fournisseur",
+    "tile": {
+      "outlook": "Outlook.com, Hotmail, Live, MSN",
+      "outlookSub": "Se connecter avec Microsoft",
+      "work": "Microsoft 365 (travail ou école)",
+      "workSub": "Se connecter avec le compte Microsoft de votre organisation",
+      "gmail": "Gmail",
+      "gmailSub": "Utiliser un mot de passe d'application",
+      "yahoo": "Yahoo Mail",
+      "yahooSub": "Utiliser un mot de passe d'application",
+      "icloud": "iCloud Mail",
+      "icloudSub": "Utiliser un mot de passe pour app",
+      "other": "Autre (IMAP)",
+      "otherSub": "Saisir les paramètres du serveur"
+    },
+    "personalOff": "Votre administrateur a désactivé la connexion Outlook.com.",
+    "workOff": "Votre administrateur ne l'a pas encore configuré.",
+    "openSettings": "Ouvrir les paramètres de connexion Microsoft"
+  },
+  "msSignIn": {
+    "titlePersonal": "Se connecter avec Microsoft",
+    "titleWork": "Se connecter avec votre compte professionnel ou scolaire",
+    "beforeTitle": "Avant de commencer",
+    "beforeBody": "Outlook.com doit autoriser les applications de messagerie. Si vous ne l'avez jamais fait :",
+    "step1": "Ouvrez la page de connexion de Microsoft.",
+    "step1Button": "Ouvrir la connexion Microsoft",
+    "step2": "Saisissez-y ce code, puis suivez les étapes sur la page de Microsoft.",
+    "copy": "Copier le code",
+    "copied": "Copié",
+    "waiting": "En attente de la fin de votre connexion sur la page de Microsoft…",
+    "starting": "Obtention d'un code auprès de Microsoft…",
+    "checking": "Vérification que MailFlow peut accéder à votre boîte aux lettres…",
+    "connected": "{{email}} est connecté. Vos e-mails se synchronisent.",
+    "stillConnecting": "Connecté en tant que {{email}}. MailFlow établit encore la connexion et continue d'essayer de lui-même. La liste des comptes indique quand il est prêt.",
+    "declined": "Vous avez annulé la connexion sur la page de Microsoft.",
+    "expired": "Le code a expiré avant la fin de la connexion. Les codes sont valables 15 minutes.",
+    "error": "La connexion Microsoft n'a pas fonctionné.",
+    "newCode": "Obtenir un nouveau code",
+    "startOver": "Recommencer",
+    "done": "Terminé",
+    "finePrintShared": "Microsoft peut indiquer que MailFlow est une application non vérifiée. C'est normal : l'application partagée de MailFlow ne fait qu'identifier MailFlow auprès de Microsoft. Vous vous connectez sur la page de Microsoft, et Microsoft envoie l'accès directement à ce serveur.",
+    "finePrintOwn": "Vous vous connectez sur la page de Microsoft, et Microsoft envoie l'accès directement à ce serveur.",
+    "continueMicrosoft": "Continuer vers Microsoft",
+    "redirectWaiting": "Terminez la connexion sur la page Microsoft qui s'est ouverte, puis revenez ici.",
+    "useCode": "Utiliser un code à la place",
+    "useRedirect": "Se connecter sur la page de Microsoft à la place",
+    "back": "Retour"
   }
 }

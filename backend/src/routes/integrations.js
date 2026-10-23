@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { query } from '../services/db.js';
 import { requireAuth, requireAdmin } from '../middleware/auth.js';
 import { encrypt, decrypt, isEncrypted } from '../services/encryption.js';
-import { msBuiltinAppEnabled, msBuiltinAppShipped, msPersonalAccountsAvailable } from '../services/microsoftOAuthClient.js';
+import { msBuiltinAppEnabled, msBuiltinAppShipped, msPersonalAccountsAvailable, msWorkAccountsAvailable } from '../services/microsoftOAuthClient.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -79,6 +79,10 @@ router.get('/status', async (req, res) => {
       builtinApp: msBuiltinAppEnabled(),
       builtinAppShipped: msBuiltinAppShipped(),
       personalAccounts: msPersonalAccountsAvailable(),
+      // Work and school accounts need the instance's own app on a tenant that admits them;
+      // with a secret and redirect URI it can also sign in through Microsoft's page (redirect).
+      workAccounts: msWorkAccountsAvailable(),
+      workRedirect: msWorkAccountsAvailable() && !!process.env.MS_CLIENT_SECRET && !!process.env.MS_REDIRECT_URI,
     },
     google: {
       configured: !!process.env.GOOGLE_CLIENT_ID,

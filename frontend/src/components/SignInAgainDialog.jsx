@@ -70,8 +70,8 @@ export default function SignInAgainDialog({ account, onClose, onSignedIn }) {
         {account.oauth_provider === 'microsoft' && (
           <MicrosoftDeviceCode
             accountId={account.id}
-            successText={t('accountErrors.signInDialog.success')}
-            onSuccess={succeed}
+            onSignedIn={() => onSignedInRef.current?.()}
+            onDone={onClose}
             onCancel={onClose}
           />
         )}
