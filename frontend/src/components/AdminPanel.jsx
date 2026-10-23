@@ -181,6 +181,13 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, on
   }, [isEdit, form.antispam_enabled, initial?.id]);
 
   const set = (key, val) => setForm(f => ({ ...f, [key]: val }));
+  // The login follows the address (which is what it usually is) until the user edits the
+  // login itself, so correcting a prefilled address does not leave the old one as the login.
+  const [authUserEdited, setAuthUserEdited] = useState(false);
+  const setEmail = (value) => setForm(f => ({
+    ...f, email_address: value,
+    ...(!isEdit && !authUserEdited && (!f.auth_user || f.auth_user === f.email_address) ? { auth_user: value } : {}),
+  }));
 
   const handlePreset = (key) => {
     const p = PRESETS[key];
@@ -292,7 +299,7 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, on
 
       {!isEdit && (
         <Field label={t('admin.accounts.email')} required>
-          <input value={form.email_address || ''} onChange={e => set('email_address', e.target.value)}
+          <input value={form.email_address || ''} onChange={e => setEmail(e.target.value)}
             placeholder={t('admin.accounts.emailPh')} style={inputStyle}
             onFocus={e => e.target.style.borderColor = 'var(--accent)'}
             onBlur={e => e.target.style.borderColor = 'var(--border)'} />
@@ -355,7 +362,7 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, on
       </div>
 
       <Field label={t('admin.accounts.authUser')} required>
-        <input value={form.auth_user || ''} onChange={e => set('auth_user', e.target.value)}
+        <input value={form.auth_user || ''} onChange={e => { setAuthUserEdited(true); set('auth_user', e.target.value); }}
           placeholder={t('admin.accounts.authUserPh')} style={inputStyle}
           onFocus={e => e.target.style.borderColor = 'var(--accent)'}
           onBlur={e => e.target.style.borderColor = 'var(--border)'} />

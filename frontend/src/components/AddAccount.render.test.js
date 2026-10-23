@@ -196,6 +196,19 @@ describe('address detection on Continue', () => {
     assert.equal(doc.querySelector('input[placeholder="admin.accounts.imapHostPh"]').value, '');
   });
 
+  test('the login follows a corrected address until it is edited itself', async () => {
+    await openAdd('builtin');
+    await typeAndContinue('maria@contoso.example');
+    const email = doc.querySelector('input[placeholder="admin.accounts.emailPh"]');
+    const login = doc.querySelector('input[placeholder="admin.accounts.authUserPh"]');
+    assert.equal(login.value, 'maria@contoso.example');
+    await setValue(email, 'maria.lopez@contoso.example');
+    assert.equal(login.value, 'maria.lopez@contoso.example');
+    await setValue(login, 'mlopez');
+    await setValue(email, 'm.lopez@contoso.example');
+    assert.equal(login.value, 'mlopez');
+  });
+
   test('something that is not an address is pointed out', async () => {
     await openAdd('builtin');
     await typeAndContinue('maria');
