@@ -712,6 +712,11 @@ export default function MailApp() {
       setShowAdmin(true);
     } else if (oauthError) {
       window.history.replaceState({}, '', '/');
+      if (oauthError === 'wrong_account') {
+        addNotification({ type: 'error', title: t('accountErrors.signInDialog.title'), body: t('accountErrors.wrongAccount', {
+          signedInAs: params.get('oauth_signed_in_as'), expected: params.get('oauth_expected'),
+        }) });
+      }
     } else if (oidcSuccess) {
       window.history.replaceState({}, '', '/');
       if (oidcSuccess === 'linked') {

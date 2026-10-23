@@ -16,6 +16,9 @@ vi.mock('./mailAccess.js', () => ({ getAccountAddresses: vi.fn(async () => []) }
 
 import { ImapManager, PREFETCH_MAX_CONSECUTIVE_ERRORS, INLINE_IMAGE_REPEAT_BUDGET, hasIdlePooledClient, shouldPrewarmPool, acquirePooledClient, releasePooledClient, MIN_SYNC_INTERVAL_MS, AUTO_IDLE_DELAY_MS, countMissingInboxCopies, fetchBackfillBatch, providerProfile, makeClientCfg, relocateExemptGuard, insertCopiedSibling, deleteMessageCopyRow, emitSectionsChanged, ensureMailbox, createKeyedSemaphore, isConnectionRefusal, connectCooldownMs, effectiveSyncIntervalMs, folderSyncDue, planModseqSync, connectStaggerFor, walkStructure, extractBodyFromMsg, attachmentsFromStructure, contentLocationFromMimeHeader, bodyFallbackApplies, parsePersistentCap, resolvePersistentCap, persistentEligible, shouldRetryIPv4, classifyMoveBySearch, computeThreadId, noteDraftsChanged } from './imapManager.js';
 import { pluginRegistry } from '../plugins/registry.js';
+import { ensureFreshToken } from './imapManager.js';
+import { clearRefreshFailure, noteRefreshFailure, refreshFailureFor } from './accountErrorCode.js';
+import { refreshMicrosoftToken } from '../routes/oauth.js';
 import { EventEmitter } from 'node:events';
 import { ImapFlow } from 'imapflow';
 import { query } from './db.js';
@@ -3083,6 +3086,76 @@ describe('classifyMoveBySearch (#407 empty-uidMap reconciliation)', () => {
 
 // ── sync_error recording — every path that gives up records, every success clears ──────────
 
+// What the UI is told to do about a failure (#674): every recording site goes through
+// _recordAccountError, so the code is decided there, next to the text.
+describe('_recordAccountError: sync_error_code', () => {
+  const ctx = () => ({ _syncErrorState: new Map(), _accountErrorStreak: new Map(), broadcast: vi.fn() });
+  const outlook = { id: 'ms-1', user_id: 'u1', email_address: 'maria.lopez@outlook.com', oauth_provider: 'microsoft', oauth_tenant_id: 'consumers' };
+  const work = { id: 'ms-2', user_id: 'u1', email_address: 'maria@contoso.example', oauth_provider: 'microsoft', oauth_tenant_id: 'common' };
+  const pw = { id: 'pw-1', user_id: 'u1', email_address: 'maria@example.com', oauth_provider: null };
+  const written = () => query.mock.calls.find(([sql]) => /SET sync_error = \$1/.test(sql))?.[1];
+
+  beforeEach(() => { query.mockReset(); query.mockResolvedValue({ rows: [] }); });
+  afterEach(() => { for (const a of [outlook, work, pw]) clearRefreshFailure(a.id); });
+
+  it.each([
+    [outlook, 'User is authenticated but not connected.', 'ms_imap_disabled_personal'],
+    [work, 'User is authenticated but not connected.', 'ms_imap_disabled_work'],
+    [outlook, 'AUTHENTICATE failed.', 'oauth_reauth'],
+    [pw, '[AUTHENTICATIONFAILED] Invalid credentials', 'auth_failed'],
+    [pw, 'getaddrinfo ENOTFOUND imap.example.com', 'connection'],
+  ])('records %#: %s as %s, in the row and to the client', async (account, detail, code) => {
+    const self = ctx();
+    await ImapManager.prototype._recordAccountError.call(self, account, detail);
+    expect(written()).toEqual([detail, account.id, code]);
+    expect(self.broadcast).toHaveBeenCalledWith({ type: 'account_error', accountId: account.id, error: detail, code }, 'u1');
+  });
+
+  it('records a refresh that failed for good instead of the AUTHENTICATE failure it caused', async () => {
+    const self = ctx();
+    noteRefreshFailure(outlook.id, { code: 'oauth_reauth', detail: 'AADSTS700082: The refresh token has expired due to inactivity.' });
+    await ImapManager.prototype._recordAccountError.call(self, outlook, 'AUTHENTICATE failed.');
+    expect(written()).toEqual(['AADSTS700082: The refresh token has expired due to inactivity.', outlook.id, 'oauth_reauth']);
+  });
+
+  it('clears the code with the text', async () => {
+    const self = ctx();
+    await ImapManager.prototype._recordAccountError.call(self, outlook, 'User is authenticated but not connected.');
+    await ImapManager.prototype._clearAccountError.call(self, outlook);
+    expect(query).toHaveBeenLastCalledWith('UPDATE email_accounts SET sync_error = NULL, sync_error_code = NULL WHERE id = $1', [outlook.id]);
+    expect(self.broadcast).toHaveBeenLastCalledWith({ type: 'account_connected', accountId: outlook.id }, 'u1');
+  });
+});
+
+describe('ensureFreshToken: a refresh that cannot succeed is remembered, not swallowed', () => {
+  const soon = () => new Date(Date.now() + 60 * 1000).toISOString();
+  const account = () => ({ id: 'ms-9', email_address: 'me@outlook.com', oauth_provider: 'microsoft', oauth_token_expiry: soon() });
+
+  beforeEach(() => { vi.spyOn(console, 'error').mockImplementation(() => {}); vi.spyOn(console, 'log').mockImplementation(() => {}); });
+  afterEach(() => { clearRefreshFailure('ms-9'); vi.restoreAllMocks(); refreshMicrosoftToken.mockReset(); });
+
+  it('notes a terminal failure and goes on with the stored token', async () => {
+    const err = Object.assign(new Error('AADSTS70008: The refresh token has expired due to inactivity.'), { accountErrorCode: 'oauth_reauth' });
+    refreshMicrosoftToken.mockRejectedValueOnce(err);
+    const a = account();
+    await expect(ensureFreshToken(a)).resolves.toBe(a);
+    expect(refreshFailureFor('ms-9')).toEqual({ code: 'oauth_reauth', detail: err.message });
+  });
+
+  it('does not note a failure that may pass by itself', async () => {
+    refreshMicrosoftToken.mockRejectedValueOnce(new Error('fetch failed'));
+    await ensureFreshToken(account());
+    expect(refreshFailureFor('ms-9')).toBeNull();
+  });
+
+  it('forgets the failure once a refresh succeeds', async () => {
+    noteRefreshFailure('ms-9', { code: 'oauth_reauth', detail: 'old' });
+    refreshMicrosoftToken.mockImplementationOnce(async (a) => ({ ...a, oauth_access_token: 'new' }));
+    await ensureFreshToken(account());
+    expect(refreshFailureFor('ms-9')).toBeNull();
+  });
+});
+
 describe('_recordAccountError / _clearAccountError', () => {
   const acct = { id: 'a1', user_id: 'u1', email_address: 'x@example.com' };
 
@@ -3112,11 +3185,11 @@ describe('_recordAccountError / _clearAccountError', () => {
     expect(m.broadcast).not.toHaveBeenCalled();
     await m._recordAccountError(acct, 'IMAP connect timeout (30000ms)');
     expect(query).toHaveBeenCalledWith(
-      'UPDATE email_accounts SET sync_error = $1 WHERE id = $2',
-      ['IMAP connect timeout (30000ms)', 'a1'],
+      'UPDATE email_accounts SET sync_error = $1, sync_error_code = $3 WHERE id = $2',
+      ['IMAP connect timeout (30000ms)', 'a1', 'connection'],
     );
     expect(m.broadcast).toHaveBeenCalledWith(
-      { type: 'account_error', accountId: 'a1', error: 'IMAP connect timeout (30000ms)' }, 'u1',
+      { type: 'account_error', accountId: 'a1', error: 'IMAP connect timeout (30000ms)', code: 'connection' }, 'u1',
     );
   });
 
@@ -3140,7 +3213,7 @@ describe('_recordAccountError / _clearAccountError', () => {
     m.broadcast.mockClear();
     await m._clearAccountError(acct);
     expect(query).toHaveBeenLastCalledWith(
-      'UPDATE email_accounts SET sync_error = NULL WHERE id = $1', ['a1'],
+      'UPDATE email_accounts SET sync_error = NULL, sync_error_code = NULL WHERE id = $1', ['a1'],
     );
     expect(m.broadcast).toHaveBeenCalledWith({ type: 'account_connected', accountId: 'a1' }, 'u1');
   });

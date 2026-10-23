@@ -50,7 +50,11 @@ export default function App() {
       if (oauthSuccess) {
         window.opener.postMessage({ type: 'oauth_success', provider: oauthSuccess }, window.location.origin);
       } else {
-        window.opener.postMessage({ type: 'oauth_error', error: oauthError }, window.location.origin);
+        // A repair signed in as another address reports both, for the page to explain.
+        window.opener.postMessage({
+          type: 'oauth_error', error: oauthError,
+          signedInAs: params.get('oauth_signed_in_as'), expected: params.get('oauth_expected'),
+        }, window.location.origin);
       }
       window.close();
       return;

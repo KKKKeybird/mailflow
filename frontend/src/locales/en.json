@@ -513,7 +513,6 @@
     "settings": "Settings",
     "lock": "Lock",
     "signOut": "Sign out",
-    "connectionError": "Connection error",
     "folderMenu": {
       "markAllRead": "Mark all as read",
       "syncFolder": "Sync folder",
@@ -531,7 +530,8 @@
       "syncNow": "Sync now",
       "syncFoldersNow": "Sync folders now",
       "settings": "Account settings",
-      "reconnect": "Reconnect",
+      "tryAgain": "Try again",
+      "signInAgain": "Sign in again",
       "moveUp": "Move up",
       "moveDown": "Move down",
       "moveFailed": "Failed to reorder accounts"
@@ -1967,5 +1967,60 @@
     "trash": "Trash",
     "spam": "Spam",
     "archive": "Archive"
+  },
+  "accountErrors": {
+    "label": {
+      "turnOnImap": "Turn on IMAP",
+      "signInAgain": "Sign in again",
+      "cantConnect": "Can't connect",
+      "openRow": "Show what's wrong and how to fix it"
+    },
+    "imapOffPersonal": {
+      "title": "Outlook.com is blocking mail apps",
+      "body": "Microsoft signed you in, but IMAP is turned off for this mailbox. To turn it on:",
+      "step1": "Open Outlook.com and sign in.",
+      "step2": "Go to Settings > Mail > Forwarding and IMAP.",
+      "step3": "Turn on Let devices and apps use IMAP, then select Save.",
+      "outro": "Then come back here and select Try again."
+    },
+    "imapOffWork": {
+      "title": "IMAP is turned off for this mailbox",
+      "body": "Microsoft signed you in, but your organization has turned off IMAP for {{email}}. Ask your IT administrator to turn it on, then select Try again."
+    },
+    "signIn": {
+      "title": "Sign in to Microsoft again",
+      "titleGoogle": "Sign in to Google again",
+      "body": "MailFlow's saved sign-in for this account stopped working. This happens after a password change, after a long time without use, or when access was removed in your account settings."
+    },
+    "appConfig": {
+      "title": "Sign-in for this account isn't set up correctly",
+      "bodyUser": "The mail provider rejected the app MailFlow signs in with. Ask your administrator to check the sign-in settings.",
+      "bodyAdmin": "The mail provider rejected the app MailFlow signs in with. Check its settings under Integrations. Details below show what the provider said."
+    },
+    "authFailed": {
+      "title": "The server rejected the password",
+      "body": "The mail server didn't accept the username or password for this account. If you changed your password, or use an app password, update it with Edit account."
+    },
+    "connection": {
+      "title": "MailFlow can't connect to this account",
+      "body": "MailFlow keeps trying on its own. Details below show what the server said."
+    },
+    "action": {
+      "openOutlook": "Open Outlook.com",
+      "retry": "Try again",
+      "signIn": "Sign in again",
+      "edit": "Edit account",
+      "openIntegrations": "Open Integrations",
+      "startOver": "Start over"
+    },
+    "details": "Details",
+    "wrongAccount": "You signed in as {{signedInAs}}, not {{expected}}. Sign in with {{expected}} to fix this account.",
+    "signInDialog": {
+      "title": "Sign in again",
+      "body": "Sign in as {{email}} to reconnect this account.",
+      "success": "Signed in. MailFlow is reconnecting this account.",
+      "continueGoogle": "Continue to Google",
+      "waitingGoogle": "Finish signing in on the Google page, then come back here."
+    }
   }
 }

@@ -513,7 +513,6 @@
     "settings": "Impostazioni",
     "lock": "Blocca schermo",
     "signOut": "Esci",
-    "connectionError": "Errore di connessione",
     "folderMenu": {
       "markAllRead": "Segna tutto come letto",
       "syncFolder": "Sincronizza cartella",
@@ -531,7 +530,8 @@
       "syncNow": "Sincronizza ora",
       "syncFoldersNow": "Sincronizza cartelle ora",
       "settings": "Impostazioni account",
-      "reconnect": "Riconnetti",
+      "tryAgain": "Riprova",
+      "signInAgain": "Accedi di nuovo",
       "moveUp": "Sposta su",
       "moveDown": "Sposta giù",
       "moveFailed": "Impossibile riordinare gli account"
@@ -1967,5 +1967,60 @@
     "trash": "Cestino",
     "spam": "Spam",
     "archive": "Archivio"
+  },
+  "accountErrors": {
+    "label": {
+      "turnOnImap": "Attiva IMAP",
+      "signInAgain": "Accedi di nuovo",
+      "cantConnect": "Connessione non riuscita",
+      "openRow": "Mostra il problema e come risolverlo"
+    },
+    "imapOffPersonal": {
+      "title": "Outlook.com sta bloccando le app di posta",
+      "body": "Microsoft ti ha fatto accedere, ma IMAP è disattivato per questa casella. Per attivarlo:",
+      "step1": "Apri Outlook.com e accedi.",
+      "step2": "Vai a Impostazioni > Posta > Inoltro e IMAP.",
+      "step3": "Attiva «Consenti a dispositivi e app di usare IMAP», poi seleziona Salva.",
+      "outro": "Poi torna qui e seleziona Riprova."
+    },
+    "imapOffWork": {
+      "title": "IMAP è disattivato per questa casella",
+      "body": "Microsoft ti ha fatto accedere, ma la tua organizzazione ha disattivato IMAP per {{email}}. Chiedi al tuo reparto IT di attivarlo, poi seleziona Riprova."
+    },
+    "signIn": {
+      "title": "Accedi di nuovo a Microsoft",
+      "titleGoogle": "Accedi di nuovo a Google",
+      "body": "L'accesso salvato da MailFlow per questo account non funziona più. Succede dopo un cambio di password, dopo un lungo periodo di inutilizzo o quando l'accesso è stato revocato nelle impostazioni del tuo account."
+    },
+    "appConfig": {
+      "title": "L'accesso per questo account non è configurato correttamente",
+      "bodyUser": "Il provider di posta ha rifiutato l'app con cui MailFlow accede. Chiedi al tuo amministratore di controllare le impostazioni di accesso.",
+      "bodyAdmin": "Il provider di posta ha rifiutato l'app con cui MailFlow accede. Controlla le sue impostazioni in Integrazioni. I dettagli qui sotto mostrano la risposta del provider."
+    },
+    "authFailed": {
+      "title": "Il server ha rifiutato la password",
+      "body": "Il server di posta non ha accettato il nome utente o la password di questo account. Se hai cambiato password o usi una password per le app, aggiornala con Modifica account."
+    },
+    "connection": {
+      "title": "MailFlow non riesce a connettersi a questo account",
+      "body": "MailFlow continua a riprovare da solo. I dettagli qui sotto mostrano la risposta del server."
+    },
+    "action": {
+      "openOutlook": "Apri Outlook.com",
+      "retry": "Riprova",
+      "signIn": "Accedi di nuovo",
+      "edit": "Modifica account",
+      "openIntegrations": "Apri Integrazioni",
+      "startOver": "Ricomincia"
+    },
+    "details": "Dettagli",
+    "wrongAccount": "Hai effettuato l'accesso come {{signedInAs}}, non come {{expected}}. Accedi con {{expected}} per sistemare questo account.",
+    "signInDialog": {
+      "title": "Accedi di nuovo",
+      "body": "Accedi come {{email}} per riconnettere questo account.",
+      "success": "Accesso effettuato. MailFlow sta riconnettendo questo account.",
+      "continueGoogle": "Continua su Google",
+      "waitingGoogle": "Completa l'accesso nella pagina di Google, poi torna qui."
+    }
   }
 }

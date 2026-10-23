@@ -9,6 +9,7 @@ import { classifyMessage, loadSocialDomains, getGlobalCategorizationEnabled } fr
 import { pluginRegistry } from '../plugins/registry.js';
 import { createPluginMailFacade } from '../plugins/mailEngineFacade.js';
 import { refreshMicrosoftToken, refreshGoogleToken } from '../routes/oauth.js';
+import { classifyAccountError, clearRefreshFailure, noteRefreshFailure } from './accountErrorCode.js';
 import { sanitizeEmail } from './emailSanitizer.js';
 import { settleCids } from '../utils/cidRefs.js';
 import { logger } from './logger.js';
@@ -1974,7 +1975,7 @@ function parseAddressColumn(value) {
 }
 
 // Ensure OAuth token is fresh before connecting
-async function ensureFreshToken(account) {
+export async function ensureFreshToken(account) {
   const refreshers = { microsoft: refreshMicrosoftToken, google: refreshGoogleToken };
   const refresh = refreshers[account.oauth_provider];
   if (!refresh) return account;
@@ -1986,8 +1987,13 @@ async function ensureFreshToken(account) {
     console.log(`Refreshing ${account.oauth_provider} token for ${logAccount(account)}`);
     try {
       account = await refresh(account);
+      clearRefreshFailure(account.id);
     } catch (err) {
       console.error(`Token refresh failed for ${logAccount(account)}:`, err.message);
+      // A refresh that cannot succeed by retrying (expired or revoked grant, rejected app) is
+      // remembered so the connection failure it causes is reported as this, not as the bare
+      // "AUTHENTICATE failed." that follows. The stored token is still tried: it may be valid.
+      if (err.accountErrorCode) noteRefreshFailure(account.id, { code: err.accountErrorCode, detail: err.message });
     }
   }
   return account;
@@ -3527,7 +3533,10 @@ export class ImapManager {
   // De-duplicated against the last persisted value: a host that stays down re-enters this on
   // every retry for as long as the outage lasts, and rewriting the same string each time is pure
   // write amplification. Never throws — every caller is already inside an error path.
-  async _recordAccountError(account, detail) {
+  async _recordAccountError(account, rawDetail) {
+    // What kind of failure this is, for the UI to say what to do (sync_error_code). An auth
+    // failure caused by a refresh that already failed for good is recorded as that refresh.
+    const { code, detail } = classifyAccountError(account, rawDetail, { authFailure: isAuthFailure(rawDetail) });
     if (this._syncErrorState.get(account.id) === detail) return;
     // Hold back a failure that is likely to heal itself. Only RECOVERABLE failures are
     // deferred: an authentication or configuration failure will never clear on its own and is
@@ -3538,9 +3547,9 @@ export class ImapManager {
     this._accountErrorStreak.set(account.id, streak);
     if (isConnectionRefusal(detail) && streak < ACCOUNT_ERROR_MIN_STREAK) return;
     try {
-      await query('UPDATE email_accounts SET sync_error = $1 WHERE id = $2', [detail, account.id]);
+      await query('UPDATE email_accounts SET sync_error = $1, sync_error_code = $3 WHERE id = $2', [detail, account.id, code]);
       this._syncErrorState.set(account.id, detail);
-      this.broadcast({ type: 'account_error', accountId: account.id, error: detail }, account.user_id);
+      this.broadcast({ type: 'account_error', accountId: account.id, error: detail, code }, account.user_id);
     } catch (err) {
       // Leave _syncErrorState untouched so the next failure retries the write.
       console.warn(`Could not record sync_error for ${logAccount(account)}: ${err.message}`);
@@ -3559,7 +3568,7 @@ export class ImapManager {
     const prev = this._syncErrorState.get(account.id);
     if (prev === null) return;
     try {
-      await query('UPDATE email_accounts SET sync_error = NULL WHERE id = $1', [account.id]);
+      await query('UPDATE email_accounts SET sync_error = NULL, sync_error_code = NULL WHERE id = $1', [account.id]);
       this._syncErrorState.set(account.id, null);
       if (typeof prev === 'string') {
         this.broadcast({ type: 'account_connected', accountId: account.id }, account.user_id);

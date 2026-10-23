@@ -513,7 +513,6 @@
     "settings": "Configurações",
     "lock": "Bloquear",
     "signOut": "Sair",
-    "connectionError": "Erro de conexão",
     "folderMenu": {
       "markAllRead": "Marcar todas como lidas",
       "syncFolder": "Sincronizar pasta",
@@ -531,7 +530,8 @@
       "syncNow": "Sincronizar agora",
       "syncFoldersNow": "Sincronizar pastas agora",
       "settings": "Configurações da conta",
-      "reconnect": "Reconectar",
+      "tryAgain": "Tentar novamente",
+      "signInAgain": "Entrar novamente",
       "moveUp": "Mover para cima",
       "moveDown": "Mover para baixo",
       "moveFailed": "Falha ao reordenar as contas"
@@ -1967,5 +1967,60 @@
     "trash": "Lixeira",
     "spam": "Spam",
     "archive": "Arquivo"
+  },
+  "accountErrors": {
+    "label": {
+      "turnOnImap": "Ativar IMAP",
+      "signInAgain": "Entrar novamente",
+      "cantConnect": "Sem conexão",
+      "openRow": "Mostrar o problema e como resolvê-lo"
+    },
+    "imapOffPersonal": {
+      "title": "O Outlook.com está bloqueando apps de e-mail",
+      "body": "A Microsoft fez seu login, mas o IMAP está desativado para esta caixa de correio. Para ativá-lo:",
+      "step1": "Abra o Outlook.com e entre na sua conta.",
+      "step2": "Vá em Configurações > Email > Encaminhamento e IMAP.",
+      "step3": "Ative \"Permitir que dispositivos e aplicativos usem IMAP\" e selecione Salvar.",
+      "outro": "Depois volte aqui e selecione Tentar novamente."
+    },
+    "imapOffWork": {
+      "title": "O IMAP está desativado para esta caixa de correio",
+      "body": "A Microsoft fez seu login, mas sua organização desativou o IMAP para {{email}}. Peça ao administrador de TI para ativá-lo e depois selecione Tentar novamente."
+    },
+    "signIn": {
+      "title": "Entre na Microsoft novamente",
+      "titleGoogle": "Entre no Google novamente",
+      "body": "O login salvo pelo MailFlow para esta conta parou de funcionar. Isso acontece depois de uma troca de senha, de muito tempo sem uso ou quando o acesso foi removido nas configurações da sua conta."
+    },
+    "appConfig": {
+      "title": "O login desta conta não está configurado corretamente",
+      "bodyUser": "O provedor de e-mail recusou o app com que o MailFlow faz login. Peça ao administrador para verificar as configurações de login.",
+      "bodyAdmin": "O provedor de e-mail recusou o app com que o MailFlow faz login. Verifique as configurações dele em Integrações. Os detalhes abaixo mostram o que o provedor respondeu."
+    },
+    "authFailed": {
+      "title": "O servidor recusou a senha",
+      "body": "O servidor de e-mail não aceitou o usuário ou a senha desta conta. Se você trocou a senha ou usa uma senha de app, atualize-a em Editar conta."
+    },
+    "connection": {
+      "title": "O MailFlow não consegue se conectar a esta conta",
+      "body": "O MailFlow continua tentando sozinho. Os detalhes abaixo mostram o que o servidor respondeu."
+    },
+    "action": {
+      "openOutlook": "Abrir o Outlook.com",
+      "retry": "Tentar novamente",
+      "signIn": "Entrar novamente",
+      "edit": "Editar conta",
+      "openIntegrations": "Abrir Integrações",
+      "startOver": "Recomeçar"
+    },
+    "details": "Mais informações",
+    "wrongAccount": "Você entrou como {{signedInAs}}, não como {{expected}}. Entre com {{expected}} para consertar esta conta.",
+    "signInDialog": {
+      "title": "Entrar novamente",
+      "body": "Entre como {{email}} para reconectar esta conta.",
+      "success": "Login feito. O MailFlow está reconectando esta conta.",
+      "continueGoogle": "Continuar para o Google",
+      "waitingGoogle": "Conclua o login na página do Google e depois volte aqui."
+    }
   }
 }

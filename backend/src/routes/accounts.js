@@ -74,7 +74,7 @@ export const SAFE_FIELDS = [
   'smtp_host', 'smtp_port', 'smtp_tls',
   'auth_user', 'smtp_auth_user', 'oauth_provider', 'enabled',
   'include_in_unified_inbox',
-  'last_sync', 'sync_error', 'sort_order', 'folder_mappings',
+  'last_sync', 'sync_error', 'sync_error_code', 'sort_order', 'folder_mappings',
   'signature', 'signature_enabled', 'created_at', 'categorization_enabled', 'antispam_enabled',
   'trusted_authserv_id', 'auto_cc_addresses', 'auto_bcc_addresses',
 ];

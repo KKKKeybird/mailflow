@@ -513,7 +513,6 @@
     "settings": "Ajustes",
     "lock": "Bloquear",
     "signOut": "Cerrar sesión",
-    "connectionError": "Error de conexión",
     "folderMenu": {
       "markAllRead": "Marcar todo como leído",
       "syncFolder": "Sincronizar carpeta",
@@ -531,7 +530,8 @@
       "syncNow": "Sincronizar ahora",
       "syncFoldersNow": "Sincronizar carpetas ahora",
       "settings": "Ajustes de cuenta",
-      "reconnect": "Reconectar",
+      "tryAgain": "Reintentar",
+      "signInAgain": "Volver a iniciar sesión",
       "moveUp": "Mover arriba",
       "moveDown": "Mover abajo",
       "moveFailed": "Error al reordenar las cuentas"
@@ -1967,5 +1967,60 @@
     "trash": "Papelera",
     "spam": "Spam",
     "archive": "Archivo"
+  },
+  "accountErrors": {
+    "label": {
+      "turnOnImap": "Activar IMAP",
+      "signInAgain": "Volver a iniciar sesión",
+      "cantConnect": "No se puede conectar",
+      "openRow": "Ver qué falla y cómo solucionarlo"
+    },
+    "imapOffPersonal": {
+      "title": "Outlook.com está bloqueando las aplicaciones de correo",
+      "body": "Microsoft inició tu sesión, pero IMAP está desactivado para este buzón. Para activarlo:",
+      "step1": "Abre Outlook.com e inicia sesión.",
+      "step2": "Ve a Configuración > Correo > Reenvío e IMAP.",
+      "step3": "Activa «Permitir que los dispositivos y las aplicaciones usen IMAP» y selecciona Guardar.",
+      "outro": "Después vuelve aquí y selecciona Reintentar."
+    },
+    "imapOffWork": {
+      "title": "IMAP está desactivado para este buzón",
+      "body": "Microsoft inició tu sesión, pero tu organización desactivó IMAP para {{email}}. Pide a tu administrador de TI que lo active y luego selecciona Reintentar."
+    },
+    "signIn": {
+      "title": "Vuelve a iniciar sesión en Microsoft",
+      "titleGoogle": "Vuelve a iniciar sesión en Google",
+      "body": "El inicio de sesión que MailFlow guardó para esta cuenta dejó de funcionar. Esto ocurre tras un cambio de contraseña, tras mucho tiempo sin uso o cuando se retiró el acceso en la configuración de tu cuenta."
+    },
+    "appConfig": {
+      "title": "El inicio de sesión de esta cuenta no está bien configurado",
+      "bodyUser": "El proveedor de correo rechazó la aplicación con la que MailFlow inicia sesión. Pide a tu administrador que revise la configuración de inicio de sesión.",
+      "bodyAdmin": "El proveedor de correo rechazó la aplicación con la que MailFlow inicia sesión. Revisa su configuración en Integraciones. En los detalles de abajo se ve lo que respondió el proveedor."
+    },
+    "authFailed": {
+      "title": "El servidor rechazó la contraseña",
+      "body": "El servidor de correo no aceptó el usuario o la contraseña de esta cuenta. Si cambiaste la contraseña o usas una contraseña de aplicación, actualízala con Editar cuenta."
+    },
+    "connection": {
+      "title": "MailFlow no puede conectarse a esta cuenta",
+      "body": "MailFlow sigue intentándolo por su cuenta. En los detalles de abajo se ve lo que respondió el servidor."
+    },
+    "action": {
+      "openOutlook": "Abrir Outlook.com",
+      "retry": "Reintentar",
+      "signIn": "Volver a iniciar sesión",
+      "edit": "Editar cuenta",
+      "openIntegrations": "Abrir Integraciones",
+      "startOver": "Empezar de nuevo"
+    },
+    "details": "Detalles",
+    "wrongAccount": "Iniciaste sesión como {{signedInAs}}, no como {{expected}}. Inicia sesión con {{expected}} para reparar esta cuenta.",
+    "signInDialog": {
+      "title": "Volver a iniciar sesión",
+      "body": "Inicia sesión como {{email}} para volver a conectar esta cuenta.",
+      "success": "Sesión iniciada. MailFlow está volviendo a conectar esta cuenta.",
+      "continueGoogle": "Continuar a Google",
+      "waitingGoogle": "Termina de iniciar sesión en la página de Google y luego vuelve aquí."
+    }
   }
 }

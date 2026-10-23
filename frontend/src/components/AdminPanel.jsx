@@ -35,6 +35,10 @@ import { getEffectiveShortcuts, getGroupedActions, getShortcutConflicts, shortcu
 import { isValidForwardAddress } from '../utils/ruleActions.js';
 import { folderParentLabel } from '../utils/folderDisplay.js';
 import AdminUserEditor from './AdminUserEditor.jsx';
+import MicrosoftDeviceCode from './MicrosoftDeviceCode.jsx';
+import AccountErrorCallout from './AccountErrorCallout.jsx';
+import SignInAgainDialog from './SignInAgainDialog.jsx';
+import { describeAccountError } from '../utils/accountErrors.js';
 import { formatRelativeTime, daysSince } from '../utils/relativeTime.js';
 import { formatDateTime, formatDay, formatTime } from '../utils/formatDate.js';
 import { htmlLang } from '../utils/browserLanguage.js';
@@ -637,8 +641,29 @@ function AccountForm({ initial, onSave, onCancel }) {
 // ─── Accounts Tab ─────────────────────────────────────────────────────────────
 function AccountsTab() {
   const { t } = useTranslation();
-  const { accounts, setAccounts, updateAccount, setUnreadCounts, addNotification, backfillProgress } = useStore();
+  const { accounts, setAccounts, updateAccount, setUnreadCounts, addNotification, backfillProgress, user, setAdminTab, accountsIntent, setAccountsIntent } = useStore();
+  const isAdmin = !!user?.isAdmin;
   const [subview, setSubview] = useState('list'); // 'list' | 'add' | 'edit' | 'folders' | 'aliases'
+  const [signInTarget, setSignInTarget] = useState(null); // account being signed in again
+  const [focusedId, setFocusedId] = useState(null); // account row opened from the sidebar
+  const rowRefs = useRef({});
+
+  // Opened for one account from the sidebar: show its row, and start "Sign in again" if asked.
+  useEffect(() => {
+    if (!accountsIntent) return;
+    const target = accounts.find(a => a.id === accountsIntent.accountId);
+    setAccountsIntent(null);
+    if (!target) return;
+    setSubview('list');
+    setFocusedId(target.id);
+    if (accountsIntent.action === 'signIn') setSignInTarget(target);
+  }, [accountsIntent]); // eslint-disable-line react-hooks/exhaustive-deps -- acts once per intent
+  useEffect(() => {
+    if (!focusedId) return undefined;
+    rowRefs.current[focusedId]?.scrollIntoView?.({ block: 'nearest' });
+    const timer = setTimeout(() => setFocusedId(null), 2400);
+    return () => clearTimeout(timer);
+  }, [focusedId]);
   const [editTarget, setEditTarget] = useState(null);
   const [folderMappings, setFolderMappings] = useState({});
   const [availableFolders, setAvailableFolders] = useState([]);
@@ -694,7 +719,7 @@ function AccountsTab() {
 
   const handleReconnect = async (id) => {
     await api.reconnectAccount(id);
-    updateAccount(id, { sync_error: null });
+    updateAccount(id, { sync_error: null, sync_error_code: null });
   };
 
   const handleReindex = async (id) => {
@@ -1145,9 +1170,10 @@ function AccountsTab() {
       )}
 
       {accounts.map(account => (
-        <div key={account.id} style={{
-          border: '1px solid var(--border-subtle)', borderRadius: 10,
+        <div key={account.id} ref={el => { rowRefs.current[account.id] = el; }} data-account-id={account.id} style={{
+          border: `1px solid ${focusedId === account.id ? 'var(--accent)' : 'var(--border-subtle)'}`, borderRadius: 10,
           background: 'var(--bg-tertiary)', marginBottom: 10, overflow: 'hidden',
+          transition: 'border-color 0.3s',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 14px', flexWrap: 'wrap' }}>
             <div style={{
@@ -1166,10 +1192,8 @@ function AccountsTab() {
               </div>
               <div style={{ fontSize: 11, marginTop: 3, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
                 {account.sync_error ? (
-                  <span style={{
-                    color: 'var(--red)',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>⚠ {account.sync_error}</span>
+                  // The full error, and what to do about it, is in the callout below.
+                  <span style={{ color: 'var(--red)' }}>⚠ {t(describeAccountError(account).labelKey)}</span>
                 ) : (
                   <>
                     <span style={{ color: 'var(--green)' }}>● {t('admin.accounts.connected')}</span>
@@ -1182,7 +1206,7 @@ function AccountsTab() {
             </div>
             <div style={{ display: 'flex', gap: 6, flexShrink: 0, marginLeft: 'auto' }}>
               {account.sync_error && (
-                <IconBtn onClick={() => handleReconnect(account.id)} title={t('sidebar.accountMenu.reconnect')}>
+                <IconBtn onClick={() => handleReconnect(account.id)} title={t('sidebar.accountMenu.tryAgain')}>
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                     <polyline points="23 4 23 10 17 10"/>
                     <path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/>
@@ -1226,6 +1250,15 @@ function AccountsTab() {
             </div>
           </div>
 
+          <AccountErrorCallout
+            account={account}
+            isAdmin={isAdmin}
+            onRetry={() => handleReconnect(account.id).catch(err => addNotification({ type: 'error', title: t('accountErrors.action.retry'), body: err.message }))}
+            onSignIn={() => setSignInTarget(account)}
+            onEdit={() => { setEditTarget(account); setSubview('edit'); }}
+            onOpenIntegrations={() => setAdminTab('integrations')}
+          />
+
           {/* Connection details bar */}
           <div style={{
             padding: '8px 14px', borderTop: '1px solid var(--border-subtle)',
@@ -1268,6 +1301,13 @@ function AccountsTab() {
         </div>
       ))}
       <ConfirmOverlay dialog={confirmDialog} onClose={() => setConfirmDialog(null)} />
+      {signInTarget && (
+        <SignInAgainDialog
+          account={signInTarget}
+          onClose={() => setSignInTarget(null)}
+          onSignedIn={() => api.getAccounts().then(setAccounts).catch(console.error)}
+        />
+      )}
     </div>
     </>
   );
@@ -2400,9 +2440,8 @@ function IntegrationsTab() {
   const [saving, setSaving] = useState(false);
   const [saveMsg, setSaveMsg] = useState('');
   const [connectingMs, setConnectingMs] = useState(false);
-  const [deviceFlow, setDeviceFlow] = useState(null); // { userCode, verificationUri, interval }
-  const [deviceStatus, setDeviceStatus] = useState(null); // 'pending'|'success'|'declined'|'expired'|'error'
-  const devicePollRef = useRef(null);
+  const [deviceOpen, setDeviceOpen] = useState(false); // the device-code sign-in is showing
+  const deviceCloseTimer = useRef(null);
 
   // Todoist state
   const [tdConnected, setTdConnected] = useState(false);
@@ -2487,9 +2526,9 @@ function IntegrationsTab() {
     window.addEventListener('message', handleMessage);
     return () => {
       window.removeEventListener('message', handleMessage);
-      if (devicePollRef.current) clearInterval(devicePollRef.current);
+      clearTimeout(deviceCloseTimer.current);
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only; re-running on t/setAccounts change would clear an in-progress device-code poll
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only: listeners and status for this panel
 
   const handleSaveMs = async () => {
     if (!msForm.clientId || !msForm.tenantId) {
@@ -2515,9 +2554,8 @@ function IntegrationsTab() {
   };
 
   const stopDeviceFlow = () => {
-    if (devicePollRef.current) { clearInterval(devicePollRef.current); devicePollRef.current = null; }
-    setDeviceFlow(null);
-    setDeviceStatus(null);
+    clearTimeout(deviceCloseTimer.current);
+    setDeviceOpen(false);
   };
 
   // Whether personal accounts may use MailFlow's built-in app while no Client ID is saved.
@@ -2532,35 +2570,10 @@ function IntegrationsTab() {
     }
   };
 
-  const handleStartDeviceFlow = async () => {
-    stopDeviceFlow();
-    setDeviceStatus('pending');
-    try {
-      const data = await api.startMsDeviceFlow();
-      setDeviceFlow(data);
-      const intervalMs = (data.interval || 5) * 1000;
-      devicePollRef.current = setInterval(async () => {
-        try {
-          const result = await api.pollMsDeviceFlow();
-          if (result.status === 'pending') return;
-          clearInterval(devicePollRef.current);
-          devicePollRef.current = null;
-          setDeviceStatus(result.status);
-          if (result.status === 'success') {
-            setSaveMsg(t('admin.integrations.microsoft.connectedNote'));
-            api.getAccounts().then(setAccounts).catch(console.error);
-            setTimeout(stopDeviceFlow, 3000);
-          }
-        } catch {
-          clearInterval(devicePollRef.current);
-          devicePollRef.current = null;
-          setDeviceStatus('error');
-        }
-      }, intervalMs);
-    } catch (err) {
-      setDeviceStatus('error');
-      setSaveMsg('Error: ' + err.message);
-    }
+  const handleDeviceSuccess = () => {
+    setSaveMsg(t('admin.integrations.microsoft.connectedNote'));
+    api.getAccounts().then(setAccounts).catch(console.error);
+    deviceCloseTimer.current = setTimeout(stopDeviceFlow, 3000);
   };
 
   const handleConnectMs = () => {
@@ -3104,9 +3117,9 @@ function IntegrationsTab() {
                     {msBuiltin ? t('admin.integrations.microsoft.builtinNote') : t('admin.integrations.microsoft.deviceCodeNote')}
                   </div>
 
-                  {!deviceFlow && (
+                  {!deviceOpen && (
                     <button
-                      onClick={handleStartDeviceFlow}
+                      onClick={() => setDeviceOpen(true)}
                       disabled={!msDeviceAvailable}
                       title={!msDeviceAvailable ? t('admin.integrations.microsoft.save') : ''}
                       style={{
@@ -3121,67 +3134,7 @@ function IntegrationsTab() {
                     </button>
                   )}
 
-                  {deviceFlow && (
-                    <div style={{
-                      padding: '14px 16px', borderRadius: 8,
-                      background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-                    }}>
-                      {deviceStatus === 'success' ? (
-                        <div style={{ color: 'var(--green)', fontSize: 13, fontWeight: 500 }}>
-                          {t('admin.integrations.microsoft.connectedNote')}
-                        </div>
-                      ) : deviceStatus === 'declined' ? (
-                        <div style={{ color: 'var(--red)', fontSize: 13 }}>{t('admin.integrations.microsoft.deviceCodeDeclined')}</div>
-                      ) : deviceStatus === 'expired' ? (
-                        <div style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>{t('admin.integrations.microsoft.deviceCodeExpired')}</div>
-                      ) : deviceStatus === 'error' ? (
-                        <div style={{ color: 'var(--red)', fontSize: 13 }}>{t('admin.integrations.microsoft.deviceCodeError')}</div>
-                      ) : (
-                        <>
-                          <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 10 }}>
-                            {t('admin.integrations.microsoft.deviceCodeInstructions')}
-                          </div>
-                          <div style={{ marginBottom: 8 }}>
-                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)', marginRight: 6 }}>
-                              {t('admin.integrations.microsoft.deviceCodeVisit')}
-                            </span>
-                            <a href={deviceFlow.verificationUri} target="_blank" rel="noreferrer"
-                              style={{ fontSize: 12, color: 'var(--accent)', fontWeight: 500 }}>
-                              {deviceFlow.verificationUri}
-                            </a>
-                          </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                            <span style={{ fontSize: 11, color: 'var(--text-tertiary)' }}>
-                              {t('admin.integrations.microsoft.deviceCodeEnter')}
-                            </span>
-                            <span style={{
-                              fontFamily: 'JetBrains Mono, monospace', fontSize: 20, fontWeight: 700,
-                              letterSpacing: '0.15em', color: 'var(--text-primary)',
-                              padding: '6px 14px', background: 'var(--bg-tertiary)',
-                              border: '1px solid var(--border)', borderRadius: 6,
-                            }}>
-                              {deviceFlow.userCode}
-                            </span>
-                          </div>
-                          <div style={{ fontSize: 11, color: 'var(--text-tertiary)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ animation: 'spin 1.5s linear infinite' }}>
-                              <path d="M21 12a9 9 0 11-6.219-8.56"/>
-                            </svg>
-                            {t('admin.integrations.microsoft.deviceCodeWaiting')}
-                          </div>
-                        </>
-                      )}
-                      {deviceStatus !== 'success' && (
-                        <button onClick={stopDeviceFlow} style={{
-                          marginTop: 10, padding: '5px 10px', background: 'transparent',
-                          border: '1px solid var(--border)', borderRadius: 6,
-                          color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 11,
-                        }}>
-                          {t('admin.integrations.microsoft.deviceCodeCancel')}
-                        </button>
-                      )}
-                    </div>
-                  )}
+                  {deviceOpen && <MicrosoftDeviceCode onSuccess={handleDeviceSuccess} onCancel={stopDeviceFlow} />}
                 </div>
               </div>
             )}

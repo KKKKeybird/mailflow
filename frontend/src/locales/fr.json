@@ -513,7 +513,6 @@
     "settings": "Paramètres",
     "lock": "Verrouiller",
     "signOut": "Se déconnecter",
-    "connectionError": "Erreur de connexion",
     "folderMenu": {
       "markAllRead": "Tout marquer comme lu",
       "syncFolder": "Synchroniser le dossier",
@@ -531,7 +530,8 @@
       "syncNow": "Synchroniser maintenant",
       "syncFoldersNow": "Synchroniser les dossiers maintenant",
       "settings": "Paramètres du compte",
-      "reconnect": "Reconnecter",
+      "tryAgain": "Réessayer",
+      "signInAgain": "Se reconnecter",
       "moveUp": "Déplacer vers le haut",
       "moveDown": "Déplacer vers le bas",
       "moveFailed": "Impossible de réordonner les comptes"
@@ -1967,5 +1967,60 @@
     "trash": "Corbeille",
     "spam": "Indésirables",
     "archive": "Archives"
+  },
+  "accountErrors": {
+    "label": {
+      "turnOnImap": "Activer IMAP",
+      "signInAgain": "Se reconnecter",
+      "cantConnect": "Connexion impossible",
+      "openRow": "Voir le problème et comment le résoudre"
+    },
+    "imapOffPersonal": {
+      "title": "Outlook.com bloque les applications de messagerie",
+      "body": "Microsoft vous a connecté, mais IMAP est désactivé pour cette boîte aux lettres. Pour l'activer :",
+      "step1": "Ouvrez Outlook.com et connectez-vous.",
+      "step2": "Allez dans Paramètres > Courrier > Transfert et IMAP.",
+      "step3": "Activez « Autoriser les appareils et les applications à utiliser IMAP », puis sélectionnez Enregistrer.",
+      "outro": "Revenez ensuite ici et sélectionnez Réessayer."
+    },
+    "imapOffWork": {
+      "title": "IMAP est désactivé pour cette boîte aux lettres",
+      "body": "Microsoft vous a connecté, mais votre organisation a désactivé IMAP pour {{email}}. Demandez à votre service informatique de l'activer, puis sélectionnez Réessayer."
+    },
+    "signIn": {
+      "title": "Se reconnecter à Microsoft",
+      "titleGoogle": "Se reconnecter à Google",
+      "body": "La connexion enregistrée par MailFlow pour ce compte ne fonctionne plus. Cela arrive après un changement de mot de passe, après une longue période sans utilisation ou lorsque l'accès a été retiré dans les paramètres de votre compte."
+    },
+    "appConfig": {
+      "title": "La connexion de ce compte n'est pas configurée correctement",
+      "bodyUser": "Le fournisseur de messagerie a refusé l'application avec laquelle MailFlow se connecte. Demandez à votre administrateur de vérifier les paramètres de connexion.",
+      "bodyAdmin": "Le fournisseur de messagerie a refusé l'application avec laquelle MailFlow se connecte. Vérifiez ses paramètres dans Intégrations. Les détails ci-dessous indiquent la réponse du fournisseur."
+    },
+    "authFailed": {
+      "title": "Le serveur a refusé le mot de passe",
+      "body": "Le serveur de messagerie n'a pas accepté le nom d'utilisateur ou le mot de passe de ce compte. Si vous avez changé de mot de passe ou utilisez un mot de passe d'application, mettez-le à jour avec Modifier le compte."
+    },
+    "connection": {
+      "title": "MailFlow ne parvient pas à se connecter à ce compte",
+      "body": "MailFlow continue d'essayer de lui-même. Les détails ci-dessous indiquent la réponse du serveur."
+    },
+    "action": {
+      "openOutlook": "Ouvrir Outlook.com",
+      "retry": "Réessayer",
+      "signIn": "Se reconnecter",
+      "edit": "Modifier le compte",
+      "openIntegrations": "Ouvrir Intégrations",
+      "startOver": "Recommencer"
+    },
+    "details": "Détails",
+    "wrongAccount": "Vous vous êtes connecté en tant que {{signedInAs}}, et non {{expected}}. Connectez-vous avec {{expected}} pour réparer ce compte.",
+    "signInDialog": {
+      "title": "Se reconnecter",
+      "body": "Connectez-vous en tant que {{email}} pour reconnecter ce compte.",
+      "success": "Connecté. MailFlow reconnecte ce compte.",
+      "continueGoogle": "Continuer vers Google",
+      "waitingGoogle": "Terminez la connexion sur la page Google, puis revenez ici."
+    }
   }
 }

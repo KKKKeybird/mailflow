@@ -529,7 +529,6 @@
     "settings": "Ustawienia",
     "lock": "Zablokuj",
     "signOut": "Wyloguj się",
-    "connectionError": "Błąd połączenia",
     "folderMenu": {
       "markAllRead": "Oznacz wszystkie jako przeczytane",
       "syncFolder": "Synchronizuj folder",
@@ -547,7 +546,8 @@
       "syncNow": "Synchronizuj teraz",
       "syncFoldersNow": "Synchronizuj foldery teraz",
       "settings": "Ustawienia konta",
-      "reconnect": "Połącz ponownie",
+      "tryAgain": "Spróbuj ponownie",
+      "signInAgain": "Zaloguj się ponownie",
       "moveUp": "Przenieś wyżej",
       "moveDown": "Przenieś niżej",
       "moveFailed": "Nie udało się zmienić kolejności kont"
@@ -1986,5 +1986,60 @@
     "trash": "Kosz",
     "spam": "Spam",
     "archive": "Archiwum"
+  },
+  "accountErrors": {
+    "label": {
+      "turnOnImap": "Włącz IMAP",
+      "signInAgain": "Zaloguj się ponownie",
+      "cantConnect": "Brak połączenia",
+      "openRow": "Pokaż, co jest nie tak i jak to naprawić"
+    },
+    "imapOffPersonal": {
+      "title": "Outlook.com blokuje aplikacje pocztowe",
+      "body": "Microsoft Cię zalogował, ale IMAP jest wyłączony dla tej skrzynki. Aby go włączyć:",
+      "step1": "Otwórz Outlook.com i zaloguj się.",
+      "step2": "Przejdź do Ustawienia > Poczta > Przekazywanie dalej i protokół IMAP.",
+      "step3": "Włącz opcję „Zezwalaj urządzeniom i aplikacjom na korzystanie z protokołu IMAP”, a następnie wybierz Zapisz.",
+      "outro": "Potem wróć tutaj i wybierz Spróbuj ponownie."
+    },
+    "imapOffWork": {
+      "title": "IMAP jest wyłączony dla tej skrzynki",
+      "body": "Microsoft Cię zalogował, ale Twoja organizacja wyłączyła IMAP dla {{email}}. Poproś dział IT o jego włączenie, a potem wybierz Spróbuj ponownie."
+    },
+    "signIn": {
+      "title": "Zaloguj się ponownie do Microsoft",
+      "titleGoogle": "Zaloguj się ponownie do Google",
+      "body": "Zapisane przez MailFlow logowanie do tego konta przestało działać. Dzieje się tak po zmianie hasła, po długim okresie nieużywania albo gdy dostęp został cofnięty w ustawieniach konta."
+    },
+    "appConfig": {
+      "title": "Logowanie do tego konta nie jest poprawnie skonfigurowane",
+      "bodyUser": "Dostawca poczty odrzucił aplikację, przez którą loguje się MailFlow. Poproś administratora o sprawdzenie ustawień logowania.",
+      "bodyAdmin": "Dostawca poczty odrzucił aplikację, przez którą loguje się MailFlow. Sprawdź jej ustawienia w sekcji Integracje. Szczegóły poniżej pokazują odpowiedź dostawcy."
+    },
+    "authFailed": {
+      "title": "Serwer odrzucił hasło",
+      "body": "Serwer poczty nie przyjął nazwy użytkownika ani hasła dla tego konta. Jeśli zmieniono hasło lub używasz hasła aplikacji, zaktualizuj je w opcji Edytuj konto."
+    },
+    "connection": {
+      "title": "MailFlow nie może połączyć się z tym kontem",
+      "body": "MailFlow nadal próbuje sam. Szczegóły poniżej pokazują odpowiedź serwera."
+    },
+    "action": {
+      "openOutlook": "Otwórz Outlook.com",
+      "retry": "Spróbuj ponownie",
+      "signIn": "Zaloguj się ponownie",
+      "edit": "Edytuj konto",
+      "openIntegrations": "Otwórz Integracje",
+      "startOver": "Zacznij od nowa"
+    },
+    "details": "Szczegóły",
+    "wrongAccount": "Zalogowano jako {{signedInAs}}, a nie {{expected}}. Zaloguj się jako {{expected}}, aby naprawić to konto.",
+    "signInDialog": {
+      "title": "Zaloguj się ponownie",
+      "body": "Zaloguj się jako {{email}}, aby ponownie połączyć to konto.",
+      "success": "Zalogowano. MailFlow ponownie łączy to konto.",
+      "continueGoogle": "Przejdź do Google",
+      "waitingGoogle": "Dokończ logowanie na stronie Google, a potem wróć tutaj."
+    }
   }
 }

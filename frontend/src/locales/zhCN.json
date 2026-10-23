@@ -513,7 +513,6 @@
     "settings": "设置",
     "lock": "锁定",
     "signOut": "退出登录",
-    "connectionError": "连接错误",
     "folderMenu": {
       "markAllRead": "全部标为已读",
       "syncFolder": "同步此文件夹",
@@ -531,7 +530,8 @@
       "syncNow": "立即同步",
       "syncFoldersNow": "立即同步文件夹",
       "settings": "账户设置",
-      "reconnect": "重新连接",
+      "tryAgain": "重试",
+      "signInAgain": "重新登录",
       "moveUp": "上移",
       "moveDown": "下移",
       "moveFailed": "账户重新排序失败"
@@ -1967,5 +1967,60 @@
     "trash": "已删除",
     "spam": "垃圾邮件",
     "archive": "归档"
+  },
+  "accountErrors": {
+    "label": {
+      "turnOnImap": "开启 IMAP",
+      "signInAgain": "重新登录",
+      "cantConnect": "无法连接",
+      "openRow": "查看问题及解决方法"
+    },
+    "imapOffPersonal": {
+      "title": "Outlook.com 阻止了邮件应用",
+      "body": "Microsoft 已让你登录，但此邮箱的 IMAP 已关闭。开启方法：",
+      "step1": "打开 Outlook.com 并登录。",
+      "step2": "前往 设置 > 邮件 > 转发和 IMAP。",
+      "step3": "开启“允许设备和应用使用 IMAP”，然后选择保存。",
+      "outro": "然后回到这里，选择重试。"
+    },
+    "imapOffWork": {
+      "title": "此邮箱的 IMAP 已关闭",
+      "body": "Microsoft 已让你登录，但你的组织为 {{email}} 关闭了 IMAP。请让 IT 管理员开启它，然后选择重试。"
+    },
+    "signIn": {
+      "title": "重新登录 Microsoft",
+      "titleGoogle": "重新登录 Google",
+      "body": "MailFlow 为此帐户保存的登录已失效。这通常发生在更改密码后、长时间未使用后，或在帐户设置中移除了访问权限之后。"
+    },
+    "appConfig": {
+      "title": "此帐户的登录设置不正确",
+      "bodyUser": "邮件服务商拒绝了 MailFlow 用于登录的应用。请让管理员检查登录设置。",
+      "bodyAdmin": "邮件服务商拒绝了 MailFlow 用于登录的应用。请在“集成”中检查它的设置。下方详细信息显示了服务商的回复。"
+    },
+    "authFailed": {
+      "title": "服务器拒绝了密码",
+      "body": "邮件服务器不接受此帐户的用户名或密码。如果你更改过密码或使用应用专用密码，请通过“编辑帐户”更新。"
+    },
+    "connection": {
+      "title": "MailFlow 无法连接到此帐户",
+      "body": "MailFlow 会自动继续尝试。下方详细信息显示了服务器的回复。"
+    },
+    "action": {
+      "openOutlook": "打开 Outlook.com",
+      "retry": "重试",
+      "signIn": "重新登录",
+      "edit": "编辑帐户",
+      "openIntegrations": "打开集成",
+      "startOver": "重新开始"
+    },
+    "details": "详细信息",
+    "wrongAccount": "你登录的是 {{signedInAs}}，而不是 {{expected}}。请使用 {{expected}} 登录以修复此帐户。",
+    "signInDialog": {
+      "title": "重新登录",
+      "body": "以 {{email}} 登录，重新连接此帐户。",
+      "success": "已登录。MailFlow 正在重新连接此帐户。",
+      "continueGoogle": "前往 Google",
+      "waitingGoogle": "请在 Google 页面完成登录，然后回到这里。"
+    }
   }
 }

@@ -513,7 +513,6 @@
     "settings": "Einstellungen",
     "lock": "Sperren",
     "signOut": "Abmelden",
-    "connectionError": "Verbindungsfehler",
     "folderMenu": {
       "markAllRead": "Alle als gelesen markieren",
       "syncFolder": "Ordner synchronisieren",
@@ -531,7 +530,8 @@
       "syncNow": "Jetzt synchronisieren",
       "syncFoldersNow": "Ordner jetzt synchronisieren",
       "settings": "Kontoeinstellungen",
-      "reconnect": "Neu verbinden",
+      "tryAgain": "Erneut versuchen",
+      "signInAgain": "Erneut anmelden",
       "moveUp": "Nach oben verschieben",
       "moveDown": "Nach unten verschieben",
       "moveFailed": "Sortierung konnte nicht geändert werden"
@@ -1967,5 +1967,60 @@
     "trash": "Papierkorb",
     "spam": "Spam",
     "archive": "Archiv"
+  },
+  "accountErrors": {
+    "label": {
+      "turnOnImap": "IMAP einschalten",
+      "signInAgain": "Erneut anmelden",
+      "cantConnect": "Keine Verbindung",
+      "openRow": "Zeigen, was nicht stimmt und wie es sich beheben lässt"
+    },
+    "imapOffPersonal": {
+      "title": "Outlook.com sperrt E-Mail-Apps",
+      "body": "Microsoft hat Sie angemeldet, aber IMAP ist für dieses Postfach ausgeschaltet. So schalten Sie es ein:",
+      "step1": "Öffnen Sie Outlook.com und melden Sie sich an.",
+      "step2": "Gehen Sie zu Einstellungen > E-Mail > Weiterleitung und IMAP.",
+      "step3": "Schalten Sie „Geräten und Apps die Verwendung von IMAP erlauben“ ein und wählen Sie Speichern.",
+      "outro": "Kommen Sie dann hierher zurück und wählen Sie Erneut versuchen."
+    },
+    "imapOffWork": {
+      "title": "IMAP ist für dieses Postfach ausgeschaltet",
+      "body": "Microsoft hat Sie angemeldet, aber Ihre Organisation hat IMAP für {{email}} ausgeschaltet. Bitten Sie Ihre IT-Abteilung, es einzuschalten, und wählen Sie dann Erneut versuchen."
+    },
+    "signIn": {
+      "title": "Erneut bei Microsoft anmelden",
+      "titleGoogle": "Erneut bei Google anmelden",
+      "body": "Die gespeicherte Anmeldung von MailFlow für dieses Konto funktioniert nicht mehr. Das passiert nach einer Passwortänderung, nach längerer Nichtnutzung oder wenn der Zugriff in Ihren Kontoeinstellungen entfernt wurde."
+    },
+    "appConfig": {
+      "title": "Die Anmeldung für dieses Konto ist nicht richtig eingerichtet",
+      "bodyUser": "Der E-Mail-Anbieter hat die App abgelehnt, mit der sich MailFlow anmeldet. Bitten Sie Ihren Administrator, die Anmeldeeinstellungen zu prüfen.",
+      "bodyAdmin": "Der E-Mail-Anbieter hat die App abgelehnt, mit der sich MailFlow anmeldet. Prüfen Sie ihre Einstellungen unter Integrationen. Unter Einzelheiten steht, was der Anbieter gemeldet hat."
+    },
+    "authFailed": {
+      "title": "Der Server hat das Passwort abgelehnt",
+      "body": "Der Mailserver hat den Benutzernamen oder das Passwort für dieses Konto nicht akzeptiert. Wenn Sie Ihr Passwort geändert haben oder ein App-Passwort verwenden, aktualisieren Sie es über Konto bearbeiten."
+    },
+    "connection": {
+      "title": "MailFlow kann keine Verbindung zu diesem Konto herstellen",
+      "body": "MailFlow versucht es weiter von selbst. Unter Einzelheiten steht, was der Server gemeldet hat."
+    },
+    "action": {
+      "openOutlook": "Outlook.com öffnen",
+      "retry": "Erneut versuchen",
+      "signIn": "Erneut anmelden",
+      "edit": "Konto bearbeiten",
+      "openIntegrations": "Integrationen öffnen",
+      "startOver": "Neu beginnen"
+    },
+    "details": "Einzelheiten",
+    "wrongAccount": "Sie haben sich als {{signedInAs}} angemeldet, nicht als {{expected}}. Melden Sie sich mit {{expected}} an, um dieses Konto zu reparieren.",
+    "signInDialog": {
+      "title": "Erneut anmelden",
+      "body": "Melden Sie sich als {{email}} an, um dieses Konto wieder zu verbinden.",
+      "success": "Angemeldet. MailFlow verbindet dieses Konto neu.",
+      "continueGoogle": "Weiter zu Google",
+      "waitingGoogle": "Schließen Sie die Anmeldung auf der Google-Seite ab und kommen Sie dann hierher zurück."
+    }
   }
 }

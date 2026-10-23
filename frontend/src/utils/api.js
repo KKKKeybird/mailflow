@@ -374,8 +374,14 @@ export const api = {
   saveIntegration: (provider, config) => request('POST', `/integrations/${provider}`, config),
   deleteIntegration: (provider) => request('DELETE', `/integrations/${provider}`),
   setMsBuiltinApp: (enabled) => request('PUT', '/integrations/microsoft/builtin-app', { enabled }),
-  startMsDeviceFlow: async () => {
-    const res = await fetch('/oauth/microsoft/device', { method: 'POST', credentials: 'include' });
+  // accountId signs in again to repair that account: the server then refuses a different
+  // address instead of adding a second account (poll status 'wrong_account').
+  startMsDeviceFlow: async (accountId) => {
+    const res = await fetch('/oauth/microsoft/device', {
+      method: 'POST', credentials: 'include',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(accountId ? { accountId } : {}),
+    });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || 'Failed to start device code flow');
     return data;

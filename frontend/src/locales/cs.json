@@ -129,7 +129,6 @@
     "settings": "Nastavení",
     "lock": "Uzamknout",
     "signOut": "Odhlásit se",
-    "connectionError": "Chyba připojení",
     "folderMenu": {
       "markAllRead": "Označit vše jako přečtené",
       "syncFolder": "Synchronizovat složku",
@@ -147,7 +146,8 @@
       "syncNow": "Synchronizovat nyní",
       "syncFoldersNow": "Synchronizovat složky nyní",
       "settings": "Nastavení účtu",
-      "reconnect": "Znovu připojit",
+      "tryAgain": "Zkusit znovu",
+      "signInAgain": "Přihlásit se znovu",
       "moveUp": "Posunout nahoru",
       "moveDown": "Posunout dolů",
       "moveFailed": "Pořadí účtů se nepodařilo změnit"
@@ -1986,5 +1986,60 @@
     "trash": "Koš",
     "spam": "Spam",
     "archive": "Archiv"
+  },
+  "accountErrors": {
+    "label": {
+      "turnOnImap": "Zapnout IMAP",
+      "signInAgain": "Přihlásit se znovu",
+      "cantConnect": "Nelze se připojit",
+      "openRow": "Ukázat, co je špatně a jak to opravit"
+    },
+    "imapOffPersonal": {
+      "title": "Outlook.com blokuje poštovní aplikace",
+      "body": "Microsoft vás přihlásil, ale IMAP je pro tuto schránku vypnutý. Zapnete ho takto:",
+      "step1": "Otevřete Outlook.com a přihlaste se.",
+      "step2": "Přejděte do Nastavení > Pošta > Přeposílání a IMAP.",
+      "step3": "Zapněte možnost „Povolit zařízením a aplikacím používat IMAP“ a vyberte Uložit.",
+      "outro": "Pak se sem vraťte a vyberte Zkusit znovu."
+    },
+    "imapOffWork": {
+      "title": "IMAP je pro tuto schránku vypnutý",
+      "body": "Microsoft vás přihlásil, ale vaše organizace vypnula IMAP pro {{email}}. Požádejte správce IT, aby ho zapnul, a pak vyberte Zkusit znovu."
+    },
+    "signIn": {
+      "title": "Znovu se přihlaste k Microsoftu",
+      "titleGoogle": "Znovu se přihlaste ke Googlu",
+      "body": "Přihlášení, které si MailFlow pro tento účet uložil, přestalo fungovat. Stává se to po změně hesla, po dlouhé době bez použití nebo když byl přístup odebrán v nastavení účtu."
+    },
+    "appConfig": {
+      "title": "Přihlášení k tomuto účtu není správně nastavené",
+      "bodyUser": "Poskytovatel pošty odmítl aplikaci, přes kterou se MailFlow přihlašuje. Požádejte správce, aby zkontroloval nastavení přihlášení.",
+      "bodyAdmin": "Poskytovatel pošty odmítl aplikaci, přes kterou se MailFlow přihlašuje. Zkontrolujte její nastavení v sekci Integrace. Podrobnosti níže ukazují odpověď poskytovatele."
+    },
+    "authFailed": {
+      "title": "Server odmítl heslo",
+      "body": "Poštovní server nepřijal uživatelské jméno nebo heslo k tomuto účtu. Pokud jste změnili heslo nebo používáte heslo aplikace, aktualizujte ho přes Upravit účet."
+    },
+    "connection": {
+      "title": "MailFlow se k tomuto účtu nemůže připojit",
+      "body": "MailFlow to dál zkouší sám. Podrobnosti níže ukazují odpověď serveru."
+    },
+    "action": {
+      "openOutlook": "Otevřít Outlook.com",
+      "retry": "Zkusit znovu",
+      "signIn": "Přihlásit se znovu",
+      "edit": "Upravit účet",
+      "openIntegrations": "Otevřít Integrace",
+      "startOver": "Začít znovu"
+    },
+    "details": "Podrobnosti",
+    "wrongAccount": "Přihlásili jste se jako {{signedInAs}}, ne jako {{expected}}. Přihlaste se jako {{expected}}, abyste tento účet opravili.",
+    "signInDialog": {
+      "title": "Přihlásit se znovu",
+      "body": "Přihlaste se jako {{email}}, abyste tento účet znovu připojili.",
+      "success": "Přihlášeno. MailFlow tento účet znovu připojuje.",
+      "continueGoogle": "Pokračovat na Google",
+      "waitingGoogle": "Dokončete přihlášení na stránce Googlu a pak se sem vraťte."
+    }
   }
 }
