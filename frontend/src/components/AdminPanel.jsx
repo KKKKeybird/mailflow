@@ -90,7 +90,7 @@ const OAUTH_PROVIDERS = new Set(['microsoft', 'google']);
 // Google's page for creating an app password (needs 2-Step Verification on the account).
 const GOOGLE_APP_PASSWORDS_URL = 'https://myaccount.google.com/apppasswords';
 // What a sign-in owns on the account; saving other settings never sends these for it.
-const OAUTH_OWNED_FIELDS = ['imap_host', 'imap_port', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'auth_user', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass'];
+const OAUTH_OWNED_FIELDS = ['imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'auth_user', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass'];
 function isMicrosoftImapHost(host) {
   const h = (host || '').toLowerCase();
   return h.includes('.outlook.com') || h.includes('office365.com') || h.includes('.hotmail.com') || h.includes('.live.com');
@@ -187,7 +187,8 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, on
   };
 
   const handleSubmit = async () => {
-    if (!form.email_address || !form.auth_user || !form.imap_host) {
+    // The login and server of a signed-in account are hidden and not editable: not required.
+    if (!form.email_address || (!signedInWith && (!form.auth_user || !form.imap_host))) {
       setError(t('admin.accounts.errorRequired'));
       return;
     }

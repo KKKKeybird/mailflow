@@ -134,9 +134,11 @@ router.post('/', async (req, res) => {
     imap_host, imap_port = 993, imap_skip_tls_verify = false,
     smtp_host, smtp_port = 587, smtp_tls = 'STARTTLS',
     auth_user, auth_pass, smtp_auth_user = null, smtp_auth_pass = null,
-    oauth_provider, oauth_access_token, oauth_refresh_token,
     signature = null, signature_enabled = true
   } = req.body;
+  // OAuth fields (provider, tokens, client) are never taken from this body: Microsoft and
+  // Google accounts are created only by the sign-in flows in routes/oauth.js, which check the
+  // provider's identity token. A crafted request here makes a plain password account.
 
   if (!name || !email_address) return res.status(400).json({ error: 'Name and email required' });
   const { value: iconValue, error: iconError } = normalizeAccountIcon(icon);
@@ -167,15 +169,14 @@ router.post('/', async (req, res) => {
       INSERT INTO email_accounts (
         user_id, name, sender_name, email_address, color, protocol,
         imap_host, imap_port, imap_tls, imap_skip_tls_verify, smtp_host, smtp_port, smtp_tls,
-        auth_user, auth_pass, smtp_auth_user, smtp_auth_pass, oauth_provider, oauth_access_token, oauth_refresh_token,
+        auth_user, auth_pass, smtp_auth_user, smtp_auth_pass,
         signature, signature_enabled, icon
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20)
       RETURNING *
     `, [
       req.session.userId, name, sender_name || null, email_address, color, protocol,
       imap_host, imap_port, Number(imap_port) % 1000 === 993, !!imap_skip_tls_verify, smtp_host, smtp_port, smtp_tls,
       auth_user, encrypt(auth_pass), smtp_auth_user || null, encrypt(smtp_auth_pass) || null,
-      oauth_provider, encrypt(oauth_access_token), encrypt(oauth_refresh_token),
       sanitizeSignature(signature) || null, signature_enabled !== false, iconValue
     ]);
 

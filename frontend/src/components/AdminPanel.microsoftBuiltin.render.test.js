@@ -276,10 +276,17 @@ describe('Edit form for an account connected through a sign-in', () => {
     await openEdit(ACCOUNT('microsoft'));
     await click(button('admin.accounts.saveChanges'));
     assert.ok(updates, 'saved');
-    for (const field of ['imap_host', 'imap_port', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'auth_user', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass']) {
+    for (const field of ['imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'auth_user', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass']) {
       assert.equal(field in updates, false, field);
     }
     assert.equal(updates.name, 'Maria');
+  });
+
+  test('saves even when the hidden login and server are empty on the stored account', async () => {
+    await openEdit({ ...ACCOUNT('google'), auth_user: '', imap_host: '' });
+    await click(button('admin.accounts.saveChanges'));
+    assert.ok(updates, 'saved, not stopped by a required field the form does not show');
+    assert.ok(!text().includes('admin.accounts.errorRequired'));
   });
 
   test('Sign in again opens the sign-in for this account', async () => {

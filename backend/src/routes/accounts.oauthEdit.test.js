@@ -62,3 +62,39 @@ describe('PUT /api/accounts/:id for an OAuth account', () => {
     expect(updateSql()).toMatch(/auth_user = \$/);
   });
 });
+
+// OAuth accounts are created only by the sign-in flows; POST /api/accounts makes password
+// accounts, whatever OAuth fields the body carries (#674).
+describe('POST /api/accounts ignores OAuth fields', () => {
+  let server;
+  let base;
+  beforeAll(async () => {
+    const app = express();
+    app.use(express.json());
+    app.use('/api/accounts', accountRoutes);
+    await new Promise(resolve => { server = app.listen(0, resolve); });
+    base = `http://127.0.0.1:${server.address().port}/api/accounts`;
+  });
+  afterAll(async () => { await new Promise(resolve => server.close(resolve)); });
+  beforeEach(() => {
+    query.mockReset().mockImplementation(async (sql) => (/^\s*INSERT INTO email_accounts/.test(sql) ? { rows: [{ id: ID, protocol: 'imap' }] } : { rows: [] }));
+  });
+
+  it('a crafted body cannot create an OAuth account or plant tokens', async () => {
+    const res = await fetch(base, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: 'X', email_address: 'victim@outlook.com', imap_host: 'outlook.office365.com', smtp_host: 'smtp.office365.com',
+        auth_user: 'victim@outlook.com', auth_pass: 'pw',
+        oauth_provider: 'microsoft', oauth_access_token: 'stolen-at', oauth_refresh_token: 'stolen-rt',
+        oauth_token_expiry: '2030-01-01', oauth_public_client: true, oauth_client_id: 'x', oauth_tenant_id: 'y',
+        sync_error: 'x', sync_error_code: 'oauth_reauth',
+      }),
+    });
+    expect(res.status).toBe(200);
+    const [sql, params] = query.mock.calls.find(([q]) => /INSERT INTO email_accounts/.test(q));
+    expect(sql).not.toMatch(/oauth_|sync_error/);
+    for (const value of ['microsoft', 'stolen-at', 'stolen-rt', 'oauth_reauth']) expect(params).not.toContain(value);
+  });
+});
+
