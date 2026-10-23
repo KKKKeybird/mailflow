@@ -137,6 +137,34 @@ describe('repairing an account by signing in again', () => {
     expect(init.body.get('client_id')).toBe('builtin-app-id');
   });
 
+  // A new sign-in names its kind; personal accounts on an instance whose own app is limited to
+  // work accounts go through the shared app (#674).
+  it.each([
+    ['personal', 'https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode', 'builtin-app-id'],
+    ['work', 'https://login.microsoftonline.com/organizations/oauth2/v2.0/devicecode', 'own-app-id'],
+  ])('a %s sign-in uses the app for that kind', async (kind, url, clientId) => {
+    process.env.MS_CLIENT_ID = 'own-app-id';
+    process.env.MS_TENANT_ID = 'organizations';
+    expect((await startDevice({ kind })).status).toBe(200);
+    const [calledUrl, init] = globalThis.fetch.mock.calls[0];
+    expect(calledUrl).toBe(url);
+    expect(init.body.get('client_id')).toBe(clientId);
+  });
+
+  it('a repair of an account with no recorded client picks the app by the kind of address', async () => {
+    process.env.MS_CLIENT_ID = 'own-app-id';
+    process.env.MS_TENANT_ID = 'organizations';
+    const id = '11111111-1111-4111-8111-111111111111';
+    const before = ACCOUNTS[id].oauth_client_id;
+    ACCOUNTS[id].oauth_client_id = null;
+    try {
+      await startDevice({ accountId: id });
+      expect(globalThis.fetch.mock.calls[0][1].body.get('client_id')).toBe('builtin-app-id');
+    } finally {
+      ACCOUNTS[id].oauth_client_id = before;
+    }
+  });
+
   it.each([
     ['something that is not an account id', 'nope'],
     ['a missing account', '44444444-4444-4444-8444-444444444444'],

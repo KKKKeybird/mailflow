@@ -452,22 +452,25 @@ Gmail requires an **App Password** (not your normal password):
 ### Microsoft 365 / Outlook (OAuth2)
 
 Microsoft has disabled basic (password) auth for Outlook.com, Hotmail, and most
-Microsoft 365 accounts, so they connect via OAuth2 under **Settings → Integrations →
-Microsoft 365** (not the normal Add Account form).
+Microsoft 365 accounts, so they connect with **Sign in with Microsoft**: in **Settings →
+Accounts → Add account**, type the address or pick **Outlook.com, Hotmail, Live, MSN** or
+**Microsoft 365 (work or school)**. Administrators configure how this works under
+**Settings → Mail sign-in**.
 
-**Personal accounts (Outlook.com, Hotmail, Live, MSN) need no setup.** Click **Start
-device code flow**, then visit [microsoft.com/devicelogin](https://microsoft.com/devicelogin)
-on any device and enter the code MailFlow shows. When your instance has no Microsoft
-app of its own, this sign-in uses MailFlow's registered public app, which accepts
-personal Microsoft accounts only. The app only identifies MailFlow to Microsoft: you
+**Personal accounts (Outlook.com, Hotmail, Live, MSN) need no setup.** MailFlow shows a
+code; open [microsoft.com/devicelogin](https://microsoft.com/devicelogin) on any device
+and enter it. In Outlook.com, IMAP must be allowed first: **Settings → Mail → Forwarding
+and IMAP → Let devices and apps use IMAP**. When your instance has no Microsoft app of
+its own that accepts personal accounts, this sign-in uses MailFlow's registered public
+app, which accepts personal Microsoft accounts only. The app only identifies MailFlow to Microsoft: you
 sign in on Microsoft's own page in your browser, Microsoft sends the tokens straight
 to your server, and MailFlow's maintainers never see your mail or tokens. Microsoft
 may label the app **"unverified"** on the consent screen; that refers to the
 publisher verification status of the app registration and does not change what the
 app can access.
 
-To stop offering the shared app, turn off **Offer MailFlow's app for personal
-accounts** in Integrations → Microsoft 365, or set `MS_BUILTIN_APP=false` in `.env`.
+To stop offering the shared app, turn off **Let people sign in with MailFlow's shared
+app** in Settings → Mail sign-in, or set `MS_BUILTIN_APP=false` in `.env`.
 Once the switch has been used, its setting takes precedence over `MS_BUILTIN_APP`.
 Turning it off stops new sign-ins through the shared app; accounts already connected
 through it keep refreshing through it. Personal accounts then need your own app
@@ -475,7 +478,9 @@ registration, as below.
 
 **Your own app registration** is needed for work / school accounts, and is an
 option for admins who prefer not to use the shared app. Once its Client ID is saved,
-every new sign-in on the instance uses it. Personal accounts already connected
+work and school sign-ins use it, and so do personal ones if its tenant admits them
+(`common` or `consumers`); with a tenant limited to organizations, personal accounts keep
+using the shared app while it is on. Personal accounts already connected
 through MailFlow's shared app keep working through it when you add your own app,
 because each account remembers the app it was connected with. It is a one-time
 setup: you create a free [Microsoft Entra app registration](https://portal.azure.com)
@@ -487,7 +492,7 @@ through the old one.
 registrations → New registration**. Under **Supported account types**, choose
 **"Accounts in any organizational directory and personal Microsoft accounts"** so it
 covers both Outlook.com/Hotmail and work/school accounts. After creating it, copy the
-**Application (Client) ID**.
+**Application (client) ID**.
 
 **2. Grant the mail permissions.** Open the app's **API permissions** page and add
 both of these, then follow the consent note:
@@ -510,21 +515,23 @@ Then follow the steps for your account type:
 
 1. In the Azure app, open **Authentication** and set **"Allow public client flows"**
    to **Yes**. No client secret or redirect URI is needed.
-2. In Integrations → Microsoft 365, enter the **Client ID** and **Tenant ID**
-   (`common`), leave Client Secret and Redirect URI blank, then save.
-3. Start the device-code flow shown there. MailFlow displays a short code; visit
-   [microsoft.com/devicelogin](https://microsoft.com/devicelogin) and enter it to
-   authorize.
+2. In Settings → Mail sign-in → **Set up your own Microsoft Entra app**, enter the
+   **Application (client) ID** and **Directory (tenant) ID** (`common`), leave Client
+   secret and Redirect URI blank, then save.
+3. People then add their accounts under Accounts → Add account, which shows the code to
+   enter at [microsoft.com/devicelogin](https://microsoft.com/devicelogin).
 
 **Work / school accounts (Microsoft 365)** (confidential client):
 
 1. In the Azure app, open **Authentication → Add a platform → Web**, and set the
    redirect URI to `https://<your-mailflow-host>/oauth/microsoft/callback` (the exact
-   value is shown on the Integrations screen).
+   value is shown under Settings → Mail sign-in).
 2. Under **Certificates & secrets → New client secret**, create a secret and copy its
    **Value** (not the Secret ID).
-3. In Integrations → Microsoft 365, enter the Client ID, Tenant ID, Client Secret,
-   and Redirect URI, then save and click **Connect Microsoft account**.
+3. In Settings → Mail sign-in, enter the Application (client) ID, Directory (tenant) ID,
+   Client secret and Redirect URI, then save. People then add their accounts under
+   Accounts → Add account → **Microsoft 365 (work or school)**, which signs in on
+   Microsoft's page.
 
 ### Custom IMAP
 

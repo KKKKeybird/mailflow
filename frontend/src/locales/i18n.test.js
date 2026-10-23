@@ -128,12 +128,12 @@ const SAME_VALUE_ALLOWED = {
   'addAccount.tile.gmail':                  'any', // Gmail
   'addAccount.tile.yahoo':                  'any', // Yahoo Mail
   'addAccount.tile.icloud':                 'any', // iCloud Mail
+  'mailSignIn.ms.title':                    'any', // Microsoft
   'admin.accounts.smtpHostPh':              'any', // smtp.gmail.com
   'admin.ai.baseUrlPh':                      'any', // http://localhost:11434/v1
   'admin.ai.chatgptModelPh':                 'any', // gpt-5.6-luna
   'admin.appearance.customCssPlaceholder':   'any', // CSS code snippet, same in all locales
   'admin.integrations.microsoft.clientIdPh':'any', // xxxxxxxx-xxxx-…
-  'admin.integrations.microsoft.title':     'any', // Microsoft 365 / Outlook.com
   'admin.integrations.google.title':        'any', // Gmail / Google Workspace — brand names
   'admin.integrations.google.clientIdPh':   'any', // xxxxxxxx.apps.googleusercontent.com
   'admin.integrations.google.clientSecretPh':'any', // GOCSPX-…
@@ -420,9 +420,6 @@ const SAME_VALUE_ALLOWED = {
   'admin.integrations.carddav.disconnect':           [['es', 'ptBR']], // "Desconectar"
   'admin.integrations.carddav.syncing':              [['es', 'ptBR']], // "Sincronizando…"
   'admin.integrations.google.configured':            [['es', 'ptBR']], // "Configurado"
-  'admin.integrations.microsoft.configured':         [['es', 'ptBR']], // "Configurado"
-  'admin.integrations.microsoft.deviceCodeCancel':   [['es', 'ptBR']], // "Cancelar"
-  'admin.integrations.tabApps':                      [['en', 'ptBR']], // "Apps"
   'admin.integrations.todoist.connect':              [['es', 'ptBR']], // "Conectar"
   'admin.integrations.todoist.connected':            [['es', 'ptBR']], // "Conectado"
   'admin.integrations.todoist.connecting':           [['es', 'ptBR']], // "Conectando..."

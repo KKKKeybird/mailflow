@@ -843,7 +843,8 @@
       "groupAdmin": "管理",
       "behavior": "行为",
       "plugins": "插件",
-      "backup": "备份"
+      "backup": "备份",
+      "mailSignIn": "邮箱登录"
     },
     "rules": {
       "title": "收件箱规则",
@@ -974,8 +975,8 @@
       "errorRequired": "邮箱地址、用户名和 IMAP 服务器为必填项",
       "errorPasswordRequired": "添加新账户时必须填写密码",
       "microsoftImapUnsupported": "Outlook.com / Hotmail 需要使用 OAuth2（新式验证）",
-      "microsoftImapNote": "微软已停用个人 Outlook.com、Hotmail 和 Live 账户的密码 IMAP（基本身份验证）。你仍然可以通过 Microsoft OAuth2（新式验证）连接这些账户——在“集成 → Microsoft 365 / Outlook.com”中进行配置。设备代码登录最适合个人账户，且无需应用专用密码。",
-      "microsoftImapNoteReady": "Microsoft 已为个人 Outlook.com、Hotmail 和 Live 账户禁用基于密码（基本身份验证）的 IMAP。请改为在 集成 → Microsoft 365 / Outlook.com 中连接此账户：设备代码登录无需设置，也无需应用密码。",
+      "microsoftImapNote": "Microsoft 不再接受 Outlook.com、Hotmail、Live 和 MSN 邮箱的密码，而此服务器尚未设置 Microsoft 登录。请让管理员在“邮箱登录”中开启。",
+      "microsoftImapNoteReady": "Microsoft 不再接受 Outlook.com、Hotmail、Live 和 MSN 邮箱的密码。请改为在“添加帐户”中使用“使用 Microsoft 登录”添加此邮箱。",
       "reindex": "重新索引以供搜索",
       "reindexing": "正在索引邮件...",
       "reindexProgress": "已索引 {{synced}} / {{total}} 封邮件",
@@ -1574,15 +1575,7 @@
     "integrations": {
       "title": "集成",
       "loading": "加载中…",
-      "tabEmailProviders": "邮件提供商",
-      "tabApps": "应用",
       "microsoft": {
-        "title": "Microsoft 365 / Outlook.com",
-        "description": "为企业、学校或个人 Microsoft 账户（Outlook.com、Hotmail）提供 OAuth2 支持",
-        "configured": "已配置",
-        "notConfigured": "尚未配置",
-        "redirecting": "跳转中…",
-        "connect": "连接 Microsoft 账户",
         "setupTitle": "Azure 应用注册设置",
         "step1": "前往 portal.azure.com → Microsoft Entra ID → 应用注册 → 新注册。在「支持的账户类型」下，选择「任何组织目录中的账户和个人 Microsoft 账户」以允许 Outlook.com/Hotmail 登录",
         "step2": "将重定向 URI 类型设为「Web」，并粘贴下方所示的 URI",
@@ -1600,28 +1593,13 @@
         "redirectUri": "重定向 URI",
         "redirectUriNote": "此项必须与在 Azure 中注册的重定向 URI 完全一致。建议值：{{uri}}",
         "save": "保存配置",
-        "savedNote": "配置已保存。点击「连接账户」以进行授权。",
-        "connectedNote": "Microsoft 365 账户连接成功！请前往「账户」选项卡查看。",
-        "userNoteConfigured": "您的管理员已设置 Microsoft 365 登录。请在下方连接您的 Outlook.com、Hotmail 或 Microsoft 365 账户。",
-        "userNoteNotConfigured": "管理员尚未设置 Microsoft 365 登录。请联系您的管理员进行配置。",
-        "remove": "移除",
-        "deviceCodeTitle": "使用设备码连接",
-        "deviceCodeNote": "无需重定向 URI 或客户端密钥。在 Azure 中，前往「身份验证」并将「允许公共客户端流」设置为「是」。最适合 Outlook.com / Hotmail 个人账户。",
-        "deviceCodeStart": "启动设备码流程",
-        "personalReady": "个人账户可用",
-        "builtinTitle": "连接个人 Microsoft 账户",
-        "builtinNote": "Outlook.com、Hotmail、Live 和 MSN 账户无需任何设置。此功能使用 MailFlow 的共享 Microsoft 应用，Microsoft 可能会将其标记为未验证。你在浏览器中的 Microsoft 官方页面上登录，Microsoft 会将令牌直接发送到此服务器：MailFlow 的维护者永远看不到你的邮件或令牌。工作或学校账户需要由管理员注册的应用。",
-        "builtinToggle": "为个人账户提供 MailFlow 的应用",
-        "builtinToggleDesc": "在未保存客户端 ID 时，个人 Outlook.com 和 Hotmail 账户可以通过 MailFlow 的共享应用登录。关闭后将不再允许通过它新登录；已通过它连接的账户会继续正常使用。",
-        "userNoteBuiltin": "你可以在下方无需设置即可连接个人 Outlook.com、Hotmail、Live 或 MSN 账户。工作或学校的 Microsoft 365 账户需要管理员设置 Microsoft 365 登录。"
+        "remove": "移除"
       },
       "google": {
         "title": "Gmail / Google Workspace",
         "description": "适用于 Gmail 和 Google Workspace 邮箱的 OAuth2 — 当管理员停用应用专用密码时必须使用",
         "configured": "已配置",
         "notConfigured": "未配置",
-        "redirecting": "正在跳转…",
-        "connect": "连接 Google 账号",
         "setupTitle": "Google Cloud OAuth 客户端设置",
         "step1": "前往 console.cloud.google.com 并选择（或新建）一个项目。若为 Workspace 域，请使用该域下的账号登录，使项目归属于该组织",
         "step2": "API 和服务 → 库 → 启用 Gmail API",
@@ -1635,10 +1613,6 @@
         "redirectUri": "重定向 URI",
         "redirectUriNote": "必须与 OAuth 客户端中已授权的重定向 URI 完全一致。建议：{{uri}}",
         "save": "保存配置",
-        "savedNote": "配置已保存。点击“连接 Google 账号”进行授权。",
-        "connectedNote": "Google 账号连接成功！请查看“账号”标签页。",
-        "userNoteConfigured": "管理员已设置 Google 登录。请在下方连接你的 Gmail 或 Google Workspace 账号。",
-        "userNoteNotConfigured": "管理员尚未设置 Google 登录，请联系管理员。",
         "remove": "移除"
       },
       "todoist": {
@@ -1989,7 +1963,7 @@
     "appConfig": {
       "title": "此帐户的登录设置不正确",
       "bodyUser": "邮件服务商拒绝了 MailFlow 用于登录的应用。请让管理员检查登录设置。",
-      "bodyAdmin": "邮件服务商拒绝了 MailFlow 用于登录的应用。请在“集成”中检查它的设置。下方详细信息显示了服务商的回复。"
+      "bodyAdmin": "邮件服务商拒绝了 MailFlow 用于登录的应用。请在“邮箱登录”中检查它的设置。下方详细信息显示了服务商的回复。"
     },
     "authFailed": {
       "title": "服务器拒绝了密码",
@@ -2004,7 +1978,7 @@
       "retry": "重试",
       "signIn": "重新登录",
       "edit": "编辑帐户",
-      "openIntegrations": "打开集成"
+      "openMailSignIn": "打开邮箱登录"
     },
     "details": "详细信息",
     "wrongAccount": "你登录的是 {{signedInAs}}，而不是 {{expected}}。请使用 {{expected}} 登录以修复此帐户。",
@@ -2072,5 +2046,28 @@
     "back": "返回",
     "lost": "MailFlow 丢失了此次登录的进度，例如因为服务器重新启动。如果你已在 Microsoft 页面完成登录，该帐户可能已在你的列表中。",
     "checkAccounts": "查看你的帐户"
+  },
+  "mailSignIn": {
+    "title": "邮箱登录",
+    "description": "用户如何登录 Microsoft 和 Google 邮箱。每个人在“帐户 > 添加帐户”中添加自己的帐户。",
+    "required": "请先填写必填字段。",
+    "saved": "已保存。",
+    "ms": {
+      "title": "Microsoft",
+      "description": "Outlook.com、Hotmail、Live、MSN 和 Microsoft 365 邮箱",
+      "personalTitle": "个人帐户（Outlook.com、Hotmail）",
+      "statusShared": "正在使用 MailFlow 的共享应用",
+      "statusOwn": "正在使用你自己的应用",
+      "statusOff": "已关闭",
+      "sharedSwitch": "允许通过 MailFlow 的共享应用登录",
+      "sharedSwitchDesc": "无需设置。关闭后，已连接的帐户仍可继续使用。",
+      "ownHandlesPersonal": "你自己的应用负责个人帐户，因此不会使用 MailFlow 的共享应用。",
+      "workTitle": "工作和学校帐户（Microsoft 365）",
+      "workOff": "未设置",
+      "setupToggle": "设置你自己的 Microsoft Entra 应用"
+    },
+    "google": {
+      "setupToggle": "设置你自己的 Google OAuth 客户端"
+    }
   }
 }

@@ -859,7 +859,8 @@
       "groupAdmin": "Administracja",
       "behavior": "Zachowanie",
       "plugins": "Wtyczki",
-      "backup": "Kopia zapasowa"
+      "backup": "Kopia zapasowa",
+      "mailSignIn": "Logowanie do poczty"
     },
     "rules": {
       "title": "Reguły skrzynki odbiorczej",
@@ -990,8 +991,8 @@
       "errorRequired": "Adres e-mail, nazwa użytkownika i serwer IMAP są wymagane",
       "errorPasswordRequired": "Hasło jest wymagane dla nowych kont",
       "microsoftImapUnsupported": "Outlook.com / Hotmail wymaga OAuth2 (Modern Auth)",
-      "microsoftImapNote": "Firma Microsoft wyłączyła uwierzytelnianie IMAP za pomocą haseł (uwierzytelnianie podstawowe) dla osobistych kont Outlook.com, Hotmail i Live. Nadal możesz połączyć te konta za pomocą Microsoft OAuth2 (Modern Auth) — skonfiguruj je w Integracje → Microsoft 365 / Outlook.com. Logowanie za pomocą kodu urządzenia najlepiej sprawdza się w przypadku kont osobistych i nie wymaga hasła aplikacji.",
-      "microsoftImapNoteReady": "Microsoft wyłączył logowanie IMAP hasłem (uwierzytelnianie podstawowe) dla prywatnych kont Outlook.com, Hotmail i Live. Połącz to konto w Integracje → Microsoft 365 / Outlook.com: logowanie kodem urządzenia nie wymaga konfiguracji ani hasła aplikacji.",
+      "microsoftImapNote": "Microsoft nie przyjmuje już haseł do skrzynek Outlook.com, Hotmail, Live i MSN, a logowanie przez Microsoft nie jest skonfigurowane na tym serwerze. Poproś administratora o włączenie go w sekcji Logowanie do poczty.",
+      "microsoftImapNoteReady": "Microsoft nie przyjmuje już haseł do skrzynek Outlook.com, Hotmail, Live i MSN. Dodaj tę skrzynkę przez „Zaloguj się przez Microsoft” w sekcji Dodaj konto.",
       "reindex": "Ponownie zindeksuj wyszukiwanie",
       "reindexing": "Indeksowanie wiadomości...",
       "reindexProgress": "{{synced}} / {{total}} wiadomości zindeksowano",
@@ -1593,15 +1594,7 @@
     "integrations": {
       "title": "Integracje",
       "loading": "Wczytywanie…",
-      "tabEmailProviders": "Dostawcy poczty e-mail",
-      "tabApps": "Aplikacje",
       "microsoft": {
-        "title": "Microsoft 365 / Outlook.com",
-        "description": "OAuth2 dla służbowych, szkolnych lub osobistych kont Microsoft (Outlook.com, Hotmail)",
-        "configured": "Skonfigurowano",
-        "notConfigured": "Nieskonfigurowane",
-        "redirecting": "Przekierowywanie…",
-        "connect": "Połącz konto Microsoft",
         "setupTitle": "Konfiguracja rejestracji aplikacji Azure",
         "step1": "Przejdź do portal.azure.com → Microsoft Entra ID → Rejestracje aplikacji → Nowa rejestracja. W sekcji obsługiwanych typów kont wybierz „Konta w dowolnym katalogu organizacyjnym i osobiste konta Microsoft”, aby zezwolić na logowanie z kont Outlook.com/Hotmail.",
         "step2": "Utwórz wpis tajny klienta i skopiuj go tutaj. Nie udostępniaj go publicznie.",
@@ -1619,28 +1612,13 @@
         "redirectUri": "URI przekierowania",
         "redirectUriNote": "Musi dokładnie odpowiadać adresowi przekierowania zarejestrowanemu w Azure. Sugerowany: {{uri}}",
         "save": "Zapisz konfigurację",
-        "savedNote": "Konfiguracja została zapisana. Kliknij „Połącz konto”, aby przeprowadzić autoryzację.",
-        "connectedNote": "Konto Microsoft 365 połączono pomyślnie! Sprawdź kartę Konta.",
-        "userNoteConfigured": "Administrator skonfigurował logowanie Microsoft 365. Połącz poniżej swoje konto Outlook.com, Hotmail lub Microsoft 365.",
-        "userNoteNotConfigured": "Logowanie Microsoft 365 nie zostało jeszcze skonfigurowane przez administratora. Poproś administratora o konfigurację.",
-        "remove": "Usuń",
-        "deviceCodeTitle": "Połącz za pomocą kodu urządzenia",
-        "deviceCodeNote": "Przekierowanie ani sekret klienta nie są wymagane. W Azure przejdź do Uwierzytelnianie i ustaw opcję „Zezwalaj na przepływy klientów publicznych” na „Tak”. Najlepsze rozwiązanie dla osobistych kont Outlook.com/Hotmail.",
-        "deviceCodeStart": "Uruchom przepływ kodu urządzenia",
-        "personalReady": "Konta prywatne gotowe",
-        "builtinTitle": "Połącz prywatne konto Microsoft",
-        "builtinNote": "Konta Outlook.com, Hotmail, Live i MSN nie wymagają konfiguracji. Korzysta to ze wspólnej aplikacji Microsoft MailFlow, którą Microsoft może oznaczyć jako niezweryfikowaną. Logujesz się na stronie Microsoft w swojej przeglądarce, a Microsoft wysyła tokeny bezpośrednio do tego serwera: opiekunowie MailFlow nigdy nie widzą Twojej poczty ani tokenów. Konta służbowe lub szkolne wymagają aplikacji zarejestrowanej przez administratora.",
-        "builtinToggle": "Oferuj aplikację MailFlow dla kont prywatnych",
-        "builtinToggleDesc": "Dopóki nie zapisano identyfikatora klienta, prywatne konta Outlook.com i Hotmail mogą logować się przez wspólną aplikację MailFlow. Wyłączenie blokuje nowe logowania przez nią; konta już w ten sposób połączone nadal działają.",
-        "userNoteBuiltin": "Poniżej możesz bez konfiguracji połączyć prywatne konto Outlook.com, Hotmail, Live lub MSN. Służbowe lub szkolne konta Microsoft 365 wymagają, aby administrator skonfigurował logowanie Microsoft 365."
+        "remove": "Usuń"
       },
       "google": {
         "title": "Gmail / Google Workspace",
         "description": "OAuth2 dla skrzynek Gmail i Google Workspace — wymagane, gdy administrator wyłączył hasła aplikacji",
         "configured": "Skonfigurowano",
         "notConfigured": "Nieskonfigurowane",
-        "redirecting": "Przekierowywanie…",
-        "connect": "Połącz konto Google",
         "setupTitle": "Konfiguracja klienta OAuth w Google Cloud",
         "step1": "Przejdź do console.cloud.google.com i wybierz (lub utwórz) projekt. W przypadku domeny Workspace zaloguj się kontem z tej domeny, aby projekt należał do organizacji",
         "step2": "Interfejsy API i usługi → Biblioteka → włącz Gmail API",
@@ -1654,10 +1632,6 @@
         "redirectUri": "URI przekierowania",
         "redirectUriNote": "Musi dokładnie odpowiadać autoryzowanemu adresowi przekierowania klienta OAuth. Sugerowany: {{uri}}",
         "save": "Zapisz konfigurację",
-        "savedNote": "Konfiguracja zapisana. Kliknij „Połącz konto Google”, aby autoryzować.",
-        "connectedNote": "Konto Google zostało pomyślnie połączone! Sprawdź kartę Konta.",
-        "userNoteConfigured": "Administrator skonfigurował logowanie Google. Połącz poniżej swoje konto Gmail lub Google Workspace.",
-        "userNoteNotConfigured": "Logowanie Google nie zostało jeszcze skonfigurowane przez administratora. Poproś administratora o jego konfigurację.",
         "remove": "Usuń"
       },
       "todoist": {
@@ -2008,7 +1982,7 @@
     "appConfig": {
       "title": "Logowanie do tego konta nie jest poprawnie skonfigurowane",
       "bodyUser": "Dostawca poczty odrzucił aplikację, przez którą loguje się MailFlow. Poproś administratora o sprawdzenie ustawień logowania.",
-      "bodyAdmin": "Dostawca poczty odrzucił aplikację, przez którą loguje się MailFlow. Sprawdź jej ustawienia w sekcji Integracje. Szczegóły poniżej pokazują odpowiedź dostawcy."
+      "bodyAdmin": "Dostawca poczty odrzucił aplikację, przez którą loguje się MailFlow. Sprawdź jej ustawienia w sekcji Logowanie do poczty. Szczegóły poniżej pokazują odpowiedź dostawcy."
     },
     "authFailed": {
       "title": "Serwer odrzucił hasło",
@@ -2023,7 +1997,7 @@
       "retry": "Spróbuj ponownie",
       "signIn": "Zaloguj się ponownie",
       "edit": "Edytuj konto",
-      "openIntegrations": "Otwórz Integracje"
+      "openMailSignIn": "Otwórz Logowanie do poczty"
     },
     "details": "Szczegóły",
     "wrongAccount": "Zalogowano jako {{signedInAs}}, a nie {{expected}}. Zaloguj się jako {{expected}}, aby naprawić to konto.",
@@ -2091,5 +2065,28 @@
     "back": "Wstecz",
     "lost": "MailFlow stracił ślad tego logowania, np. z powodu ponownego uruchomienia serwera. Jeśli logowanie na stronie Microsoft zostało dokończone, konto może już być na liście.",
     "checkAccounts": "Sprawdź swoje konta"
+  },
+  "mailSignIn": {
+    "title": "Logowanie do poczty",
+    "description": "Jak użytkownicy logują się do skrzynek Microsoft i Google. Każdy dodaje własne konta w sekcji Konta > Dodaj konto.",
+    "required": "Najpierw wypełnij wymagane pola.",
+    "saved": "Zapisano.",
+    "ms": {
+      "title": "Microsoft",
+      "description": "Skrzynki Outlook.com, Hotmail, Live, MSN i Microsoft 365",
+      "personalTitle": "Konta prywatne (Outlook.com, Hotmail)",
+      "statusShared": "Używa współdzielonej aplikacji MailFlow",
+      "statusOwn": "Używa Twojej aplikacji",
+      "statusOff": "Wyłączone",
+      "sharedSwitch": "Zezwalaj na logowanie przez współdzieloną aplikację MailFlow",
+      "sharedSwitchDesc": "Nie wymaga konfiguracji. Już połączone konta działają dalej, jeśli to wyłączysz.",
+      "ownHandlesPersonal": "Twoja aplikacja obsługuje konta prywatne, więc współdzielona aplikacja MailFlow nie jest używana.",
+      "workTitle": "Konta służbowe i szkolne (Microsoft 365)",
+      "workOff": "Nie skonfigurowano",
+      "setupToggle": "Skonfiguruj własną aplikację Microsoft Entra"
+    },
+    "google": {
+      "setupToggle": "Skonfiguruj własnego klienta OAuth Google"
+    }
   }
 }

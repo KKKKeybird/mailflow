@@ -35,7 +35,6 @@ import { getEffectiveShortcuts, getGroupedActions, getShortcutConflicts, shortcu
 import { isValidForwardAddress } from '../utils/ruleActions.js';
 import { folderParentLabel } from '../utils/folderDisplay.js';
 import AdminUserEditor from './AdminUserEditor.jsx';
-import MicrosoftDeviceCode from './MicrosoftDeviceCode.jsx';
 import AccountErrorCallout from './AccountErrorCallout.jsx';
 import SignInAgainDialog from './SignInAgainDialog.jsx';
 import AddAccountChooser from './AddAccountChooser.jsx';
@@ -907,7 +906,7 @@ function AccountsTab() {
         </button>
         {addStep.step === 'choose' && (
           <AddAccountChooser status={msStatus} isAdmin={isAdmin} onChoose={chooseProvider}
-            onOpenSettings={() => setAdminTab('integrations')} />
+            onOpenSettings={() => setAdminTab('mail-signin')} />
         )}
         {addStep.step === 'microsoft' && (
           <MicrosoftSignIn mode={addStep.mode} status={msStatus}
@@ -1326,7 +1325,7 @@ function AccountsTab() {
             onRetry={() => handleReconnect(account.id).catch(err => addNotification({ type: 'error', title: t('accountErrors.action.retry'), body: err.message }))}
             onSignIn={() => setSignInTarget(account)}
             onEdit={() => { setEditTarget(account); setSubview('edit'); }}
-            onOpenIntegrations={() => setAdminTab('integrations')}
+            onOpenIntegrations={() => setAdminTab('mail-signin')}
           />
 
           {/* Connection details bar */}
@@ -2490,27 +2489,7 @@ function CardDavCard() {
 
 function IntegrationsTab() {
   const { t } = useTranslation();
-  const { setAccounts, setTodoistConnected, user } = useStore();
-  const isAdmin = !!user?.isAdmin;
-  const [subTab, setSubTab] = useState('emailProviders');
-  const [configs, setConfigs] = useState({});
-  // Non-admins can't read the full config (admin-only), but need to know whether
-  // Microsoft OAuth is configured so the connect buttons enable. (#315)
-  const [msStatus, setMsStatus] = useState(null); // { configured } for non-admins
-  // Admins read config from the DB, but a provider can equally be configured via
-  // plain .env vars, which never appear in integration_config. Fetch the capability
-  // status for admins too so an env-only setup still enables the connect buttons.
-  const [googleStatus, setGoogleStatus] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [msForm, setMsForm] = useState({ clientId: '', clientSecret: '', tenantId: '', redirectUri: '' });
-  const [msExpanded, setMsExpanded] = useState(false);
-  const [googleForm, setGoogleForm] = useState({ clientId: '', clientSecret: '', redirectUri: '' });
-  const [googleExpanded, setGoogleExpanded] = useState(false);
-  const [connectingGoogle, setConnectingGoogle] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const [saveMsg, setSaveMsg] = useState('');
-  const [connectingMs, setConnectingMs] = useState(false);
-  const [deviceOpen, setDeviceOpen] = useState(false); // the device-code sign-in is showing
+  const { setTodoistConnected } = useStore();
 
   // Todoist state
   const [tdConnected, setTdConnected] = useState(false);
@@ -2522,44 +2501,6 @@ function IntegrationsTab() {
   const [tdError, setTdError] = useState('');
 
   useEffect(() => {
-    if (isAdmin) {
-      api.getIntegrations()
-        .then(data => {
-          setConfigs(data);
-          if (data.microsoft) {
-            setMsForm({
-              clientId: data.microsoft.clientId || '',
-              clientSecret: data.microsoft.clientSecret || '',
-              tenantId: data.microsoft.tenantId || '',
-              redirectUri: data.microsoft.redirectUri || '',
-            });
-            setMsExpanded(true);
-          }
-          if (data.google) {
-            setGoogleForm({
-              clientId: data.google.clientId || '',
-              clientSecret: data.google.clientSecret || '',
-              redirectUri: data.google.redirectUri || '',
-            });
-            setGoogleExpanded(true);
-          }
-        })
-        .catch(console.error)
-        .finally(() => setLoading(false));
-    }
-
-    // Capability status is cheap and non-sensitive, so fetch it for everyone.
-    // Admins need it to detect providers configured via .env rather than the UI.
-    api.getIntegrationsStatus()
-      .then(data => {
-        setMsStatus(data.microsoft || null);
-        setGoogleStatus(data.google || null);
-        if (data.microsoft?.configured || data.microsoft?.builtinApp) setMsExpanded(true);
-        if (data.google?.configured) setGoogleExpanded(true);
-      })
-      .catch(console.error)
-      .finally(() => { if (!isAdmin) setLoading(false); });
-
     api.todoist.status()
       .then(({ connected }) => {
         setTdConnected(connected);
@@ -2568,126 +2509,7 @@ function IntegrationsTab() {
       })
       .catch(console.error)
       .finally(() => setTdLoading(false));
-
-    // Listen for oauth_success / oauth_error messages from the OAuth popup tab.
-    // URL-param detection has been moved to MailApp so it works regardless of
-    // which tab/modal is currently open.
-    const handleMessage = (e) => {
-      if (e.origin !== window.location.origin) return;
-      if (e.data?.type === 'oauth_success' && e.data?.provider === 'microsoft') {
-        setSaveMsg(t('admin.integrations.microsoft.connectedNote'));
-        setConnectingMs(false);
-        // Reload both so the new account appears in the sidebar immediately.
-        // getIntegrations is admin-only; non-admins already have the capability status.
-        if (isAdmin) api.getIntegrations().then(setConfigs).catch(console.error);
-        api.getAccounts().then(setAccounts).catch(console.error);
-      } else if (e.data?.type === 'oauth_success' && e.data?.provider === 'google') {
-        setSaveMsg(t('admin.integrations.google.connectedNote'));
-        setConnectingGoogle(false);
-        if (isAdmin) api.getIntegrations().then(setConfigs).catch(console.error);
-        api.getAccounts().then(setAccounts).catch(console.error);
-      } else if (e.data?.type === 'oauth_error') {
-        setSaveMsg('Error: ' + e.data.error);
-        setConnectingMs(false);
-        setConnectingGoogle(false);
-      }
-    };
-    window.addEventListener('message', handleMessage);
-    return () => {
-      window.removeEventListener('message', handleMessage);
-    };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- mount-only: listeners and status for this panel
-
-  const handleSaveMs = async () => {
-    if (!msForm.clientId || !msForm.tenantId) {
-      setSaveMsg('Client ID and Tenant ID are required');
-      return;
-    }
-    setSaving(true);
-    setSaveMsg('');
-    try {
-      await api.saveIntegration('microsoft', msForm);
-      // Update local state so "Connect account" button enables immediately
-      // without requiring a page reload.
-      setConfigs(prev => ({
-        ...prev,
-        microsoft: { clientId: msForm.clientId, tenantId: msForm.tenantId, redirectUri: msForm.redirectUri },
-      }));
-      setSaveMsg(t('admin.integrations.microsoft.savedNote'));
-    } catch (err) {
-      setSaveMsg('Error: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const stopDeviceFlow = () => setDeviceOpen(false);
-
-  // Whether personal accounts may use MailFlow's built-in app while no Client ID is saved.
-  // A setting of its own, apart from the app config above. (#674)
-  const handleToggleMsBuiltin = async (builtinApp) => {
-    setSaveMsg('');
-    try {
-      await api.setMsBuiltinApp(builtinApp);
-      setMsStatus(prev => ({ ...prev, builtinApp }));
-    } catch (err) {
-      setSaveMsg('Error: ' + err.message);
-    }
-  };
-
-  // The sign-in view reports the outcome itself; the account list needs the new account.
-  const handleDeviceSignedIn = () => {
-    api.getAccounts().then(setAccounts).catch(console.error);
-  };
-
-  const handleConnectMs = () => {
-    setConnectingMs(true);
-    // Use a real anchor click so the browser treats it as a normal navigation
-    // window.open gets intercepted by some browser extensions (e.g. claude.ai in Zen)
-    const a = document.createElement('a');
-    a.href = '/oauth/microsoft';
-    a.target = '_blank';
-    a.rel = 'opener';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => setConnectingMs(false), 5000);
-  };
-
-  const handleSaveGoogle = async () => {
-    if (!googleForm.clientId || !googleForm.clientSecret) {
-      setSaveMsg('Client ID and Client Secret are required');
-      return;
-    }
-    setSaving(true);
-    setSaveMsg('');
-    try {
-      await api.saveIntegration('google', googleForm);
-      setConfigs(prev => ({
-        ...prev,
-        google: { clientId: googleForm.clientId, redirectUri: googleForm.redirectUri },
-      }));
-      setGoogleStatus({ configured: true });
-      setSaveMsg(t('admin.integrations.google.savedNote'));
-    } catch (err) {
-      setSaveMsg('Error: ' + err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleConnectGoogle = () => {
-    setConnectingGoogle(true);
-    // Real anchor click rather than window.open — see handleConnectMs.
-    const a = document.createElement('a');
-    a.href = '/oauth/google';
-    a.target = '_blank';
-    a.rel = 'opener';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(() => setConnectingGoogle(false), 5000);
-  };
+  }, [setTodoistConnected]);
 
   const handleTdConnect = async () => {
     const trimmed = tdToken.trim();
@@ -2720,496 +2542,12 @@ function IntegrationsTab() {
     }
   };
 
-  // A provider counts as configured if it's in the DB config (UI-managed) OR the
-  // server reports it configured from .env. Checking only the former left the
-  // connect button disabled on env-only installs.
-  const msConfigured = (isAdmin && configs.microsoft?.clientId) || msStatus?.configured;
-  // Without the instance's own app, personal accounts sign in through MailFlow's built-in
-  // one unless the admin turned it off. (#674)
-  const msBuiltin = !msConfigured && !!msStatus?.builtinApp;
-  const msDeviceAvailable = !!msConfigured || msBuiltin;
-  const googleConfigured = (isAdmin && configs.google?.clientId) || googleStatus?.configured;
-
-  const subTabStyle = (key) => ({
-    padding: '7px 14px',
-    background: 'none',
-    border: 'none',
-    borderBottom: `2px solid ${subTab === key ? 'var(--accent)' : 'transparent'}`,
-    marginBottom: -1,
-    color: subTab === key ? 'var(--accent)' : 'var(--text-secondary)',
-    cursor: 'pointer',
-    fontSize: 13,
-    fontWeight: subTab === key ? 600 : 400,
-    transition: 'color 0.1s',
-  });
-
   return (
     <div>
-      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 20 }}>
         {t('admin.integrations.title')}
       </div>
-
-      {/* Sub-tabs */}
-      <div style={{ display: 'flex', borderBottom: '1px solid var(--border-subtle)', marginBottom: 20 }}>
-        <button style={subTabStyle('emailProviders')} onClick={() => setSubTab('emailProviders')}>
-          {t('admin.integrations.tabEmailProviders')}
-        </button>
-        <button style={subTabStyle('apps')} onClick={() => setSubTab('apps')}>
-          {t('admin.integrations.tabApps')}
-        </button>
-      </div>
-
-      {subTab === 'emailProviders' && (
-        <div>
-          {loading && <div style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>{t('admin.integrations.loading')}</div>}
-          {!loading && (
-            <div>
-              {/* Google / Gmail */}
-          <div style={{
-            border: '1px solid var(--border-subtle)', borderRadius: 12,
-            overflow: 'hidden', marginBottom: 12,
-          }}>
-            <div
-              onClick={() => setGoogleExpanded(!googleExpanded)}
-              style={{
-                padding: '14px 16px', display: 'flex', alignItems: 'center',
-                gap: 12, cursor: 'pointer', background: 'var(--bg-tertiary)',
-                transition: 'background 0.1s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2">
-                <rect x="2" y="4" width="20" height="16" rx="2"/>
-                <polyline points="2 7 12 14 22 7"/>
-              </svg>
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>
-                    {t('admin.integrations.google.title')}
-                  </span>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
-                  {t('admin.integrations.google.description')}
-                </div>
-              </div>
-              {googleConfigured ? (
-                <span style={{
-                  fontSize: 11, padding: '3px 8px', borderRadius: 20,
-                  background: 'rgba(52,168,83,0.12)', color: 'var(--green)',
-                  border: '1px solid rgba(52,168,83,0.25)',
-                }}>
-                  {t('admin.integrations.google.configured')}
-                </span>
-              ) : (
-                <span style={{
-                  fontSize: 11, padding: '3px 8px', borderRadius: 20,
-                  background: 'var(--bg-elevated)', color: 'var(--text-tertiary)',
-                  border: '1px solid var(--border)',
-                }}>
-                  {t('admin.integrations.google.notConfigured')}
-                </span>
-              )}
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="var(--text-tertiary)" strokeWidth="2"
-                style={{ transform: googleExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-                <polyline points="6 9 12 15 18 9"/>
-              </svg>
-            </div>
-
-            {googleExpanded && (
-              <div style={{ padding: '16px', borderTop: '1px solid var(--border-subtle)' }}>
-                {isAdmin && (<>
-                <div style={{
-                  padding: '12px 14px', borderRadius: 8, marginBottom: 16,
-                  background: 'rgba(124,106,247,0.06)',
-                  border: '1px solid rgba(124,106,247,0.15)',
-                  fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7,
-                }}>
-                  <div style={{ fontWeight: 600, color: 'var(--accent)', marginBottom: 6 }}>
-                    {t('admin.integrations.google.setupTitle')}
-                  </div>
-                  <ol style={{ margin: 0, paddingLeft: 18 }}>
-                    <li>{t('admin.integrations.google.step1')}</li>
-                    <li>{t('admin.integrations.google.step2')}</li>
-                    <li>{t('admin.integrations.google.step3')}</li>
-                    <li>{t('admin.integrations.google.step4')}</li>
-                  </ol>
-                  <div style={{ marginTop: 8, color: 'var(--text-tertiary)' }}>
-                    {t('admin.integrations.google.scopeNote')}
-                  </div>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                  <Field label={t('admin.integrations.google.clientId')} required>
-                    <input value={googleForm.clientId} onChange={e => setGoogleForm(f => ({ ...f, clientId: e.target.value }))}
-                      placeholder={t('admin.integrations.google.clientIdPh')}
-                      style={{ ...inputStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
-                      onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                      onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-                  </Field>
-                  <Field label={t('admin.integrations.google.clientSecret')} required>
-                    <input type="password" value={googleForm.clientSecret} onChange={e => setGoogleForm(f => ({ ...f, clientSecret: e.target.value }))}
-                      placeholder={t('admin.integrations.google.clientSecretPh')}
-                      style={{ ...inputStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
-                      onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                      onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-                  </Field>
-                </div>
-
-                <div style={{ marginBottom: 14 }}>
-                  <Field label={t('admin.integrations.google.redirectUri')} required>
-                    <input value={googleForm.redirectUri} onChange={e => setGoogleForm(f => ({ ...f, redirectUri: e.target.value }))}
-                      placeholder={`${window.location.protocol}//${window.location.host}/oauth/google/callback`}
-                      style={{ ...inputStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
-                      onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                      onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 5 }}>
-                      {t('admin.integrations.google.redirectUriNote', { uri: `${window.location.protocol}//${window.location.host}/oauth/google/callback` })}
-                    </div>
-                  </Field>
-                </div>
-                </>)}
-
-                {!isAdmin && (
-                  <div style={{
-                    padding: '12px 14px', borderRadius: 8, marginBottom: 16,
-                    background: 'rgba(124,106,247,0.06)',
-                    border: '1px solid rgba(124,106,247,0.15)',
-                    fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6,
-                  }}>
-                    {googleConfigured
-                      ? t('admin.integrations.google.userNoteConfigured')
-                      : t('admin.integrations.google.userNoteNotConfigured')}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {isAdmin && (
-                    <button onClick={handleSaveGoogle} disabled={saving} style={{
-                      padding: '9px 16px', background: 'var(--bg-elevated)',
-                      border: '1px solid var(--border)', borderRadius: 8,
-                      color: 'var(--text-primary)', cursor: saving ? 'not-allowed' : 'pointer',
-                      fontSize: 13, fontWeight: 500, opacity: saving ? 0.7 : 1,
-                    }}>
-                      {saving ? t('common.saving') : t('admin.integrations.google.save')}
-                    </button>
-                  )}
-
-                  <button
-                    onClick={handleConnectGoogle}
-                    disabled={!googleConfigured || connectingGoogle}
-                    title={!googleConfigured ? t('admin.integrations.google.save') : ''}
-                    style={{
-                      padding: '9px 16px', background: googleConfigured ? 'var(--accent)' : 'var(--bg-elevated)',
-                      border: `1px solid ${googleConfigured ? 'var(--accent)' : 'var(--border)'}`,
-                      borderRadius: 8, color: googleConfigured ? 'white' : 'var(--text-tertiary)',
-                      cursor: googleConfigured && !connectingGoogle ? 'pointer' : 'not-allowed',
-                      fontSize: 13, fontWeight: 500,
-                      opacity: !googleConfigured || connectingGoogle ? 0.6 : 1,
-                      display: 'flex', alignItems: 'center', gap: 6,
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <rect x="2" y="4" width="20" height="16" rx="2"/>
-                      <polyline points="2 7 12 14 22 7"/>
-                    </svg>
-                    {connectingGoogle ? t('admin.integrations.google.redirecting') : t('admin.integrations.google.connect')}
-                  </button>
-
-                  {isAdmin && configs.google?.clientId && (
-                    <button onClick={async () => {
-                      await api.deleteIntegration('google');
-                      setConfigs(c => { const n = {...c}; delete n.google; return n; });
-                      setGoogleForm({ clientId: '', clientSecret: '', redirectUri: '' });
-                      setGoogleStatus({ configured: false });
-                      setSaveMsg('');
-                    }} style={{
-                      padding: '9px 12px', background: 'transparent',
-                      border: '1px solid transparent', borderRadius: 8,
-                      color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 13,
-                      marginLeft: 'auto',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.borderColor = 'rgba(248,113,113,0.3)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.borderColor = 'transparent'; }}
-                    >
-                      {t('admin.integrations.google.remove')}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
-
-              {/* Microsoft 365 */}
-          <div style={{
-            border: '1px solid var(--border-subtle)', borderRadius: 12,
-            overflow: 'hidden', marginBottom: 12,
-          }}>
-            {/* Header */}
-            <div
-              onClick={() => setMsExpanded(!msExpanded)}
-              style={{
-                padding: '14px 16px', display: 'flex', alignItems: 'center',
-                gap: 12, cursor: 'pointer', background: 'var(--bg-tertiary)',
-                transition: 'background 0.1s',
-              }}
-              onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-              onMouseLeave={e => e.currentTarget.style.background = 'var(--bg-tertiary)'}
-            >
-              {/* Microsoft icon */}
-              <svg width="20" height="20" viewBox="0 0 21 21" fill="none">
-                <rect x="1" y="1" width="9" height="9" fill="#f25022"/>
-                <rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
-                <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/>
-                <rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
-              </svg>
-
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-primary)' }}>
-                  {t('admin.integrations.microsoft.title')}
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 1 }}>
-                  {t('admin.integrations.microsoft.description')}
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                {msConfigured ? (
-                  <span style={{
-                    fontSize: 11, padding: '3px 8px', borderRadius: 20,
-                    background: 'rgba(74,222,128,0.1)', color: 'var(--green)',
-                    border: '1px solid rgba(74,222,128,0.2)', fontWeight: 500,
-                  }}>
-                    {t('admin.integrations.microsoft.configured')}
-                  </span>
-                ) : msBuiltin ? (
-                  <span style={{
-                    fontSize: 11, padding: '3px 8px', borderRadius: 20,
-                    background: 'rgba(74,222,128,0.1)', color: 'var(--green)',
-                    border: '1px solid rgba(74,222,128,0.2)', fontWeight: 500,
-                  }}>
-                    {t('admin.integrations.microsoft.personalReady')}
-                  </span>
-                ) : (
-                  <span style={{
-                    fontSize: 11, padding: '3px 8px', borderRadius: 20,
-                    background: 'var(--bg-elevated)', color: 'var(--text-tertiary)',
-                    border: '1px solid var(--border)',
-                  }}>
-                    {t('admin.integrations.microsoft.notConfigured')}
-                  </span>
-                )}
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                  stroke="var(--text-tertiary)" strokeWidth="2"
-                  style={{ transform: msExpanded ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>
-                  <polyline points="6 9 12 15 18 9"/>
-                </svg>
-              </div>
-            </div>
-
-            {/* Expanded form */}
-            {msExpanded && (
-              <div style={{ padding: '16px', borderTop: '1px solid var(--border-subtle)' }}>
-                {/* Admin-only: setup instructions + credential form. Non-admins can't
-                    read or write the global config, so they see only the note + connect
-                    buttons below. (#315) */}
-                {isAdmin && (<>
-                {/* Setup instructions */}
-                <div style={{
-                  padding: '12px 14px', borderRadius: 8, marginBottom: 16,
-                  background: 'rgba(124,106,247,0.06)',
-                  border: '1px solid rgba(124,106,247,0.15)',
-                  fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7,
-                }}>
-                  <div style={{ fontWeight: 600, color: 'var(--accent)', marginBottom: 6 }}>
-                    {t('admin.integrations.microsoft.setupTitle')}
-                  </div>
-                  <ol style={{ margin: 0, paddingLeft: 18 }}>
-                    <li>{t('admin.integrations.microsoft.step1')}</li>
-                    <li>{t('admin.integrations.microsoft.step2')}</li>
-                    <li>{t('admin.integrations.microsoft.step3')}</li>
-                    <li>{t('admin.integrations.microsoft.step4')}</li>
-                    <li>{t('admin.integrations.microsoft.step5')}</li>
-                    <li>{t('admin.integrations.microsoft.step6')}</li>
-                  </ol>
-                </div>
-
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 12 }}>
-                  <Field label={t('admin.integrations.microsoft.clientId')} required>
-                    <input value={msForm.clientId} onChange={e => setMsForm(f => ({ ...f, clientId: e.target.value }))}
-                      placeholder={t('admin.integrations.microsoft.clientIdPh')}
-                      style={{ ...inputStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
-                      onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                      onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-                  </Field>
-                  <Field label={t('admin.integrations.microsoft.tenantId')} required>
-                    <input value={msForm.tenantId} onChange={e => setMsForm(f => ({ ...f, tenantId: e.target.value }))}
-                      placeholder={t('admin.integrations.microsoft.tenantIdPh')}
-                      style={{ ...inputStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 }}
-                      onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                      onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 5 }}>
-                      {t('admin.integrations.microsoft.tenantIdNote')}
-                    </div>
-                  </Field>
-                </div>
-
-                <Field label={t('admin.integrations.microsoft.clientSecret')}>
-                  <input type="password" autoComplete="new-password" value={msForm.clientSecret}
-                    onChange={e => setMsForm(f => ({ ...f, clientSecret: e.target.value }))}
-                    placeholder={t('admin.integrations.microsoft.clientSecretPh')}
-                    style={inputStyle}
-                    onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-                </Field>
-
-                <Field label={t('admin.integrations.microsoft.redirectUri')}>
-                  <input value={msForm.redirectUri}
-                    onChange={e => setMsForm(f => ({ ...f, redirectUri: e.target.value }))}
-                    placeholder={`http://${window.location.hostname}:8080/oauth/microsoft/callback`}
-                    style={inputStyle}
-                    onFocus={e => e.target.style.borderColor = 'var(--accent)'}
-                    onBlur={e => e.target.style.borderColor = 'var(--border)'} />
-                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 5 }}>
-                    {t('admin.integrations.microsoft.redirectUriNote', { uri: `${window.location.protocol}//${window.location.hostname}${window.location.port ? ':' + window.location.port : ''}/oauth/microsoft/callback` })}
-                  </div>
-                </Field>
-
-                {msStatus?.builtinAppShipped && (
-                  <div style={{ marginBottom: 12 }}>
-                    <ToggleRow
-                      label={t('admin.integrations.microsoft.builtinToggle')}
-                      desc={t('admin.integrations.microsoft.builtinToggleDesc')}
-                      checked={!!msStatus.builtinApp}
-                      onChange={handleToggleMsBuiltin}
-                    />
-                  </div>
-                )}
-                </>)}
-
-                {/* Non-admin: no config form; just a short note about connecting */}
-                {!isAdmin && (
-                  <div style={{
-                    padding: '12px 14px', borderRadius: 8, marginBottom: 16,
-                    background: 'rgba(124,106,247,0.06)',
-                    border: '1px solid rgba(124,106,247,0.15)',
-                    fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.6,
-                  }}>
-                    {msConfigured
-                      ? t('admin.integrations.microsoft.userNoteConfigured')
-                      : msBuiltin
-                        ? t('admin.integrations.microsoft.userNoteBuiltin')
-                        : t('admin.integrations.microsoft.userNoteNotConfigured')}
-                  </div>
-                )}
-
-                {saveMsg && (
-                  <div style={{
-                    padding: '10px 14px', borderRadius: 8, marginBottom: 12, fontSize: 13,
-                    background: saveMsg.startsWith('Error') ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.1)',
-                    border: `1px solid ${saveMsg.startsWith('Error') ? 'rgba(248,113,113,0.3)' : 'rgba(74,222,128,0.2)'}`,
-                    color: saveMsg.startsWith('Error') ? 'var(--red)' : 'var(--green)',
-                  }}>
-                    {saveMsg}
-                  </div>
-                )}
-
-                <div style={{ display: 'flex', gap: 8 }}>
-                  {isAdmin && (
-                  <button onClick={handleSaveMs} disabled={saving} style={{
-                    padding: '9px 16px', background: 'var(--bg-elevated)',
-                    border: '1px solid var(--border)', borderRadius: 8,
-                    color: 'var(--text-primary)', cursor: saving ? 'not-allowed' : 'pointer',
-                    fontSize: 13, fontWeight: 500, opacity: saving ? 0.7 : 1,
-                  }}>
-                    {saving ? t('common.saving') : t('admin.integrations.microsoft.save')}
-                  </button>
-                  )}
-
-                  <button
-                    onClick={handleConnectMs}
-                    disabled={!msConfigured || connectingMs}
-                    title={!msConfigured ? t('admin.integrations.microsoft.save') : ''}
-                    style={{
-                      padding: '9px 16px', background: msConfigured ? 'var(--accent)' : 'var(--bg-elevated)',
-                      border: `1px solid ${msConfigured ? 'var(--accent)' : 'var(--border)'}`,
-                      borderRadius: 8, color: msConfigured ? 'white' : 'var(--text-tertiary)',
-                      cursor: msConfigured && !connectingMs ? 'pointer' : 'not-allowed',
-                      fontSize: 13, fontWeight: 500,
-                      opacity: !msConfigured || connectingMs ? 0.6 : 1,
-                      display: 'flex', alignItems: 'center', gap: 6,
-                    }}
-                  >
-                    <svg width="14" height="14" viewBox="0 0 21 21" fill="none">
-                      <rect x="1" y="1" width="9" height="9" fill="currentColor" opacity="0.9"/>
-                      <rect x="11" y="1" width="9" height="9" fill="currentColor" opacity="0.7"/>
-                      <rect x="1" y="11" width="9" height="9" fill="currentColor" opacity="0.7"/>
-                      <rect x="11" y="11" width="9" height="9" fill="currentColor" opacity="0.5"/>
-                    </svg>
-                    {connectingMs ? t('admin.integrations.microsoft.redirecting') : t('admin.integrations.microsoft.connect')}
-                  </button>
-
-                  {isAdmin && msConfigured && (
-                    <button onClick={async () => {
-                      stopDeviceFlow();
-                      await api.deleteIntegration('microsoft');
-                      setConfigs(c => { const n = {...c}; delete n.microsoft; return n; });
-                      setMsForm({ clientId: '', clientSecret: '', tenantId: '', redirectUri: '' });
-                      setSaveMsg('');
-                      api.getIntegrationsStatus().then(data => setMsStatus(data.microsoft || null)).catch(console.error);
-                    }} style={{
-                      padding: '9px 12px', background: 'transparent',
-                      border: '1px solid transparent', borderRadius: 8,
-                      color: 'var(--text-tertiary)', cursor: 'pointer', fontSize: 13,
-                      marginLeft: 'auto',
-                    }}
-                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--red)'; e.currentTarget.style.borderColor = 'rgba(248,113,113,0.3)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; e.currentTarget.style.borderColor = 'transparent'; }}
-                    >
-                      {t('admin.integrations.microsoft.remove')}
-                    </button>
-                  )}
-                </div>
-
-                {/* Device code flow */}
-                <div style={{ marginTop: 16, paddingTop: 16, borderTop: '1px solid var(--border-subtle)' }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)', marginBottom: 6 }}>
-                    {msBuiltin ? t('admin.integrations.microsoft.builtinTitle') : t('admin.integrations.microsoft.deviceCodeTitle')}
-                  </div>
-                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 10, lineHeight: 1.5 }}>
-                    {msBuiltin ? t('admin.integrations.microsoft.builtinNote') : t('admin.integrations.microsoft.deviceCodeNote')}
-                  </div>
-
-                  {!deviceOpen && (
-                    <button
-                      onClick={() => setDeviceOpen(true)}
-                      disabled={!msDeviceAvailable}
-                      title={!msDeviceAvailable ? t('admin.integrations.microsoft.save') : ''}
-                      style={{
-                        padding: '8px 14px', background: 'var(--bg-elevated)',
-                        border: '1px solid var(--border)', borderRadius: 8,
-                        color: msDeviceAvailable ? 'var(--text-primary)' : 'var(--text-tertiary)',
-                        cursor: msDeviceAvailable ? 'pointer' : 'not-allowed',
-                        fontSize: 12, fontWeight: 500, opacity: msDeviceAvailable ? 1 : 0.5,
-                      }}
-                    >
-                      {t('admin.integrations.microsoft.deviceCodeStart')}
-                    </button>
-                  )}
-
-                  {deviceOpen && <MicrosoftDeviceCode onSignedIn={handleDeviceSignedIn} onDone={stopDeviceFlow} onCancel={stopDeviceFlow} />}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-        </div>
-      )}
-
-      {subTab === 'apps' && (
-        <div>
+      <div>
           {/* Todoist */}
           <div style={{
             border: '1px solid var(--border-subtle)', borderRadius: 12,
@@ -3332,8 +2670,255 @@ function IntegrationsTab() {
           </div>
 
           <CardDavCard />
-        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Mail sign-in (admin) ────────────────────────────────────────────────────
+// How people sign in to Microsoft and Google mailboxes: MailFlow's shared Microsoft app for
+// personal accounts, and the instance's own Microsoft and Google apps. Configuration only;
+// everyone adds their own accounts under Accounts > Add account. (#674)
+function MailSignInTab() {
+  const { t } = useTranslation();
+  const [configs, setConfigs] = useState({});
+  const [status, setStatus] = useState(null); // GET /api/integrations/status
+  const [loading, setLoading] = useState(true);
+  const [msForm, setMsForm] = useState({ clientId: '', clientSecret: '', tenantId: '', redirectUri: '' });
+  const [googleForm, setGoogleForm] = useState({ clientId: '', clientSecret: '', redirectUri: '' });
+  const [msSetupOpen, setMsSetupOpen] = useState(false);
+  const [googleSetupOpen, setGoogleSetupOpen] = useState(false);
+  const [saving, setSaving] = useState(null); // 'microsoft' | 'google'
+  const [messages, setMessages] = useState({}); // provider -> { error, text }
+
+  const refreshStatus = () => api.getIntegrationsStatus().then(setStatus).catch(console.error);
+  useEffect(() => {
+    Promise.all([
+      api.getIntegrations().then((data) => {
+        setConfigs(data || {});
+        if (data?.microsoft) setMsForm({ clientId: data.microsoft.clientId || '', clientSecret: data.microsoft.clientSecret || '', tenantId: data.microsoft.tenantId || '', redirectUri: data.microsoft.redirectUri || '' });
+        if (data?.google) setGoogleForm({ clientId: data.google.clientId || '', clientSecret: data.google.clientSecret || '', redirectUri: data.google.redirectUri || '' });
+      }).catch(console.error),
+      refreshStatus(),
+    ]).finally(() => setLoading(false));
+  }, []);
+
+  const origin = window.location.origin;
+  const msRedirect = `${origin}/oauth/microsoft/callback`;
+  const googleRedirect = `${origin}/oauth/google/callback`;
+  const ms = status?.microsoft || {};
+  const googleConfigured = !!configs.google?.clientId || !!status?.google?.configured;
+  const say = (provider, text, error = false) => setMessages(m => ({ ...m, [provider]: text ? { text, error } : null }));
+
+  const save = async (provider, form, required) => {
+    if (required.some(k => !form[k])) { say(provider, t('mailSignIn.required'), true); return; }
+    setSaving(provider);
+    say(provider, '');
+    try {
+      await api.saveIntegration(provider, form);
+      setConfigs(c => ({ ...c, [provider]: { ...form } }));
+      await refreshStatus();
+      say(provider, t('mailSignIn.saved'));
+    } catch (err) {
+      say(provider, t('common.error', { message: err.message }), true);
+    } finally {
+      setSaving(null);
+    }
+  };
+  const remove = async (provider) => {
+    say(provider, '');
+    try {
+      await api.deleteIntegration(provider);
+      setConfigs(c => { const n = { ...c }; delete n[provider]; return n; });
+      if (provider === 'microsoft') setMsForm({ clientId: '', clientSecret: '', tenantId: '', redirectUri: '' });
+      else setGoogleForm({ clientId: '', clientSecret: '', redirectUri: '' });
+      await refreshStatus();
+    } catch (err) {
+      say(provider, t('common.error', { message: err.message }), true);
+    }
+  };
+  const toggleShared = async (on) => {
+    say('microsoft', '');
+    try {
+      await api.setMsBuiltinApp(on);
+      await refreshStatus();
+    } catch (err) {
+      say('microsoft', t('common.error', { message: err.message }), true);
+    }
+  };
+
+  const card = { border: '1px solid var(--border-subtle)', borderRadius: 12, overflow: 'hidden', marginBottom: 14 };
+  const header = { padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12, background: 'var(--bg-tertiary)' };
+  const section = { padding: 16, borderTop: '1px solid var(--border-subtle)' };
+  const sectionTitle = { fontSize: 13, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 6 };
+  const pill = (on, label) => (
+    <span data-status={on ? 'on' : 'off'} style={{
+      display: 'inline-block', fontSize: 11, padding: '3px 8px', borderRadius: 20, fontWeight: 500,
+      background: on ? 'rgba(74,222,128,0.1)' : 'var(--bg-elevated)', color: on ? 'var(--green)' : 'var(--text-tertiary)',
+      border: `1px solid ${on ? 'rgba(74,222,128,0.25)' : 'var(--border)'}`,
+    }}>{label}</span>
+  );
+  const disclosure = (open, setOpen, label) => (
+    <button type="button" aria-expanded={open} onClick={() => setOpen(!open)} style={{
+      display: 'flex', alignItems: 'center', gap: 6, marginTop: 12, padding: 0, background: 'none', border: 'none',
+      color: 'var(--accent)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+    }}>
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ transform: open ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
+        <polyline points="9 18 15 12 9 6"/>
+      </svg>
+      {label}
+    </button>
+  );
+  const guide = (titleKey, stepKeys, extraKey) => (
+    <div style={{
+      padding: '12px 14px', borderRadius: 8, margin: '12px 0 16px',
+      background: 'rgba(124,106,247,0.06)', border: '1px solid rgba(124,106,247,0.15)',
+      fontSize: 12, color: 'var(--text-secondary)', lineHeight: 1.7,
+    }}>
+      <div style={{ fontWeight: 600, color: 'var(--accent)', marginBottom: 6 }}>{t(titleKey)}</div>
+      <ol style={{ margin: 0, paddingLeft: 18, listStyle: 'decimal' }}>{stepKeys.map(k => <li key={k}>{t(k)}</li>)}</ol>
+      {extraKey && <div style={{ marginTop: 8, color: 'var(--text-tertiary)' }}>{t(extraKey)}</div>}
+    </div>
+  );
+  const mono = { ...inputStyle, fontFamily: 'JetBrains Mono, monospace', fontSize: 12 };
+  const message = (provider) => messages[provider] && (
+    <div role={messages[provider].error ? 'alert' : 'status'} style={{
+      padding: '9px 12px', borderRadius: 8, margin: '12px 0 0', fontSize: 13,
+      background: messages[provider].error ? 'rgba(248,113,113,0.1)' : 'rgba(74,222,128,0.1)',
+      border: `1px solid ${messages[provider].error ? 'rgba(248,113,113,0.3)' : 'rgba(74,222,128,0.2)'}`,
+      color: messages[provider].error ? 'var(--red)' : 'var(--green)',
+    }}>{messages[provider].text}</div>
+  );
+  const BUTTON_KEYS = {
+    microsoft: { save: 'admin.integrations.microsoft.save', remove: 'admin.integrations.microsoft.remove' },
+    google: { save: 'admin.integrations.google.save', remove: 'admin.integrations.google.remove' },
+  };
+  const buttons = (provider, form, required, configured) => (
+    <div style={{ display: 'flex', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
+      <button type="button" onClick={() => save(provider, form, required)} disabled={saving === provider} style={{
+        padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 8, color: 'var(--accent-text)',
+        cursor: saving === provider ? 'not-allowed' : 'pointer', fontSize: 13, fontWeight: 500, opacity: saving === provider ? 0.7 : 1,
+      }}>{saving === provider ? t('common.saving') : t(BUTTON_KEYS[provider].save)}</button>
+      {configured && (
+        <button type="button" onClick={() => remove(provider)} style={{
+          padding: '8px 14px', background: 'transparent', border: '1px solid var(--border)', borderRadius: 8,
+          color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 13,
+        }}>{t(BUTTON_KEYS[provider].remove)}</button>
       )}
+    </div>
+  );
+
+  const personalLabel = ms.personalVia === 'own' ? t('mailSignIn.ms.statusOwn')
+    : ms.personalVia === 'shared' ? t('mailSignIn.ms.statusShared') : t('mailSignIn.ms.statusOff');
+
+  return (
+    <div className="mf-signin-form">
+      <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>{t('mailSignIn.title')}</div>
+      <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 20, lineHeight: 1.5 }}>{t('mailSignIn.description')}</div>
+      {loading && <div style={{ color: 'var(--text-tertiary)', fontSize: 13 }}>{t('admin.integrations.loading')}</div>}
+      {!loading && (<>
+        <div style={card} data-card="microsoft">
+          <div style={header}>
+            <svg width="20" height="20" viewBox="0 0 21 21" fill="none" aria-hidden="true">
+              <rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
+              <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
+            </svg>
+            <div>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{t('mailSignIn.ms.title')}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{t('mailSignIn.ms.description')}</div>
+            </div>
+          </div>
+
+          <div style={section} data-section="personal">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap', marginBottom: 10 }}>
+              <div style={sectionTitle}>{t('mailSignIn.ms.personalTitle')}</div>
+              {pill(!!ms.personalVia, personalLabel)}
+            </div>
+            {ms.builtinAppShipped && (
+              <ToggleRow label={t('mailSignIn.ms.sharedSwitch')} desc={t('mailSignIn.ms.sharedSwitchDesc')}
+                checked={!!ms.builtinApp} onChange={toggleShared} />
+            )}
+            {ms.personalVia === 'own' && (
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 10, lineHeight: 1.5 }}>{t('mailSignIn.ms.ownHandlesPersonal')}</div>
+            )}
+          </div>
+
+          <div style={section} data-section="work">
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10, flexWrap: 'wrap' }}>
+              <div style={sectionTitle}>{t('mailSignIn.ms.workTitle')}</div>
+              {pill(!!ms.workAccounts, ms.workAccounts ? t('mailSignIn.ms.statusOwn') : t('mailSignIn.ms.workOff'))}
+            </div>
+            {disclosure(msSetupOpen, setMsSetupOpen, t('mailSignIn.ms.setupToggle'))}
+            {msSetupOpen && (
+              <div>
+                {guide('admin.integrations.microsoft.setupTitle', ['admin.integrations.microsoft.step1', 'admin.integrations.microsoft.step2', 'admin.integrations.microsoft.step3', 'admin.integrations.microsoft.step4', 'admin.integrations.microsoft.step5', 'admin.integrations.microsoft.step6'])}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                  <Field label={t('admin.integrations.microsoft.clientId')} required>
+                    <input value={msForm.clientId} onChange={e => setMsForm(f => ({ ...f, clientId: e.target.value }))}
+                      placeholder={t('admin.integrations.microsoft.clientIdPh')} style={mono} />
+                  </Field>
+                  <Field label={t('admin.integrations.microsoft.tenantId')} required>
+                    <input value={msForm.tenantId} onChange={e => setMsForm(f => ({ ...f, tenantId: e.target.value }))}
+                      placeholder={t('admin.integrations.microsoft.tenantIdPh')} style={mono} />
+                    <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 5 }}>{t('admin.integrations.microsoft.tenantIdNote')}</div>
+                  </Field>
+                </div>
+                <Field label={t('admin.integrations.microsoft.clientSecret')}>
+                  <input type="password" autoComplete="new-password" value={msForm.clientSecret}
+                    onChange={e => setMsForm(f => ({ ...f, clientSecret: e.target.value }))}
+                    placeholder={t('admin.integrations.microsoft.clientSecretPh')} style={inputStyle} />
+                </Field>
+                <Field label={t('admin.integrations.microsoft.redirectUri')}>
+                  <input value={msForm.redirectUri} onChange={e => setMsForm(f => ({ ...f, redirectUri: e.target.value }))}
+                    placeholder={msRedirect} style={inputStyle} />
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 5 }}>{t('admin.integrations.microsoft.redirectUriNote', { uri: msRedirect })}</div>
+                </Field>
+                {buttons('microsoft', msForm, ['clientId', 'tenantId'], !!configs.microsoft?.clientId)}
+              </div>
+            )}
+            {message('microsoft')}
+          </div>
+        </div>
+
+        <div style={card} data-card="google">
+          <div style={header}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ea4335" strokeWidth="2" aria-hidden="true">
+              <rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2 7 12 14 22 7"/>
+            </svg>
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)' }}>{t('admin.integrations.google.title')}</div>
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>{t('admin.integrations.google.description')}</div>
+            </div>
+            {pill(googleConfigured, googleConfigured ? t('admin.integrations.google.configured') : t('admin.integrations.google.notConfigured'))}
+          </div>
+          <div style={section}>
+            {disclosure(googleSetupOpen, setGoogleSetupOpen, t('mailSignIn.google.setupToggle'))}
+            {googleSetupOpen && (
+              <div>
+                {guide('admin.integrations.google.setupTitle', ['admin.integrations.google.step1', 'admin.integrations.google.step2', 'admin.integrations.google.step3', 'admin.integrations.google.step4'], 'admin.integrations.google.scopeNote')}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
+                  <Field label={t('admin.integrations.google.clientId')} required>
+                    <input value={googleForm.clientId} onChange={e => setGoogleForm(f => ({ ...f, clientId: e.target.value }))}
+                      placeholder={t('admin.integrations.google.clientIdPh')} style={mono} />
+                  </Field>
+                  <Field label={t('admin.integrations.google.clientSecret')} required>
+                    <input type="password" autoComplete="new-password" value={googleForm.clientSecret}
+                      onChange={e => setGoogleForm(f => ({ ...f, clientSecret: e.target.value }))}
+                      placeholder={t('admin.integrations.google.clientSecretPh')} style={mono} />
+                  </Field>
+                </div>
+                <Field label={t('admin.integrations.google.redirectUri')} required>
+                  <input value={googleForm.redirectUri} onChange={e => setGoogleForm(f => ({ ...f, redirectUri: e.target.value }))}
+                    placeholder={googleRedirect} style={mono} />
+                  <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 5 }}>{t('admin.integrations.google.redirectUriNote', { uri: googleRedirect })}</div>
+                </Field>
+                {buttons('google', googleForm, ['clientId', 'clientSecret'], !!configs.google?.clientId)}
+              </div>
+            )}
+            {message('google')}
+          </div>
+        </div>
+      </>)}
     </div>
   );
 }
@@ -7251,7 +6836,7 @@ const TAB_GROUPS = [
   { id: 'mail', labelKey: 'admin.tabs.groupMail', tabIds: ['accounts', 'rules', 'categories', 'antispam', 'cleanup'] },
   { id: 'preferences', labelKey: 'admin.tabs.groupPreferences', tabIds: ['appearance', 'behavior', 'notifications', 'shortcuts', 'security'] },
   { id: 'ai-extensions', labelKey: 'admin.tabs.groupAiExtensions', tabIds: ['ai-actions', 'ai', 'integrations', 'plugins'] },
-  { id: 'admin', labelKey: 'admin.tabs.groupAdmin', tabIds: ['users', 'sso', 'backup'] },
+  { id: 'admin', labelKey: 'admin.tabs.groupAdmin', tabIds: ['users', 'sso', 'mail-signin', 'backup'] },
 ];
 
 const TABS = [
@@ -7326,6 +6911,11 @@ const TABS = [
     id: 'sso', labelKey: 'admin.tabs.sso',
     adminOnly: true,
     icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>,
+  },
+  {
+    id: 'mail-signin', labelKey: 'admin.tabs.mailSignIn',
+    adminOnly: true,
+    icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2 7 12 13 22 7"/><circle cx="18" cy="17" r="3" fill="var(--bg-secondary)"/><path d="M18 15.5v1.5l1 .8"/></svg>,
   },
   {
     id: 'backup', labelKey: 'admin.tabs.backup',
@@ -8799,8 +8389,11 @@ function makeSearchIndex(t) {
     { label: t('admin.appearance.language'), keywords: ['language', 'locale', 'french', 'english', 'spanish', 'german', 'deutsch', 'russian', 'chinese', 'italian', 'czech', 'čeština', 'portuguese', 'português', 'brasil', 'korean', '한국어', 'français', 'español'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     { label: t('admin.appearance.fontSize'), keywords: ['font size', 'text size', 'zoom', 'scale', 'accessibility', 'larger text'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     { label: t('admin.appearance.typography'), keywords: ['font', 'typography', 'typeface', 'serif', 'sans', 'monospace', 'reading font'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
+    // Mail sign-in (admin)
+    { label: t('mailSignIn.ms.title'), keywords: ['microsoft', 'outlook', 'hotmail', '365', 'oauth', 'azure', 'entra', 'client id', 'tenant', 'ms365', 'office', 'shared app', 'sign in'], tab: 'mail-signin', adminOnly: true, breadcrumb: t('admin.tabs.mailSignIn') },
+    { label: t('admin.integrations.google.title'), keywords: ['google', 'gmail', 'workspace', 'oauth', 'client id', 'sign in'], tab: 'mail-signin', adminOnly: true, breadcrumb: t('admin.tabs.mailSignIn') },
     // Integrations
-    { label: t('admin.integrations.microsoft.title'), keywords: ['microsoft', 'outlook', '365', 'oauth', 'azure', 'client id', 'tenant', 'ms365', 'office'], tab: 'integrations', breadcrumb: tabLabel('integrations') },
+    { label: t('admin.integrations.todoist.title'), keywords: ['todoist', 'tasks', 'to-do', 'carddav', 'contacts sync'], tab: 'integrations', breadcrumb: tabLabel('integrations') },
     { label: t('admin.ai.title'), keywords: ['ai', 'artificial intelligence', 'chatgpt', 'ollama', 'llm', 'language model', 'summarize', 'draft', 'compose assistant', 'openai', 'local ai', 'inference', 'gpt'], tab: 'ai', adminOnly: true, breadcrumb: tabLabel('ai') },
     { label: t('admin.plugins.title'), keywords: ['plugin', 'plugins', 'extension', 'extensions', 'add-on', 'addon', 'gtd', 'activate', 'enable feature', 'modules'], tab: 'plugins', breadcrumb: tabLabel('plugins') },
     { label: t('admin.categories.title'), keywords: ['categories', 'categorize', 'newsletter', 'promotion', 'social', 'automated', 'inbox tabs', 'sort emails', 'classify'], tab: 'categories', breadcrumb: tabLabel('categories') },
@@ -8945,6 +8538,7 @@ export default function AdminPanel() {
       {adminTab === 'cleanup' && <MailboxCleanupTab />}
       {adminTab === 'appearance' && <AppearanceTab initialSubTab={pendingSubTab} />}
       {adminTab === 'integrations' && <IntegrationsTab />}
+      {adminTab === 'mail-signin' && user?.isAdmin && <MailSignInTab />}
       {adminTab === 'users' && <UsersTab />}
       {adminTab === 'sso' && <SSOTab />}
       {adminTab === 'backup' && <BackupSettings />}

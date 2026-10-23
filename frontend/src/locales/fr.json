@@ -843,7 +843,8 @@
       "groupAdmin": "Administration",
       "behavior": "Comportement",
       "plugins": "Extensions",
-      "backup": "Sauvegarde"
+      "backup": "Sauvegarde",
+      "mailSignIn": "Connexion des boîtes mail"
     },
     "rules": {
       "title": "Règles de boîte de réception",
@@ -972,8 +973,8 @@
       "errorRequired": "L'e-mail, le nom d'utilisateur et le serveur IMAP sont requis",
       "errorPasswordRequired": "Le mot de passe est requis pour les nouveaux comptes",
       "microsoftImapUnsupported": "Outlook.com / Hotmail nécessite OAuth2 (Modern Auth)",
-      "microsoftImapNote": "Microsoft a désactivé la connexion IMAP par mot de passe (authentification de base) pour les comptes personnels Outlook.com, Hotmail et Live. Vous pouvez toujours connecter ces comptes via Microsoft OAuth2 (Modern Auth) : configurez-le dans Intégrations → Microsoft 365 / Outlook.com. La connexion par code d'appareil convient le mieux aux comptes personnels et ne nécessite aucun mot de passe d'application.",
-      "microsoftImapNoteReady": "Microsoft a désactivé la connexion IMAP par mot de passe (authentification de base) pour les comptes personnels Outlook.com, Hotmail et Live. Connectez plutôt ce compte dans Intégrations → Microsoft 365 / Outlook.com : la connexion par code d'appareil ne demande ni configuration ni mot de passe d'application.",
+      "microsoftImapNote": "Microsoft n'accepte plus les mots de passe pour les boîtes Outlook.com, Hotmail, Live et MSN, et la connexion avec Microsoft n'est pas configurée sur ce serveur. Demandez à votre administrateur de l'activer dans Connexion des boîtes mail.",
+      "microsoftImapNoteReady": "Microsoft n'accepte plus les mots de passe pour les boîtes Outlook.com, Hotmail, Live et MSN. Ajoutez plutôt cette boîte avec « Se connecter avec Microsoft » dans Ajouter un compte.",
       "reindex": "Réindexer pour la recherche",
       "reindexing": "Indexation des messages...",
       "reindexProgress": "{{synced}} / {{total}} messages indexés",
@@ -1574,15 +1575,7 @@
     "integrations": {
       "title": "Intégrations",
       "loading": "Chargement…",
-      "tabEmailProviders": "Fournisseurs de messagerie",
-      "tabApps": "Applications",
       "microsoft": {
-        "title": "Microsoft 365 / Outlook.com",
-        "description": "OAuth2 pour les comptes Microsoft professionnels, scolaires ou personnels (Outlook.com, Hotmail)",
-        "configured": "Configuré",
-        "notConfigured": "Non configuré",
-        "redirecting": "Redirection…",
-        "connect": "Connecter un compte Microsoft",
         "setupTitle": "Configuration de l'inscription d'application Azure",
         "step1": "Aller sur portal.azure.com → Microsoft Entra ID → Inscriptions d'applications → Nouvelle inscription. Sous 'Types de comptes pris en charge', sélectionner 'Comptes dans un annuaire organisationnel et comptes personnels Microsoft' pour autoriser les connexions Outlook.com/Hotmail",
         "step2": "Définir le type d'URI de redirection sur Web et coller l'URI indiqué ci-dessous",
@@ -1600,28 +1593,13 @@
         "redirectUri": "URI de redirection",
         "redirectUriNote": "Doit correspondre exactement à l'URI de redirection enregistrée dans Azure. Suggestion : {{uri}}",
         "save": "Enregistrer la configuration",
-        "savedNote": "Configuration enregistrée. Cliquez sur « Connecter un compte » pour autoriser.",
-        "connectedNote": "Compte Microsoft 365 connecté avec succès ! Vérifiez l'onglet Comptes.",
-        "userNoteConfigured": "Votre administrateur a configuré la connexion Microsoft 365. Connectez votre compte Outlook.com, Hotmail ou Microsoft 365 ci-dessous.",
-        "userNoteNotConfigured": "La connexion Microsoft 365 n'a pas encore été configurée par un administrateur. Veuillez demander à votre administrateur de la configurer.",
-        "remove": "Supprimer",
-        "deviceCodeTitle": "Connexion par code d'appareil",
-        "deviceCodeNote": "Aucun URI de redirection ni secret client requis. Dans Azure, allez dans Authentification et activez 'Autoriser les flux de clients publics'. Idéal pour les comptes Outlook.com / Hotmail personnels.",
-        "deviceCodeStart": "Démarrer le flux de code d'appareil",
-        "personalReady": "Comptes personnels prêts",
-        "builtinTitle": "Connecter un compte Microsoft personnel",
-        "builtinNote": "Aucune configuration requise pour les comptes Outlook.com, Hotmail, Live et MSN. Cette connexion utilise l'application Microsoft partagée de MailFlow, que Microsoft peut signaler comme non vérifiée. Vous vous connectez sur la page de Microsoft dans votre navigateur, et Microsoft envoie les jetons directement à ce serveur : les mainteneurs de MailFlow ne voient jamais vos e-mails ni vos jetons. Les comptes professionnels ou scolaires nécessitent une application enregistrée par votre administrateur.",
-        "builtinToggle": "Proposer l'application MailFlow pour les comptes personnels",
-        "builtinToggleDesc": "Tant qu'aucun ID client n'est enregistré, les comptes personnels Outlook.com et Hotmail peuvent se connecter via l'application partagée de MailFlow. La désactiver empêche les nouvelles connexions par ce biais ; les comptes déjà connectés ainsi continuent de fonctionner.",
-        "userNoteBuiltin": "Vous pouvez connecter ci-dessous un compte personnel Outlook.com, Hotmail, Live ou MSN sans aucune configuration. Pour les comptes Microsoft 365 professionnels ou scolaires, votre administrateur doit configurer la connexion Microsoft 365."
+        "remove": "Supprimer"
       },
       "google": {
         "title": "Gmail / Google Workspace",
         "description": "OAuth2 pour les boîtes Gmail et Google Workspace — nécessaire lorsqu'un administrateur a désactivé les mots de passe d'application",
         "configured": "Configuré",
         "notConfigured": "Non configuré",
-        "redirecting": "Redirection…",
-        "connect": "Connecter un compte Google",
         "setupTitle": "Configuration du client OAuth Google Cloud",
         "step1": "Rendez-vous sur console.cloud.google.com et sélectionnez (ou créez) un projet. Pour un domaine Workspace, connectez-vous avec un compte de ce domaine afin que le projet appartienne à l'organisation",
         "step2": "API et services → Bibliothèque → activez l'API Gmail",
@@ -1635,10 +1613,6 @@
         "redirectUri": "URI de redirection",
         "redirectUriNote": "Elle doit correspondre exactement à une URI de redirection autorisée sur le client OAuth. Suggestion : {{uri}}",
         "save": "Enregistrer la configuration",
-        "savedNote": "Configuration enregistrée. Cliquez sur « Connecter un compte Google » pour autoriser.",
-        "connectedNote": "Compte Google connecté avec succès ! Consultez l'onglet Comptes.",
-        "userNoteConfigured": "Votre administrateur a configuré la connexion Google. Connectez votre compte Gmail ou Google Workspace ci-dessous.",
-        "userNoteNotConfigured": "La connexion Google n'a pas encore été configurée par un administrateur. Veuillez le lui demander.",
         "remove": "Supprimer"
       },
       "todoist": {
@@ -1989,7 +1963,7 @@
     "appConfig": {
       "title": "La connexion de ce compte n'est pas configurée correctement",
       "bodyUser": "Le fournisseur de messagerie a refusé l'application avec laquelle MailFlow se connecte. Demandez à votre administrateur de vérifier les paramètres de connexion.",
-      "bodyAdmin": "Le fournisseur de messagerie a refusé l'application avec laquelle MailFlow se connecte. Vérifiez ses paramètres dans Intégrations. Les détails ci-dessous indiquent la réponse du fournisseur."
+      "bodyAdmin": "Le fournisseur de messagerie a refusé l'application avec laquelle MailFlow se connecte. Vérifiez ses paramètres dans Connexion des boîtes mail. Les détails ci-dessous indiquent la réponse du fournisseur."
     },
     "authFailed": {
       "title": "Le serveur a refusé le mot de passe",
@@ -2004,7 +1978,7 @@
       "retry": "Réessayer",
       "signIn": "Se reconnecter",
       "edit": "Modifier le compte",
-      "openIntegrations": "Ouvrir Intégrations"
+      "openMailSignIn": "Ouvrir Connexion des boîtes mail"
     },
     "details": "Détails",
     "wrongAccount": "Vous vous êtes connecté en tant que {{signedInAs}}, et non {{expected}}. Connectez-vous avec {{expected}} pour réparer ce compte.",
@@ -2072,5 +2046,28 @@
     "back": "Retour",
     "lost": "MailFlow a perdu la trace de cette connexion, par exemple parce que le serveur a redémarré. Si vous avez terminé la connexion sur la page de Microsoft, le compte est peut-être déjà dans votre liste.",
     "checkAccounts": "Vérifier vos comptes"
+  },
+  "mailSignIn": {
+    "title": "Connexion des boîtes mail",
+    "description": "Comment les utilisateurs se connectent aux boîtes Microsoft et Google. Chacun ajoute ses propres comptes dans Comptes > Ajouter un compte.",
+    "required": "Remplissez d'abord les champs obligatoires.",
+    "saved": "Enregistré.",
+    "ms": {
+      "title": "Microsoft",
+      "description": "Boîtes Outlook.com, Hotmail, Live, MSN et Microsoft 365",
+      "personalTitle": "Comptes personnels (Outlook.com, Hotmail)",
+      "statusShared": "Utilise l'application partagée de MailFlow",
+      "statusOwn": "Utilise votre propre application",
+      "statusOff": "Désactivé",
+      "sharedSwitch": "Autoriser la connexion avec l'application partagée de MailFlow",
+      "sharedSwitchDesc": "Aucune configuration nécessaire. Les comptes déjà connectés continuent de fonctionner si vous la désactivez.",
+      "ownHandlesPersonal": "Votre propre application gère les comptes personnels, l'application partagée de MailFlow n'est donc pas utilisée.",
+      "workTitle": "Comptes professionnels et scolaires (Microsoft 365)",
+      "workOff": "Non configuré",
+      "setupToggle": "Configurer votre propre application Microsoft Entra"
+    },
+    "google": {
+      "setupToggle": "Configurer votre propre client OAuth Google"
+    }
   }
 }

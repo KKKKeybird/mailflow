@@ -8,7 +8,7 @@
 //   retry        connect again now
 //   signIn       sign in to the provider again for this account
 //   edit         open the account's settings (a password account's credentials)
-//   admin        an administrator has to fix the sign-in app (Integrations)
+//   admin        an administrator has to fix the sign-in app (Mail sign-in)
 
 export const OUTLOOK_WEB_URL = 'https://outlook.live.com/mail/';
 

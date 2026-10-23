@@ -1,5 +1,5 @@
-// Render test for connecting personal Microsoft accounts through MailFlow's built-in app (#674):
-// what Settings > Integrations > Microsoft 365 offers in each state the server reports, the
+// Render test for Microsoft sign-in settings and MailFlow's built-in app (#674): what
+// Settings > Mail sign-in shows administrators in each state the server reports, the
 // admin's switch for the shared app, and the add-account note for Outlook.com addresses.
 //
 // Same loader hooks as ProfileModal.render.test.js: node --test cannot parse JSX, and
@@ -59,126 +59,135 @@ const { api } = await import('../utils/api.js');
 const AdminPanel = (await import('./AdminPanel.jsx')).default;
 
 const PREFIX = 'admin.integrations.microsoft.';
-// Status as GET /api/integrations/status reports it for each state.
-const BUILTIN = { configured: false, builtinApp: true, builtinAppShipped: true, personalAccounts: true };
-const PLACEHOLDER = { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false };
-const OPTED_OUT = { configured: false, builtinApp: false, builtinAppShipped: true, personalAccounts: false };
-const OWN_APP = { configured: true, builtinApp: true, builtinAppShipped: true, personalAccounts: true };
+const BUILTIN = { configured: false, builtinApp: true, builtinAppShipped: true, personalAccounts: true, personalVia: 'shared', workAccounts: false, workRedirect: false };
+const PLACEHOLDER = { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false, personalVia: null, workAccounts: false, workRedirect: false };
+const OWN_COMMON = { configured: true, builtinApp: true, builtinAppShipped: true, personalAccounts: true, personalVia: 'own', workAccounts: true, workRedirect: true };
+// An own app limited to work accounts: personal accounts fall back to the shared app.
+const OWN_ORGANIZATIONS = { configured: true, builtinApp: true, builtinAppShipped: true, personalAccounts: true, personalVia: 'shared', workAccounts: true, workRedirect: false };
 
 const click = (el) => React.act(async () => { el.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
 const text = () => document.getElementById('root').textContent;
 const button = (label) => [...document.querySelectorAll('button')].find(b => b.textContent.trim() === label);
-const deviceButton = () => button(PREFIX + 'deviceCodeStart');
+const section = (name) => document.querySelector(`[data-section="${name}"]`);
 let root;
 let saved;
 let switched;
-let deviceStarts;
+let status;
 afterEach(() => React.act(async () => root.unmount()));
 
 beforeEach(() => {
   saved = [];
   switched = [];
-  deviceStarts = 0;
-  api.setMsBuiltinApp = async (enabled) => { switched.push(enabled); return { ok: true }; };
+  api.setMsBuiltinApp = async (enabled) => { switched.push(enabled); status = { ...status, builtinApp: enabled, personalVia: enabled ? status.personalVia || 'shared' : (status.personalVia === 'own' ? 'own' : null) }; return { ok: true }; };
   api.todoist.status = async () => ({ connected: false });
   api.getIntegrations = async () => ({});
   api.saveIntegration = async (provider, config) => { saved.push([provider, config]); return { ok: true }; };
-  api.startMsDeviceFlow = async () => { deviceStarts++; return { userCode: 'ABCD-EFGH', verificationUri: 'https://microsoft.com/devicelogin', interval: 3600 }; };
-  api.pollMsDeviceFlow = async () => ({ status: 'pending' });
+  api.getIntegrationsStatus = async () => ({ microsoft: status, google: { configured: false } });
 });
 
-async function openIntegrations({ isAdmin, status }) {
-  api.getIntegrationsStatus = async () => ({ microsoft: status, google: { configured: false } });
-  useStore.setState({ user: { id: 'u1', isAdmin }, accounts: [], adminTab: 'integrations' });
+async function openTab(tab, { isAdmin, microsoft = BUILTIN }) {
+  status = microsoft;
+  useStore.setState({ user: { id: 'u1', isAdmin }, accounts: [], adminTab: tab });
   root = createRoot(document.getElementById('root'));
   await React.act(async () => { root.render(React.createElement(AdminPanel)); });
   await React.act(async () => {});
-  // The card opens by itself when Microsoft sign-in is available; otherwise open it.
-  if (!deviceButton()) {
-    await click([...document.querySelectorAll('div')].find(d => d.style.cursor === 'pointer' && d.textContent.startsWith(PREFIX + 'title')));
-  }
 }
 
-describe('Integrations > Microsoft 365 with the built-in app', () => {
-  test('a non-admin can connect a personal account with no configuration', async () => {
-    await openIntegrations({ isAdmin: false, status: BUILTIN });
-    for (const key of ['personalReady', 'userNoteBuiltin', 'builtinTitle', 'builtinNote']) assert.ok(text().includes(PREFIX + key), key);
-    assert.ok(!text().includes(PREFIX + 'notConfigured'));
-    assert.ok(!text().includes(PREFIX + 'deviceCodeNote'), 'no Azure instructions for the shared app');
-    assert.equal(deviceButton().disabled, false);
-    await click(deviceButton());
-    assert.equal(deviceStarts, 1);
-    assert.ok(text().includes('ABCD-EFGH'), 'the device code is shown');
-    // Work accounts still need the instance's own app.
-    assert.equal(button(PREFIX + 'connect').disabled, true);
+// Settings > Mail sign-in (#674): app configuration for administrators only. Users add their
+// accounts under Add account; Integrations keeps the apps (Todoist, CardDAV) for everyone.
+describe('who sees what', () => {
+  test('a non-admin has no Mail sign-in section, and Integrations shows no mail sign-in', async () => {
+    await openTab('integrations', { isAdmin: false });
+    assert.ok(!text().includes('admin.tabs.mailSignIn'));
+    assert.ok(!text().includes(PREFIX + 'setupTitle'));
+    assert.ok(!text().includes('mailSignIn.'));
+    assert.ok(text().includes('admin.integrations.todoist.title'));
   });
 
-  test('a build with the placeholder ID behaves as before: nothing to connect until an admin configures it', async () => {
-    await openIntegrations({ isAdmin: false, status: PLACEHOLDER });
-    assert.ok(text().includes(PREFIX + 'notConfigured'));
-    assert.ok(text().includes(PREFIX + 'userNoteNotConfigured'));
-    assert.ok(text().includes(PREFIX + 'deviceCodeTitle'));
-    assert.ok(!text().includes(PREFIX + 'builtinNote'));
-    assert.equal(deviceButton().disabled, true);
+  test('even asked for directly, Mail sign-in renders nothing for a non-admin', async () => {
+    await openTab('mail-signin', { isAdmin: false });
+    assert.ok(!text().includes('mailSignIn.title'));
   });
 
-  test('when the admin opted out, the shared app is not offered', async () => {
-    await openIntegrations({ isAdmin: false, status: OPTED_OUT });
-    assert.ok(text().includes(PREFIX + 'userNoteNotConfigured'));
-    assert.ok(!text().includes(PREFIX + 'builtinNote'));
-    assert.equal(deviceButton().disabled, true);
+  test('an admin finds it in the Administration group and through search', async () => {
+    await openTab('accounts', { isAdmin: true });
+    assert.ok(button('admin.tabs.mailSignIn') || text().includes('admin.tabs.mailSignIn'));
+    const search = document.querySelector('input[placeholder="admin.search.placeholder"]');
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    await React.act(async () => { setter.call(search, 'entra'); search.dispatchEvent(new window.Event('input', { bubbles: true })); });
+    assert.ok(text().includes('mailSignIn.ms.title'));
   });
 
-  test('with the instance\'s own app, the device-code flow uses it as before', async () => {
-    await openIntegrations({ isAdmin: false, status: OWN_APP });
-    assert.ok(text().includes(PREFIX + 'userNoteConfigured'));
-    assert.ok(text().includes(PREFIX + 'deviceCodeNote'));
-    assert.ok(!text().includes(PREFIX + 'builtinNote'));
-    assert.equal(deviceButton().disabled, false);
-    assert.equal(button(PREFIX + 'connect').disabled, false);
+  test('search does not offer it to a non-admin', async () => {
+    await openTab('accounts', { isAdmin: false });
+    const search = document.querySelector('input[placeholder="admin.search.placeholder"]');
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    await React.act(async () => { setter.call(search, 'entra'); search.dispatchEvent(new window.Event('input', { bubbles: true })); });
+    assert.ok(!text().includes('mailSignIn.ms.title'));
   });
 });
 
-describe('Integrations > Microsoft 365: the admin\'s switch for the shared app', () => {
-  const builtinSwitch = () => document.querySelector(`[role="switch"][aria-label="${PREFIX}builtinToggle"]`);
-
-  test('the admin sees the switch and the work-account setup, and turning it off saves and withdraws the offer', async () => {
-    await openIntegrations({ isAdmin: true, status: BUILTIN });
-    assert.ok(text().includes(PREFIX + 'setupTitle'), 'own-app setup stays available');
-    assert.equal(builtinSwitch().getAttribute('aria-checked'), 'true');
-    assert.equal(deviceButton().disabled, false);
-
-    await click(builtinSwitch());
-    // A setting of its own: the app config is not rewritten.
-    assert.deepEqual(switched, [false]);
-    assert.deepEqual(saved, []);
-    assert.equal(builtinSwitch().getAttribute('aria-checked'), 'false');
-    assert.equal(deviceButton().disabled, true);
-    assert.ok(text().includes(PREFIX + 'notConfigured'));
+describe('Mail sign-in > Microsoft', () => {
+  test('shared app only: personal accounts use it, work accounts are not set up, no connect buttons', async () => {
+    await openTab('mail-signin', { isAdmin: true, microsoft: BUILTIN });
+    assert.ok(section('personal').textContent.includes('mailSignIn.ms.statusShared'));
+    assert.ok(section('work').textContent.includes('mailSignIn.ms.workOff'));
+    assert.ok(!text().includes('admin.integrations.microsoft.connect'));
+    assert.ok(!text().includes('deviceCode'));
+    // The own-app setup is collapsed until asked for.
+    assert.ok(!text().includes(PREFIX + 'setupTitle'));
   });
 
-  test('with an own app saved, the switch still changes only its own setting', async () => {
-    api.getIntegrations = async () => ({ microsoft: { clientId: 'own-app-id', tenantId: 'common', clientSecret: '••••••••' } });
-    await openIntegrations({ isAdmin: true, status: OWN_APP });
-    await click(builtinSwitch());
+  test('turning the shared app off saves only that setting and shows personal sign-in as off', async () => {
+    await openTab('mail-signin', { isAdmin: true, microsoft: BUILTIN });
+    const toggle = document.querySelector('[role="switch"][aria-label="mailSignIn.ms.sharedSwitch"]');
+    assert.equal(toggle.getAttribute('aria-checked'), 'true');
+    await click(toggle);
     assert.deepEqual(switched, [false]);
     assert.deepEqual(saved, []);
-    // The own app still serves the device-code flow.
-    assert.equal(deviceButton().disabled, false);
+    assert.ok(section('personal').textContent.includes('mailSignIn.ms.statusOff'));
   });
 
-  test('saving the app form sends only the app config', async () => {
-    api.getIntegrations = async () => ({ microsoft: { clientId: 'own-app-id', tenantId: 'common' } });
-    await openIntegrations({ isAdmin: true, status: { ...OWN_APP, builtinApp: false } });
-    await click(button(PREFIX + 'save'));
-    assert.equal(saved.length, 1);
-    assert.equal(saved[0][1].clientId, 'own-app-id');
-    assert.equal('builtinApp' in saved[0][1], false);
+  test('an own app on common handles personal accounts, and says the shared app is not used', async () => {
+    await openTab('mail-signin', { isAdmin: true, microsoft: OWN_COMMON });
+    assert.ok(section('personal').textContent.includes('mailSignIn.ms.statusOwn'));
+    assert.ok(section('personal').textContent.includes('mailSignIn.ms.ownHandlesPersonal'));
+    assert.ok(section('work').textContent.includes('mailSignIn.ms.statusOwn'));
+  });
+
+  test('an own app on organizations leaves personal accounts to the shared app', async () => {
+    await openTab('mail-signin', { isAdmin: true, microsoft: OWN_ORGANIZATIONS });
+    assert.ok(section('personal').textContent.includes('mailSignIn.ms.statusShared'));
+    assert.ok(!section('personal').textContent.includes('mailSignIn.ms.ownHandlesPersonal'));
   });
 
   test('no switch while the build has no built-in app', async () => {
-    await openIntegrations({ isAdmin: true, status: PLACEHOLDER });
-    assert.equal(builtinSwitch(), null);
+    await openTab('mail-signin', { isAdmin: true, microsoft: PLACEHOLDER });
+    assert.equal(document.querySelector('[role="switch"][aria-label="mailSignIn.ms.sharedSwitch"]'), null);
+  });
+
+  test('the setup opens with plain labels, the suggested redirect URI as the example, and saves only the app config', async () => {
+    api.getIntegrations = async () => ({ microsoft: { clientId: 'own-app-id', tenantId: 'organizations' } });
+    await openTab('mail-signin', { isAdmin: true, microsoft: OWN_ORGANIZATIONS });
+    await click(button('mailSignIn.ms.setupToggle'));
+    assert.ok(text().includes(PREFIX + 'setupTitle'));
+    const redirect = [...document.querySelectorAll('input')].find(i => i.placeholder.endsWith('/oauth/microsoft/callback'));
+    assert.equal(redirect.placeholder, 'https://mail.example.invalid/oauth/microsoft/callback');
+    assert.ok(text().includes(PREFIX + 'redirectUriNote'));
+    await click(button(PREFIX + 'save'));
+    assert.equal(saved.length, 1);
+    assert.deepEqual(saved[0], ['microsoft', { clientId: 'own-app-id', clientSecret: '', tenantId: 'organizations', redirectUri: '' }]);
+  });
+});
+
+describe('Mail sign-in > Google', () => {
+  test('configuration only, collapsed until asked for', async () => {
+    await openTab('mail-signin', { isAdmin: true });
+    assert.ok(text().includes('admin.integrations.google.title'));
+    assert.ok(!text().includes('admin.integrations.google.setupTitle'));
+    await click(button('mailSignIn.google.setupToggle'));
+    assert.ok(text().includes('admin.integrations.google.setupTitle'));
+    assert.ok(!text().includes('admin.integrations.google.connect'));
   });
 });
 

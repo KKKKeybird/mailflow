@@ -8,7 +8,7 @@ import { encrypt, decrypt } from '../services/encryption.js';
 import { redactEmail } from '../utils/redact.js';
 import { getMsConfig, getMsDeviceClient, msBuiltinAppEnabled, msRefreshClient } from '../services/microsoftOAuthClient.js';
 import { MAILFLOW_MS_CLIENT_ID } from '../services/microsoftBuiltinApp.js';
-import { classifyRefreshFailure, clearRefreshFailure, noteFreshToken, terminalRefreshError } from '../services/accountErrorCode.js';
+import { classifyRefreshFailure, clearRefreshFailure, isPersonalMicrosoftAccount, noteFreshToken, terminalRefreshError } from '../services/accountErrorCode.js';
 import { isUuid } from '../utils/uuid.js';
 import { reportConnect } from '../services/connectReport.js';
 
@@ -43,7 +43,7 @@ async function repairTarget(userId, accountId, provider) {
   // Not a UUID cannot be an account: refuse it as one that does not exist, before the query.
   if (!isUuid(String(accountId))) throw Object.assign(new Error('Account not found'), { status: 404 });
   const { rows } = await query(
-    'SELECT id, email_address, oauth_provider, oauth_client_id FROM email_accounts WHERE id = $1 AND user_id = $2',
+    'SELECT id, email_address, oauth_provider, oauth_client_id, oauth_tenant_id FROM email_accounts WHERE id = $1 AND user_id = $2',
     [String(accountId), userId],
   );
   const row = rows[0];
@@ -316,13 +316,21 @@ async function connectionNow(accountId, report) {
 }
 
 // The client a repair signs in through: the one the account was connected with when it is
-// still offered (a refresh token only works with its own client), else the usual choice.
+// still offered, else the one that signs this kind of account in now.
 function msRepairClient(repair) {
   if (repair?.oauth_client_id === MAILFLOW_MS_CLIENT_ID && msBuiltinAppEnabled()) {
     return { clientId: MAILFLOW_MS_CLIENT_ID, tenantId: 'consumers', builtin: true };
   }
-  return getMsDeviceClient();
+  const config = getMsConfig();
+  if (repair?.oauth_client_id && repair.oauth_client_id === config.clientId) {
+    return { clientId: config.clientId, tenantId: config.tenantId, builtin: false };
+  }
+  return getMsDeviceClient(isPersonalMicrosoftAccount(repair) ? 'personal' : 'work');
 }
+
+// The kind of account a new device-code sign-in is for, as the page says: 'personal' or 'work'.
+// Anything else keeps the behavior from before kinds existed.
+const DEVICE_KINDS = new Set(['personal', 'work']);
 
 // Step 1: initiate device code flow — returns user_code + verification_uri to the frontend.
 router.post('/microsoft/device', async (req, res) => {
@@ -333,9 +341,10 @@ router.post('/microsoft/device', async (req, res) => {
   try { repair = await repairTarget(req.session.userId, req.body?.accountId, 'microsoft'); }
   catch (err) { return res.status(err.status || 500).json({ error: err.message }); }
   // The instance's own app when configured, else MailFlow's built-in public client (#674).
-  const client = repair ? msRepairClient(repair) : getMsDeviceClient();
+  const kind = DEVICE_KINDS.has(req.body?.kind) ? req.body.kind : undefined;
+  const client = repair ? msRepairClient(repair) : getMsDeviceClient(kind);
   if (!client) {
-    return res.status(400).json({ error: 'Microsoft integration not configured. Set Client ID and Tenant ID in the Integrations tab.' });
+    return res.status(400).json({ error: 'Microsoft integration not configured. Set the Client ID and Tenant ID under Settings > Mail sign-in.' });
   }
   const { clientId, tenantId } = client;
 
@@ -460,7 +469,7 @@ export function refreshMicrosoftToken(account) {
 async function doRefreshMicrosoftToken(account) {
   // The client the account was connected with: its refresh token is valid for no other (#674).
   const { clientId, clientSecret, tenantId } = msRefreshClient(account);
-  if (!clientId) throw terminalRefreshError('Microsoft integration not configured. Set Client ID and Tenant ID in the Integrations tab.', 'oauth_app_config');
+  if (!clientId) throw terminalRefreshError('Microsoft integration not configured. Set the Client ID and Tenant ID under Settings > Mail sign-in.', 'oauth_app_config');
 
   const storedRefreshToken = decrypt(account.oauth_refresh_token);
   if (!storedRefreshToken) throw terminalRefreshError('OAuth refresh token is missing or corrupted — please reconnect your account', 'oauth_reauth');

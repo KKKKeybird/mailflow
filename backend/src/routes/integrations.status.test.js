@@ -63,7 +63,7 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: true, workAccounts: true, workRedirect: false },
+      microsoft: { configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: true, personalVia: 'own', workAccounts: true, workRedirect: false },
       google: { configured: false },
     });
   });
@@ -74,7 +74,7 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false, workAccounts: false, workRedirect: false },
+      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false, personalVia: null, workAccounts: false, workRedirect: false },
       google: { configured: false },
     });
   });
@@ -84,7 +84,7 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     const res = await fetch(`${base}/api/integrations/status`);
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({
-      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false, workAccounts: false, workRedirect: false },
+      microsoft: { configured: false, builtinApp: false, builtinAppShipped: false, personalAccounts: false, personalVia: null, workAccounts: false, workRedirect: false },
       google: { configured: true },
     });
   });
@@ -94,7 +94,7 @@ describe('GET /api/integrations/status (non-admin capability check)', () => {
     process.env.MS_TENANT_ID = 'organizations';
     try {
       const res = await fetch(`${base}/api/integrations/status`);
-      expect((await res.json()).microsoft).toEqual({ configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: false, workAccounts: true, workRedirect: false });
+      expect((await res.json()).microsoft).toEqual({ configured: true, builtinApp: false, builtinAppShipped: false, personalAccounts: false, personalVia: null, workAccounts: true, workRedirect: false });
     } finally {
       delete process.env.MS_TENANT_ID;
     }

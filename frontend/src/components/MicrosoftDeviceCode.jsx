@@ -13,8 +13,9 @@ import AccountErrorCallout from './AccountErrorCallout.jsx';
 // onSignedIn(result) runs once the server has stored the sign-in, whatever the connection did:
 //   result = { accountId, email, connection: 'connected' | 'connecting' | 'failed', code, error }
 // onDone runs from the Done button after an outcome; onCancel from Cancel before one.
-// onStatus(status) reports each step, for the page around it.
-export default function MicrosoftDeviceCode({ accountId = null, onSignedIn, onDone, onCancel, onStatus }) {
+// kind ('personal' | 'work') picks the app a new account signs in through. onStatus(status)
+// reports each step, for the page around it.
+export default function MicrosoftDeviceCode({ accountId = null, kind, onSignedIn, onDone, onCancel, onStatus }) {
   const { t } = useTranslation();
   // starting | pending | checking | done | declined | expired | error | wrong_account
   const [status, setStatus] = useState('starting');
@@ -62,7 +63,7 @@ export default function MicrosoftDeviceCode({ accountId = null, onSignedIn, onDo
       if (answer.status === 'error') setErrorText(answer.error || '');
       setStatus(['declined', 'expired', 'wrong_account', 'lost'].includes(answer.status) ? answer.status : 'error');
     };
-    api.startMsDeviceFlow(accountId).then((data) => {
+    api.startMsDeviceFlow(accountId, kind).then((data) => {
       if (cancelled) return;
       setFlow(data);
       setStatus('pending');
@@ -74,7 +75,7 @@ export default function MicrosoftDeviceCode({ accountId = null, onSignedIn, onDo
       setErrorText(err?.message || '');
     });
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [accountId, attempt]);
+  }, [accountId, kind, attempt]);
 
   const copyCode = async () => {
     if (await copyToClipboard(flow?.userCode || '')) {

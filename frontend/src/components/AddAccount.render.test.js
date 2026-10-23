@@ -73,6 +73,11 @@ const act = (fn) => React.act(fn);
 const click = (el) => act(async () => { el.dispatchEvent(new dom.window.MouseEvent('click', { bubbles: true })); });
 const byText = (sel, s) => [...doc.querySelectorAll(sel)].find(el => el.textContent.trim() === s);
 const wait = (ms) => act(() => new Promise(r => setTimeout(r, ms)));
+// Wait until a condition holds (bounded), rather than a fixed time a busy machine may overrun.
+const until = async (check, ms = 3000) => {
+  const end = Date.now() + ms;
+  while (!check() && Date.now() < end) await wait(10);
+};
 const setValue = (input, value) => act(async () => {
   const setter = Object.getOwnPropertyDescriptor(dom.window.HTMLInputElement.prototype, 'value').set;
   setter.call(input, value);
@@ -84,10 +89,12 @@ const isOff = (id) => tile(id).getAttribute('aria-disabled') === 'true';
 const state = () => doc.querySelector('[data-sign-in-state]')?.dataset.signInState;
 
 const CONFIGS = {
-  builtin: { configured: false, builtinApp: true, builtinAppShipped: true, personalAccounts: true, workAccounts: false, workRedirect: false },
-  ownCommon: { configured: true, builtinApp: true, builtinAppShipped: true, personalAccounts: true, workAccounts: true, workRedirect: true },
-  ownOrganizations: { configured: true, builtinApp: true, builtinAppShipped: true, personalAccounts: false, workAccounts: true, workRedirect: false },
-  off: { configured: false, builtinApp: false, builtinAppShipped: true, personalAccounts: false, workAccounts: false, workRedirect: false },
+  builtin: { configured: false, builtinApp: true, builtinAppShipped: true, personalAccounts: true, personalVia: 'shared', workAccounts: false, workRedirect: false },
+  ownCommon: { configured: true, builtinApp: true, builtinAppShipped: true, personalAccounts: true, personalVia: 'own', workAccounts: true, workRedirect: true },
+  // An own app limited to work accounts, with the shared app on: personal accounts fall back to it.
+  ownOrganizations: { configured: true, builtinApp: true, builtinAppShipped: true, personalAccounts: true, personalVia: 'shared', workAccounts: true, workRedirect: false },
+  ownOrganizationsSharedOff: { configured: true, builtinApp: false, builtinAppShipped: true, personalAccounts: false, personalVia: null, workAccounts: true, workRedirect: false },
+  off: { configured: false, builtinApp: false, builtinAppShipped: true, personalAccounts: false, personalVia: null, workAccounts: false, workRedirect: false },
 };
 
 let root;
@@ -123,7 +130,8 @@ const typeAndContinue = async (email) => {
 
 describe('the chooser, per instance configuration', () => {
   for (const [config, personal, work] of [
-    ['builtin', true, false], ['ownCommon', true, true], ['ownOrganizations', false, true], ['off', false, false],
+    ['builtin', true, false], ['ownCommon', true, true], ['ownOrganizations', true, true],
+    ['ownOrganizationsSharedOff', false, true], ['off', false, false],
   ]) {
     test(`${config}: Outlook.com ${personal ? 'on' : 'off'}, Microsoft 365 ${work ? 'on' : 'off'}`, async () => {
       await openAdd(config);
@@ -144,7 +152,7 @@ describe('the chooser, per instance configuration', () => {
   test('an admin gets a link to the setting from a tile that is off', async () => {
     await openAdd('off', { isAdmin: true });
     await click(byText('button', 'addAccount.openSettings'));
-    assert.equal(useStore.getState().adminTab, 'integrations');
+    assert.equal(useStore.getState().adminTab, 'mail-signin');
   });
 });
 
@@ -288,7 +296,7 @@ describe('review follow-ups', () => {
     polls.push({ status: 'checking', accountId: 'n1', email: 'a@outlook.com' }, { status: 'success', accountId: 'n1', email: 'a@outlook.com', connection: 'connected' });
     await click(tile('microsoftPersonal'));
     assert.ok(text().includes('msSignIn.beforeTitle'));
-    await wait(40);
+    await until(() => text().includes('msSignIn.connected'));
     assert.ok(!text().includes('msSignIn.beforeTitle'));
   });
 

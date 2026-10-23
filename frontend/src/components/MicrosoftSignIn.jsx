@@ -18,8 +18,8 @@ export default function MicrosoftSignIn({ mode, status, onSignedIn, onDone, onCa
   const [deviceStatus, setDeviceStatus] = useState(null);
   // Once there is an outcome, the Outlook.com note would only repeat it.
   const finished = ['done', 'lost'].includes(deviceStatus) || !!redirect?.result;
-  // MailFlow's shared app signs personal accounts in when the instance has no app of its own.
-  const sharedApp = mode === 'personal' && !status?.configured && !!status?.builtinApp;
+  // Which app signs personal accounts in: MailFlow's shared one shows Microsoft's unverified notice.
+  const sharedApp = mode === 'personal' && status?.personalVia === 'shared';
 
   useEffect(() => {
     if (useCode) return undefined;
@@ -76,7 +76,7 @@ export default function MicrosoftSignIn({ mode, status, onSignedIn, onDone, onCa
       )}
 
       {useCode ? (
-        <MicrosoftDeviceCode onSignedIn={onSignedIn} onDone={onDone} onCancel={onCancel} onStatus={setDeviceStatus} />
+        <MicrosoftDeviceCode kind={mode} onSignedIn={onSignedIn} onDone={onDone} onCancel={onCancel} onStatus={setDeviceStatus} />
       ) : (
         <div style={{ padding: 14, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
           {redirect?.result ? (

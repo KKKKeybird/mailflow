@@ -1039,7 +1039,8 @@
       "groupAdmin": "Správa",
       "behavior": "Chování",
       "plugins": "Pluginy",
-      "backup": "Záloha"
+      "backup": "Záloha",
+      "mailSignIn": "Přihlášení k poště"
     },
     "categories": {
       "title": "Kategorie e-mailů",
@@ -1160,8 +1161,8 @@
       "errorRequired": "Je vyžadován e-mail, uživatelské jméno a server IMAP",
       "errorPasswordRequired": "U nových účtů je vyžadováno heslo",
       "microsoftImapUnsupported": "Outlook.com / Hotmail vyžaduje OAuth2 (moderní ověřování)",
-      "microsoftImapNote": "Microsoft u osobních účtů Outlook.com, Hotmail a Live vypnul přihlašování k IMAP pomocí hesla (základní ověřování). Tyto účty lze stále připojit pomocí Microsoft OAuth2 (moderní ověřování) — nastavte je v Integrace → Microsoft 365 / Outlook.com. Pro osobní účty nejlépe funguje přihlášení pomocí kódu zařízení a není potřeba heslo pro aplikaci.",
-      "microsoftImapNoteReady": "Microsoft vypnul přihlášení k IMAP heslem (základní ověřování) pro osobní účty Outlook.com, Hotmail a Live. Připojte tento účet raději v Integrace → Microsoft 365 / Outlook.com: přihlášení kódem zařízení nevyžaduje nastavení ani heslo aplikace.",
+      "microsoftImapNote": "Microsoft už nepřijímá hesla pro schránky Outlook.com, Hotmail, Live a MSN a přihlášení přes Microsoft není na tomto serveru nastavené. Požádejte správce, aby ho zapnul v sekci Přihlášení k poště.",
+      "microsoftImapNoteReady": "Microsoft už nepřijímá hesla pro schránky Outlook.com, Hotmail, Live a MSN. Přidejte tuto schránku raději přes „Přihlásit se přes Microsoft“ v Přidat účet.",
       "reindex": "Znovu indexovat pro vyhledávání",
       "reindexing": "Indexování zpráv…",
       "reindexProgress": "Indexováno {{synced}} z {{total}} zpráv",
@@ -1790,15 +1791,7 @@
     "integrations": {
       "title": "Integrace",
       "loading": "Načítání…",
-      "tabEmailProviders": "Poskytovatelé e-mailu",
-      "tabApps": "Aplikace",
       "microsoft": {
-        "title": "Microsoft 365 / Outlook.com",
-        "description": "OAuth2 pro pracovní, školní nebo osobní účty Microsoft (Outlook.com, Hotmail)",
-        "configured": "Nastaveno",
-        "notConfigured": "Nenastaveno",
-        "redirecting": "Přesměrování…",
-        "connect": "Připojit účet Microsoft",
         "setupTitle": "Nastavení registrace aplikace v Azure",
         "step1": "Přejděte na portal.azure.com → Microsoft Entra ID → Registrace aplikací → Nová registrace. V části Podporované typy účtů vyberte „Účty v libovolném adresáři organizace a osobní účty Microsoft“, aby bylo možné přihlášení Outlook.com/Hotmail",
         "step2": "Nastavte typ URI přesměrování na Web a vložte URI uvedené níže",
@@ -1816,28 +1809,13 @@
         "redirectUri": "URI přesměrování",
         "redirectUriNote": "Musí se přesně shodovat s URI přesměrování zaregistrovaným v Azure. Doporučeno: {{uri}}",
         "save": "Uložit nastavení",
-        "savedNote": "Nastavení bylo uloženo. Kliknutím na „Připojit účet“ udělte oprávnění.",
-        "connectedNote": "Účet Microsoft 365 byl úspěšně připojen! Podívejte se na kartu Účty.",
-        "userNoteConfigured": "Správce nastavil přihlašování Microsoft 365. Níže připojte svůj účet Outlook.com, Hotmail nebo Microsoft 365.",
-        "userNoteNotConfigured": "Správce zatím nenastavil přihlašování Microsoft 365. Požádejte jej o nastavení.",
-        "remove": "Odebrat",
-        "deviceCodeTitle": "Připojit pomocí kódu zařízení",
-        "deviceCodeNote": "Není potřeba URI přesměrování ani tajný klíč klienta. V Azure přejděte do Ověřování a nastavte Povolit toky veřejného klienta na Ano. Nejvhodnější pro osobní účty Outlook.com / Hotmail.",
-        "deviceCodeStart": "Spustit přihlášení pomocí kódu zařízení",
-        "personalReady": "Osobní účty připraveny",
-        "builtinTitle": "Připojit osobní účet Microsoft",
-        "builtinNote": "Účty Outlook.com, Hotmail, Live a MSN nepotřebují žádné nastavení. Používá se sdílená aplikace Microsoft od MailFlow, kterou Microsoft může označit jako neověřenou. Přihlásíte se na stránce Microsoftu ve svém prohlížeči a Microsoft pošle tokeny přímo na tento server: správci MailFlow nikdy neuvidí vaši poštu ani tokeny. Pracovní nebo školní účty potřebují aplikaci registrovanou vaším správcem.",
-        "builtinToggle": "Nabízet aplikaci MailFlow pro osobní účty",
-        "builtinToggleDesc": "Dokud není uloženo ID klienta, mohou se osobní účty Outlook.com a Hotmail přihlásit přes sdílenou aplikaci MailFlow. Vypnutím zastavíte nová přihlášení přes ni; účty, které jsou přes ni již připojené, fungují dál.",
-        "userNoteBuiltin": "Níže můžete bez nastavení připojit osobní účet Outlook.com, Hotmail, Live nebo MSN. Pro pracovní nebo školní účty Microsoft 365 musí správce nastavit přihlášení Microsoft 365."
+        "remove": "Odebrat"
       },
       "google": {
         "title": "Gmail / Google Workspace",
         "description": "OAuth2 pro schránky Gmail a Google Workspace — nutné, pokud správce zakázal hesla aplikací",
         "configured": "Nastaveno",
         "notConfigured": "Nenastaveno",
-        "redirecting": "Přesměrování…",
-        "connect": "Připojit účet Google",
         "setupTitle": "Nastavení klienta OAuth v Google Cloud",
         "step1": "Přejděte na console.cloud.google.com a vyberte (nebo vytvořte) projekt. U domény Workspace se přihlaste účtem z této domény, aby projekt patřil organizaci",
         "step2": "API a služby → Knihovna → povolte Gmail API",
@@ -1851,10 +1829,6 @@
         "redirectUri": "URI přesměrování",
         "redirectUriNote": "Musí se přesně shodovat s autorizovaným URI přesměrování u klienta OAuth. Doporučeno: {{uri}}",
         "save": "Uložit nastavení",
-        "savedNote": "Nastavení uloženo. Klikněte na „Připojit účet Google“ pro autorizaci.",
-        "connectedNote": "Účet Google byl úspěšně připojen! Zkontrolujte kartu Účty.",
-        "userNoteConfigured": "Váš správce nastavil přihlášení přes Google. Připojte níže svůj účet Gmail nebo Google Workspace.",
-        "userNoteNotConfigured": "Přihlášení přes Google zatím správce nenastavil. Požádejte prosím svého správce o jeho nastavení.",
         "remove": "Odebrat"
       },
       "todoist": {
@@ -2008,7 +1982,7 @@
     "appConfig": {
       "title": "Přihlášení k tomuto účtu není správně nastavené",
       "bodyUser": "Poskytovatel pošty odmítl aplikaci, přes kterou se MailFlow přihlašuje. Požádejte správce, aby zkontroloval nastavení přihlášení.",
-      "bodyAdmin": "Poskytovatel pošty odmítl aplikaci, přes kterou se MailFlow přihlašuje. Zkontrolujte její nastavení v sekci Integrace. Podrobnosti níže ukazují odpověď poskytovatele."
+      "bodyAdmin": "Poskytovatel pošty odmítl aplikaci, přes kterou se MailFlow přihlašuje. Zkontrolujte její nastavení v sekci Přihlášení k poště. Podrobnosti níže ukazují odpověď poskytovatele."
     },
     "authFailed": {
       "title": "Server odmítl heslo",
@@ -2023,7 +1997,7 @@
       "retry": "Zkusit znovu",
       "signIn": "Přihlásit se znovu",
       "edit": "Upravit účet",
-      "openIntegrations": "Otevřít Integrace"
+      "openMailSignIn": "Otevřít Přihlášení k poště"
     },
     "details": "Podrobnosti",
     "wrongAccount": "Přihlásili jste se jako {{signedInAs}}, ne jako {{expected}}. Přihlaste se jako {{expected}}, abyste tento účet opravili.",
@@ -2091,5 +2065,28 @@
     "back": "Zpět",
     "lost": "MailFlow ztratil přehled o tomto přihlášení, například kvůli restartu serveru. Pokud jste přihlášení na stránce Microsoftu dokončili, účet už možná je ve vašem seznamu.",
     "checkAccounts": "Zkontrolovat účty"
+  },
+  "mailSignIn": {
+    "title": "Přihlášení k poště",
+    "description": "Jak se lidé přihlašují ke schránkám Microsoft a Google. Každý si přidává vlastní účty v Účty > Přidat účet.",
+    "required": "Nejdřív vyplňte povinná pole.",
+    "saved": "Uloženo.",
+    "ms": {
+      "title": "Microsoft",
+      "description": "Schránky Outlook.com, Hotmail, Live, MSN a Microsoft 365",
+      "personalTitle": "Osobní účty (Outlook.com, Hotmail)",
+      "statusShared": "Používá sdílenou aplikaci MailFlow",
+      "statusOwn": "Používá vaši vlastní aplikaci",
+      "statusOff": "Vypnuto",
+      "sharedSwitch": "Povolit přihlášení přes sdílenou aplikaci MailFlow",
+      "sharedSwitchDesc": "Není potřeba nic nastavovat. Už připojené účty budou fungovat dál, i když to vypnete.",
+      "ownHandlesPersonal": "Osobní účty obsluhuje vaše vlastní aplikace, takže sdílená aplikace MailFlow se nepoužívá.",
+      "workTitle": "Pracovní a školní účty (Microsoft 365)",
+      "workOff": "Nenastaveno",
+      "setupToggle": "Nastavit vlastní aplikaci Microsoft Entra"
+    },
+    "google": {
+      "setupToggle": "Nastavit vlastního klienta Google OAuth"
+    }
   }
 }

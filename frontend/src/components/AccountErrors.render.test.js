@@ -251,9 +251,9 @@ describe('Settings > Accounts: the callout on the account row', () => {
     assert.deepEqual(buttons(), []);
     await openAccounts(account('oauth_app_config'), { isAdmin: true });
     assert.ok(callout().textContent.includes('accountErrors.appConfig.bodyAdmin'));
-    assert.deepEqual(buttons(), ['accountErrors.action.openIntegrations']);
-    await click(byText('button', 'accountErrors.action.openIntegrations'));
-    assert.equal(useStore.getState().adminTab, 'integrations');
+    assert.deepEqual(buttons(), ['accountErrors.action.openMailSignIn']);
+    await click(byText('button', 'accountErrors.action.openMailSignIn'));
+    assert.equal(useStore.getState().adminTab, 'mail-signin');
   });
 
   test('a rejected password offers Edit account and Try again; an uncoded error reads as a connection problem', async () => {
