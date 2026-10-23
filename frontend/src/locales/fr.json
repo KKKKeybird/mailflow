@@ -1964,6 +1964,7 @@
   "accountErrors": {
     "label": {
       "turnOnImap": "Activer IMAP",
+      "imapOff": "IMAP désactivé",
       "signInAgain": "Se reconnecter",
       "cantConnect": "Connexion impossible",
       "openRow": "Voir le problème et comment le résoudre"
@@ -2013,7 +2014,9 @@
       "success": "Connecté. MailFlow reconnecte ce compte.",
       "continueGoogle": "Continuer vers Google",
       "waitingGoogle": "Terminez la connexion sur la page Google, puis revenez ici."
-    }
+    },
+    "signInFailed": "La connexion n'a pas fonctionné",
+    "signInFailedBody": "Recommencez depuis le compte dans Paramètres > Comptes."
   },
   "addAccount": {
     "title": "Ajouter un compte de messagerie",

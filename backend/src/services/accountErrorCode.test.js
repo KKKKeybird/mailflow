@@ -56,7 +56,7 @@ describe('classifyAccountError', () => {
 describe('isPersonalMicrosoftAccount', () => {
   it.each([
     ['me@outlook.com', 'common', true], ['me@hotmail.co.uk', 'common', true], ['me@live.fr', 'common', true],
-    ['me@msn.com', 'common', true], ['me@outlook.com.br', 'common', true], ['me@contoso.example', 'consumers', true],
+    ['me@msn.com', 'common', true], ['me@windowslive.com', 'common', true], ['me@outlook.com.br', 'common', true], ['me@contoso.example', 'consumers', true],
     ['me@contoso.example', 'common', false], ['me@live.example.org', 'organizations', false], ['me@outlookfan.com', 'common', false],
   ])('%s through %s is personal: %s', (email, tenant, expected) => {
     expect(isPersonalMicrosoftAccount({ email_address: email, oauth_tenant_id: tenant })).toBe(expected);

@@ -1964,6 +1964,7 @@
   "accountErrors": {
     "label": {
       "turnOnImap": "Activar IMAP",
+      "imapOff": "IMAP desactivado",
       "signInAgain": "Volver a iniciar sesión",
       "cantConnect": "No se puede conectar",
       "openRow": "Ver qué falla y cómo solucionarlo"
@@ -2013,7 +2014,9 @@
       "success": "Sesión iniciada. MailFlow está volviendo a conectar esta cuenta.",
       "continueGoogle": "Continuar a Google",
       "waitingGoogle": "Termina de iniciar sesión en la página de Google y luego vuelve aquí."
-    }
+    },
+    "signInFailed": "El inicio de sesión no funcionó",
+    "signInFailedBody": "Vuelve a empezar desde la cuenta en Configuración > Cuentas."
   },
   "addAccount": {
     "title": "Añadir una cuenta de correo",

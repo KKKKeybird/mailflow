@@ -1983,6 +1983,7 @@
   "accountErrors": {
     "label": {
       "turnOnImap": "Zapnout IMAP",
+      "imapOff": "IMAP je vypnutý",
       "signInAgain": "Přihlásit se znovu",
       "cantConnect": "Nelze se připojit",
       "openRow": "Ukázat, co je špatně a jak to opravit"
@@ -2032,7 +2033,9 @@
       "success": "Přihlášeno. MailFlow tento účet znovu připojuje.",
       "continueGoogle": "Pokračovat na Google",
       "waitingGoogle": "Dokončete přihlášení na stránce Googlu a pak se sem vraťte."
-    }
+    },
+    "signInFailed": "Přihlášení nefungovalo",
+    "signInFailedBody": "Začněte znovu u účtu v Nastavení > Účty."
   },
   "addAccount": {
     "title": "Přidat e-mailový účet",

@@ -23,9 +23,9 @@ const ENV_KEYS = ['MS_CLIENT_ID', 'MS_CLIENT_SECRET', 'MS_TENANT_ID', 'MS_REDIRE
 
 // The accounts the signed-in user owns, by id.
 const ACCOUNTS = {
-  'ms-1': { id: 'ms-1', user_id: 'user-1', email_address: 'Maria.Lopez@outlook.com', imap_host: 'outlook.office365.com', oauth_provider: 'microsoft', oauth_client_id: 'builtin-app-id' },
-  'g-1': { id: 'g-1', user_id: 'user-1', email_address: 'maria@gmail.com', imap_host: 'imap.gmail.com', oauth_provider: 'google' },
-  'pw-1': { id: 'pw-1', user_id: 'user-1', email_address: 'maria@example.com', imap_host: 'imap.example.com', oauth_provider: null },
+  '11111111-1111-4111-8111-111111111111': { id: '11111111-1111-4111-8111-111111111111', user_id: 'user-1', email_address: 'Maria.Lopez@outlook.com', imap_host: 'outlook.office365.com', oauth_provider: 'microsoft', oauth_client_id: 'builtin-app-id' },
+  '22222222-2222-4222-8222-222222222222': { id: '22222222-2222-4222-8222-222222222222', user_id: 'user-1', email_address: 'maria@gmail.com', imap_host: 'imap.gmail.com', oauth_provider: 'google' },
+  '33333333-3333-4333-8333-333333333333': { id: '33333333-3333-4333-8333-333333333333', user_id: 'user-1', email_address: 'maria@example.com', imap_host: 'imap.example.com', oauth_provider: null },
 };
 
 let session;
@@ -104,7 +104,7 @@ describe('repairing an account by signing in again', () => {
 
   it('reports a different address and stores nothing', async () => {
     signedInAs = 'someone.else@hotmail.com';
-    expect((await startDevice({ accountId: 'ms-1' })).status).toBe(200);
+    expect((await startDevice({ accountId: '11111111-1111-4111-8111-111111111111' })).status).toBe(200);
     expect(await poll()).toEqual({ status: 'wrong_account', signedInAs: 'someone.else@hotmail.com', expected: 'Maria.Lopez@outlook.com' });
     expect(writes()).toEqual([]);
     expect(mocks.imapManager.connectAccount).not.toHaveBeenCalled();
@@ -113,34 +113,35 @@ describe('repairing an account by signing in again', () => {
   });
 
   it('updates the account it was started for when the address matches without regard to case', async () => {
-    noteRefreshFailure('ms-1', { code: 'oauth_reauth', detail: 'AADSTS700082: expired' });
-    await startDevice({ accountId: 'ms-1' });
-    expect(await poll()).toEqual({ status: 'checking', accountId: 'ms-1', email: 'maria.lopez@outlook.com' });
-    expect(await poll()).toEqual({ status: 'success', accountId: 'ms-1', email: 'maria.lopez@outlook.com', connection: 'connected' });
+    noteRefreshFailure('11111111-1111-4111-8111-111111111111', { code: 'oauth_reauth', detail: 'AADSTS700082: expired' });
+    await startDevice({ accountId: '11111111-1111-4111-8111-111111111111' });
+    expect(await poll()).toEqual({ status: 'checking', accountId: '11111111-1111-4111-8111-111111111111', email: 'maria.lopez@outlook.com' });
+    expect(await poll()).toEqual({ status: 'success', accountId: '11111111-1111-4111-8111-111111111111', email: 'maria.lopez@outlook.com', connection: 'connected' });
 
     const [sql, params] = writes()[0];
     expect(writes()).toHaveLength(1);
     expect(sql).toMatch(/^\s*UPDATE email_accounts SET/);
     expect(sql).toMatch(/sync_error = NULL, sync_error_code = NULL/);
-    expect(params[5]).toBe('ms-1');
+    expect(params[5]).toBe('11111111-1111-4111-8111-111111111111');
     // A new sign-in replaces the tokens whose refresh failed.
-    expect(refreshFailureFor('ms-1')).toBeNull();
-    expect(mocks.imapManager.connectAccount).toHaveBeenCalledWith(ACCOUNTS['ms-1']);
+    expect(refreshFailureFor('11111111-1111-4111-8111-111111111111')).toBeNull();
+    expect(mocks.imapManager.connectAccount).toHaveBeenCalledWith(ACCOUNTS['11111111-1111-4111-8111-111111111111']);
   });
 
   it('signs a repair in through the client the account was connected with', async () => {
     process.env.MS_CLIENT_ID = 'own-app-id';
     process.env.MS_TENANT_ID = 'organizations';
-    await startDevice({ accountId: 'ms-1' });
+    await startDevice({ accountId: '11111111-1111-4111-8111-111111111111' });
     const [url, init] = globalThis.fetch.mock.calls[0];
     expect(url).toBe('https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode');
     expect(init.body.get('client_id')).toBe('builtin-app-id');
   });
 
   it.each([
-    ['another user\'s or a missing account', 'nope'],
-    ['an account on another provider', 'g-1'],
-    ['a password account', 'pw-1'],
+    ['something that is not an account id', 'nope'],
+    ['a missing account', '44444444-4444-4444-8444-444444444444'],
+    ['an account on another provider', '22222222-2222-4222-8222-222222222222'],
+    ['a password account', '33333333-3333-4333-8333-333333333333'],
   ])('refuses to start a repair for %s', async (_label, accountId) => {
     const res = await startDevice({ accountId });
     expect(res.status).toBe(404);
@@ -158,9 +159,9 @@ describe('repairing an account by signing in again', () => {
     process.env.GOOGLE_CLIENT_ID = 'g-client';
     process.env.GOOGLE_CLIENT_SECRET = 'g-secret';
     process.env.GOOGLE_REDIRECT_URI = 'https://mail.example/oauth/google/callback';
-    const start = await realFetch(`${base}/oauth/google?accountId=g-1`, { redirect: 'manual' });
+    const start = await realFetch(`${base}/oauth/google?accountId=22222222-2222-4222-8222-222222222222`, { redirect: 'manual' });
     expect(start.status).toBe(302);
-    expect(session.oauthRepairAccountId).toBe('g-1');
+    expect(session.oauthRepairAccountId).toBe('22222222-2222-4222-8222-222222222222');
 
     signedInAs = 'other@gmail.com';
     const cb = await realFetch(`${base}/oauth/google/callback?code=c&state=${session.oauthNonce}`, { redirect: 'manual' });
@@ -207,13 +208,13 @@ describe('repairing an account by signing in again', () => {
     process.env.MS_CLIENT_ID = 'own-app-id';
     process.env.MS_CLIENT_SECRET = 'secret';
     process.env.MS_REDIRECT_URI = 'https://mail.example/oauth/microsoft/callback';
-    await realFetch(`${base}/oauth/microsoft?accountId=ms-1`, { redirect: 'manual' });
-    expect(session.oauthRepairAccountId).toBe('ms-1');
+    await realFetch(`${base}/oauth/microsoft?accountId=11111111-1111-4111-8111-111111111111`, { redirect: 'manual' });
+    expect(session.oauthRepairAccountId).toBe('11111111-1111-4111-8111-111111111111');
     const cb = await realFetch(`${base}/oauth/microsoft/callback?code=c&state=${session.oauthNonce}`, { redirect: 'manual' });
     // Back to the page with how the first connection went, for it to report honestly.
     expect(Object.fromEntries(new URL(cb.headers.get('location'), base).searchParams)).toEqual({
-      oauth_success: 'microsoft', oauth_account_id: 'ms-1', oauth_email: 'maria.lopez@outlook.com', oauth_connection: 'connected',
+      oauth_success: 'microsoft', oauth_account_id: '11111111-1111-4111-8111-111111111111', oauth_email: 'maria.lopez@outlook.com', oauth_connection: 'connected',
     });
-    expect(writes()[0][1][5]).toBe('ms-1');
+    expect(writes()[0][1][5]).toBe('11111111-1111-4111-8111-111111111111');
   });
 });

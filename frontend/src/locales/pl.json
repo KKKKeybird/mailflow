@@ -1983,6 +1983,7 @@
   "accountErrors": {
     "label": {
       "turnOnImap": "Włącz IMAP",
+      "imapOff": "IMAP wyłączony",
       "signInAgain": "Zaloguj się ponownie",
       "cantConnect": "Brak połączenia",
       "openRow": "Pokaż, co jest nie tak i jak to naprawić"
@@ -2032,7 +2033,9 @@
       "success": "Zalogowano. MailFlow ponownie łączy to konto.",
       "continueGoogle": "Przejdź do Google",
       "waitingGoogle": "Dokończ logowanie na stronie Google, a potem wróć tutaj."
-    }
+    },
+    "signInFailed": "Logowanie się nie udało",
+    "signInFailedBody": "Zacznij ponownie od konta w Ustawienia > Konta."
   },
   "addAccount": {
     "title": "Dodaj konto e-mail",

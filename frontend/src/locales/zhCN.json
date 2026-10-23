@@ -1964,6 +1964,7 @@
   "accountErrors": {
     "label": {
       "turnOnImap": "开启 IMAP",
+      "imapOff": "IMAP 已关闭",
       "signInAgain": "重新登录",
       "cantConnect": "无法连接",
       "openRow": "查看问题及解决方法"
@@ -2013,7 +2014,9 @@
       "success": "已登录。MailFlow 正在重新连接此帐户。",
       "continueGoogle": "前往 Google",
       "waitingGoogle": "请在 Google 页面完成登录，然后回到这里。"
-    }
+    },
+    "signInFailed": "登录未成功",
+    "signInFailedBody": "请在“设置 > 帐户”中从该帐户重新开始。"
   },
   "addAccount": {
     "title": "添加邮件帐户",

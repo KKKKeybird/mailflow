@@ -6,7 +6,7 @@
 // Personal Microsoft account domains with their country variants (hotmail.co.uk, live.fr,
 // outlook.com.br). The backend's isPersonalMicrosoftAccount (services/accountErrorCode.js)
 // uses the same list to tell personal from work mailboxes.
-const MICROSOFT_PERSONAL = /^(?:outlook|hotmail|live|msn|passport)\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/;
+const MICROSOFT_PERSONAL = /^(?:outlook|hotmail|live|msn|passport|windowslive)\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/;
 const GMAIL = /^(?:gmail|googlemail)\.com$/;
 const YAHOO = /^(?:yahoo|ymail|rocketmail)\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/;
 const ICLOUD = /^(?:icloud|me|mac)\.com$/;

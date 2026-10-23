@@ -1964,6 +1964,7 @@
   "accountErrors": {
     "label": {
       "turnOnImap": "Attiva IMAP",
+      "imapOff": "IMAP disattivato",
       "signInAgain": "Accedi di nuovo",
       "cantConnect": "Connessione non riuscita",
       "openRow": "Mostra il problema e come risolverlo"
@@ -2013,7 +2014,9 @@
       "success": "Accesso effettuato. MailFlow sta riconnettendo questo account.",
       "continueGoogle": "Continua su Google",
       "waitingGoogle": "Completa l'accesso nella pagina di Google, poi torna qui."
-    }
+    },
+    "signInFailed": "L'accesso non è riuscito",
+    "signInFailedBody": "Ricomincia dall'account in Impostazioni > Account."
   },
   "addAccount": {
     "title": "Aggiungi un account di posta",

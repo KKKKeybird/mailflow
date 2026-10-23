@@ -8,7 +8,8 @@ import { encrypt, decrypt } from '../services/encryption.js';
 import { redactEmail } from '../utils/redact.js';
 import { getMsConfig, getMsDeviceClient, msBuiltinAppEnabled, msRefreshClient } from '../services/microsoftOAuthClient.js';
 import { MAILFLOW_MS_CLIENT_ID } from '../services/microsoftBuiltinApp.js';
-import { classifyRefreshFailure, clearRefreshFailure, terminalRefreshError } from '../services/accountErrorCode.js';
+import { classifyRefreshFailure, clearRefreshFailure, noteFreshToken, terminalRefreshError } from '../services/accountErrorCode.js';
+import { isUuid } from '../utils/uuid.js';
 import { reportConnect } from '../services/connectReport.js';
 
 // Cache JWKS fetchers per tenant — createRemoteJWKSet handles caching internally.
@@ -39,6 +40,8 @@ export class WrongAccountError extends Error {
 // request for anything else is refused up front rather than at the end of the sign-in.
 async function repairTarget(userId, accountId, provider) {
   if (accountId === undefined || accountId === null || accountId === '') return null;
+  // Not a UUID cannot be an account: refuse it as one that does not exist, before the query.
+  if (!isUuid(String(accountId))) throw Object.assign(new Error('Account not found'), { status: 404 });
   const { rows } = await query(
     'SELECT id, email_address, oauth_provider, oauth_client_id FROM email_accounts WHERE id = $1 AND user_id = $2',
     [String(accountId), userId],
@@ -278,6 +281,7 @@ async function processMicrosoftTokens(userId, tokens, { tenantId, clientId, publ
   // return early on it with sync_error already cleared: a silent no-op.
   imapManager.clearConnectCooldown(account.id);
   clearRefreshFailure(account.id);
+  noteFreshToken(account.id);
   const connecting = imapManager.connectAccount(account).catch((err) => {
     console.error(`OAuth connect failed for ${redactEmail(email)}:`, err.message);
     return false;
@@ -716,6 +720,7 @@ async function processGoogleTokens(userId, tokens, { clientId, repairAccountId =
   // Same as Microsoft: a re-link must not wait out an auth backoff.
   imapManager.clearConnectCooldown(account.id);
   clearRefreshFailure(account.id);
+  noteFreshToken(account.id);
   imapManager.connectAccount(account).catch(err =>
     console.error(`OAuth connect failed for ${redactEmail(email)}:`, err.message)
   );

@@ -1964,6 +1964,7 @@
   "accountErrors": {
     "label": {
       "turnOnImap": "Turn on IMAP",
+      "imapOff": "IMAP is off",
       "signInAgain": "Sign in again",
       "cantConnect": "Can't connect",
       "openRow": "Show what's wrong and how to fix it"
@@ -2013,7 +2014,9 @@
       "success": "Signed in. MailFlow is reconnecting this account.",
       "continueGoogle": "Continue to Google",
       "waitingGoogle": "Finish signing in on the Google page, then come back here."
-    }
+    },
+    "signInFailed": "Sign-in didn't work",
+    "signInFailedBody": "Start again from the account in Settings > Accounts."
   },
   "addAccount": {
     "title": "Add an email account",

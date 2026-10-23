@@ -2726,6 +2726,42 @@ describe("connectAccount attaches 'error' before connect (#360)", () => {
   });
 });
 
+// An OAuth account whose refresh failed for good retries a stale token on every tick. With the
+// refresh failure remembered, the rejection takes the long auth backoff (#674); without it,
+// a rejection right after a new token stays on the short path, as before.
+describe('connectAccount: the auth backoff for an OAuth account with a dead refresh', () => {
+  const setup = () => {
+    resolveForConnection.mockReset().mockRejectedValue(new Error('AUTHENTICATE failed.'));
+    getConnectionPolicy.mockResolvedValue({ allowPrivateHosts: true, allowInsecureTls: false });
+    query.mockReset().mockResolvedValue({ rows: [] });
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const mgr = new ImapManager(null);
+    clearInterval(mgr._healthCheckTimer);
+    clearInterval(mgr._snippetSchedulerTimer);
+    mgr.disconnectAccount = vi.fn(() => Promise.resolve());
+    mgr.broadcast = vi.fn();
+    return mgr;
+  };
+  const acct = { id: 'acct-dead-refresh', user_id: 'u1', email_address: 'me@outlook.com', oauth_provider: 'microsoft', imap_host: 'outlook.office365.com', imap_port: 993, imap_tls: true, auth_user: 'me@outlook.com' };
+  afterEach(() => { clearRefreshFailure(acct.id); vi.restoreAllMocks(); });
+
+  it('arms the long auth backoff when the refresh is known to be dead', async () => {
+    const mgr = setup();
+    noteRefreshFailure(acct.id, { code: 'oauth_reauth', detail: 'AADSTS70008: expired' });
+    const before = Date.now();
+    expect(await mgr.connectAccount(acct)).toBe(false);
+    expect(mgr._connectCooldown.get(acct.id)?.until).toBeGreaterThanOrEqual(before + 5 * 60 * 1000);
+  });
+
+  it('does not, for the same rejection with no refresh failure remembered', async () => {
+    const mgr = setup();
+    expect(await mgr.connectAccount(acct)).toBe(false);
+    expect(mgr._connectCooldown.has(acct.id)).toBe(false);
+  });
+});
+
 // A host the address check refuses (or an OAuth refresh that fails) used to throw before the
 // try that releases the in-progress lock: the account stayed "connecting" until a restart.
 describe('connectAccount when the host is refused', () => {

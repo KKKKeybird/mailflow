@@ -1,7 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { describeAccountError, needsSignIn, OUTLOOK_WEB_URL } from './accountErrors.js';
+import { describeAccountError, needsSignIn, OUTLOOK_WEB_URL, trustedWrongAccount } from './accountErrors.js';
 
 const en = JSON.parse(readFileSync(new URL('../locales/en.json', import.meta.url), 'utf8'));
 const lookup = (key) => key.split('.').reduce((o, k) => o?.[k], en);
@@ -80,5 +80,21 @@ describe('describeAccountError', () => {
 
   test('links to Outlook.com itself, not to an unverified settings path', () => {
     assert.equal(OUTLOOK_WEB_URL, 'https://outlook.live.com/mail/');
+  });
+});
+
+describe('trustedWrongAccount', () => {
+  const params = (o) => new URLSearchParams(o);
+  const wrong = { oauth_error: 'wrong_account', oauth_signed_in_as: 'other@hotmail.com', oauth_expected: 'me@outlook.com' };
+
+  test('names the addresses only for a repair this tab started', () => {
+    assert.deepEqual(trustedWrongAccount(params(wrong), true), { signedInAs: 'other@hotmail.com', expected: 'me@outlook.com' });
+    assert.equal(trustedWrongAccount(params(wrong), false), null);
+  });
+
+  test('and only when both look like addresses', () => {
+    assert.equal(trustedWrongAccount(params({ ...wrong, oauth_signed_in_as: 'Your account is locked, call 555-0100' }), true), null);
+    assert.equal(trustedWrongAccount(params({ ...wrong, oauth_expected: '<b>x</b>@y.z' }), true), null);
+    assert.equal(trustedWrongAccount(params({ ...wrong, oauth_error: 'access_denied' }), true), null);
   });
 });

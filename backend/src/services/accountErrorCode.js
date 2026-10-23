@@ -28,7 +28,7 @@ const XOAUTH_REJECTED = /\bAUTHENTICATE failed\b/i;
 // Personal Microsoft account domains, including the country variants (hotmail.co.uk, live.fr,
 // outlook.com.br, ...). A personal account can sign in through a 'common' app too, so the
 // tenant alone does not settle it.
-const PERSONAL_MS_DOMAIN = /@(?:outlook|hotmail|live|msn|passport)\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/i;
+const PERSONAL_MS_DOMAIN = /@(?:outlook|hotmail|live|msn|passport|windowslive)\.(?:com|[a-z]{2}|co\.[a-z]{2}|com\.[a-z]{2})$/i;
 
 export function isPersonalMicrosoftAccount(account) {
   if ((account?.oauth_tenant_id || '').toLowerCase() === 'consumers') return true;
@@ -87,6 +87,17 @@ export function terminalRefreshError(message, code) {
 const refreshFailures = new Map();
 export function noteRefreshFailure(accountId, failure) { refreshFailures.set(accountId, failure); }
 export function clearRefreshFailure(accountId) { refreshFailures.delete(accountId); }
+
+// accountId -> when this process last got a new access token for it (sign-in or refresh). A
+// token Microsoft or Google issued minutes ago that the IMAP server still rejects is not a
+// sign-in problem, and "Sign in again" would only loop; it is reported as a connection error.
+export const FRESH_TOKEN_MS = 15 * 60 * 1000;
+const freshTokens = new Map();
+export function noteFreshToken(accountId, at = Date.now()) { freshTokens.set(accountId, at); }
+function hasFreshToken(accountId, now = Date.now()) {
+  const at = freshTokens.get(accountId);
+  return at !== undefined && now - at < FRESH_TOKEN_MS;
+}
 export function refreshFailureFor(accountId) { return refreshFailures.get(accountId) || null; }
 
 // The code and the text to record for a failed connection. authFailure is imapManager's
@@ -94,13 +105,16 @@ export function refreshFailureFor(accountId) { return refreshFailures.get(accoun
 export function classifyAccountError(account, detail, { authFailure = false } = {}) {
   const text = String(detail || '');
   const oauth = !!account?.oauth_provider;
+  // First: imapflow reports IMAP turned off as an authentication failure, but signing in again
+  // cannot fix it.
+  if (account?.oauth_provider === 'microsoft' && IMAP_DISABLED.test(text)) {
+    return { code: isPersonalMicrosoftAccount(account) ? 'ms_imap_disabled_personal' : 'ms_imap_disabled_work', detail: text };
+  }
   if (oauth && (authFailure || XOAUTH_REJECTED.test(text))) {
     const refresh = refreshFailureFor(account.id);
     if (refresh) return { code: refresh.code, detail: refresh.detail };
+    if (hasFreshToken(account.id)) return { code: 'connection', detail: text };
     return { code: 'oauth_reauth', detail: text };
-  }
-  if (account?.oauth_provider === 'microsoft' && IMAP_DISABLED.test(text)) {
-    return { code: isPersonalMicrosoftAccount(account) ? 'ms_imap_disabled_personal' : 'ms_imap_disabled_work', detail: text };
   }
   if (!oauth && authFailure) return { code: 'auth_failed', detail: text };
   return { code: 'connection', detail: text };

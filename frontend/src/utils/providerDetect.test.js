@@ -8,6 +8,7 @@ describe('detectProvider', () => {
     ['Maria@Hotmail.co.uk', 'microsoftPersonal'],
     ['me@live.fr', 'microsoftPersonal'],
     ['me@msn.com', 'microsoftPersonal'],
+    ['me@windowslive.com', 'microsoftPersonal'],
     ['me@outlook.com.br', 'microsoftPersonal'],
     ['  me@outlook.de  ', 'microsoftPersonal'],
     ['me@gmail.com', 'gmail'],

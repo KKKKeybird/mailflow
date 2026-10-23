@@ -1,43 +1,98 @@
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import MicrosoftDeviceCode from './MicrosoftDeviceCode.jsx';
+import { api } from '../utils/api.js';
+import MicrosoftDeviceCode, { SignInResult } from './MicrosoftDeviceCode.jsx';
+import { REPAIR_FLAG } from '../utils/accountErrors.js';
+
+const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"])';
 
 // "Sign in again" for one account whose sign-in stopped working. The sign-in names the
 // account, so signing in as a different address is refused and explained instead of adding a
-// second account. Microsoft uses the device-code sign-in; Google opens its own page in a tab.
+// second account. Microsoft accounts connected with the device code sign in again with it;
+// those connected through the instance's own app on Microsoft's page (a confidential client),
+// and Google accounts, go back through the provider's page in a new tab.
 export default function SignInAgainDialog({ account, onClose, onSignedIn }) {
   const { t } = useTranslation();
-  const [googleState, setGoogleState] = useState(null); // null | 'waiting' | 'success' | { signedInAs, expected } | { error }
+  // null | 'waiting' | 'success' | { result } | { signedInAs, expected } | { error }
+  const [redirectState, setRedirectState] = useState(null);
+  const [msRedirect, setMsRedirect] = useState(null); // null while unknown, then true or false
   const closeTimer = useRef(null);
+  const dialogRef = useRef(null);
   const onSignedInRef = useRef(onSignedIn);
   onSignedInRef.current = onSignedIn;
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
-  const succeed = () => {
-    onSignedInRef.current?.();
-    closeTimer.current = setTimeout(onClose, 2500);
-  };
+  const provider = account?.oauth_provider;
+  // A confidential Microsoft account's refresh token belongs to the instance's own app, which
+  // signs in on Microsoft's page; use it when that page is set up.
+  useEffect(() => {
+    if (provider !== 'microsoft' || account?.oauth_public_client !== false) { setMsRedirect(false); return undefined; }
+    let cancelled = false;
+    api.getIntegrationsStatus()
+      .then(d => { if (!cancelled) setMsRedirect(!!d?.microsoft?.workRedirect); })
+      .catch(() => { if (!cancelled) setMsRedirect(false); });
+    return () => { cancelled = true; };
+  }, [provider, account?.oauth_public_client]);
+  const redirect = provider === 'google' || (provider === 'microsoft' && msRedirect === true);
 
   useEffect(() => {
-    if (account?.oauth_provider !== 'google') return undefined;
+    if (!redirect) return undefined;
     const handle = (e) => {
       if (e.origin !== window.location.origin) return;
-      if (e.data?.type === 'oauth_success' && e.data?.provider === 'google') { setGoogleState('success'); succeed(); }
-      else if (e.data?.type === 'oauth_error' && e.data?.error === 'wrong_account') setGoogleState({ signedInAs: e.data.signedInAs, expected: e.data.expected });
-      else if (e.data?.type === 'oauth_error') setGoogleState({ error: e.data.error });
+      if (e.data?.type === 'oauth_success' && e.data?.provider === provider) {
+        try { sessionStorage.removeItem(REPAIR_FLAG); } catch { /* storage unavailable */ }
+        onSignedInRef.current?.();
+        if (e.data.connection) {
+          setRedirectState({ result: { accountId: e.data.accountId || account.id, email: e.data.email || account.email_address, connection: e.data.connection, code: e.data.code, error: e.data.detail } });
+        } else {
+          setRedirectState('success');
+          closeTimer.current = setTimeout(() => onCloseRef.current?.(), 2500);
+        }
+      } else if (e.data?.type === 'oauth_error' && e.data?.error === 'wrong_account') {
+        setRedirectState({ signedInAs: e.data.signedInAs, expected: e.data.expected });
+      } else if (e.data?.type === 'oauth_error') {
+        setRedirectState({ error: e.data.error });
+      }
     };
     window.addEventListener('message', handle);
     return () => window.removeEventListener('message', handle);
-  }, [account?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- succeed reads the latest callback through a ref
+  }, [redirect, provider, account?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- callbacks are read through refs
   useEffect(() => () => clearTimeout(closeTimer.current), []);
+
+  // Focus moves into the dialog, stays there while it is open, and returns where it was;
+  // Escape closes it.
+  useEffect(() => {
+    const previous = document.activeElement;
+    const focusables = () => [...(dialogRef.current?.querySelectorAll(FOCUSABLE) || [])];
+    (focusables()[0] || dialogRef.current)?.focus();
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); onCloseRef.current?.(); return; }
+      if (e.key !== 'Tab') return;
+      const items = focusables();
+      if (!items.length) { e.preventDefault(); return; }
+      const first = items[0];
+      const last = items[items.length - 1];
+      const inside = dialogRef.current?.contains(document.activeElement);
+      if (e.shiftKey && (document.activeElement === first || !inside)) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !inside)) { e.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => {
+      document.removeEventListener('keydown', onKey);
+      if (previous && typeof previous.focus === 'function') previous.focus();
+    };
+  }, []);
 
   if (!account) return null;
 
-  const openGoogle = () => {
-    setGoogleState('waiting');
-    // A real anchor click, as for the first Google connection: window.open is intercepted by
-    // some browser extensions.
+  const openProvider = () => {
+    setRedirectState('waiting');
+    try { sessionStorage.setItem(REPAIR_FLAG, account.id); } catch { /* storage unavailable */ }
+    // A real anchor click, as for the first connection: window.open is intercepted by some
+    // browser extensions.
     const a = document.createElement('a');
-    a.href = `/oauth/google?accountId=${encodeURIComponent(account.id)}`;
+    a.href = `/oauth/${provider}?accountId=${encodeURIComponent(account.id)}`;
     a.target = '_blank';
     a.rel = 'opener';
     document.body.appendChild(a);
@@ -56,9 +111,9 @@ export default function SignInAgainDialog({ account, onClose, onSignedIn }) {
       backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)',
       display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16,
     }} onClick={onClose}>
-      <div role="dialog" aria-modal="true" aria-labelledby="sign-in-again-title" style={{
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby="sign-in-again-title" style={{
         background: 'var(--bg-secondary)', border: '1px solid var(--border-subtle)', borderRadius: 12,
-        padding: '22px 22px 18px', maxWidth: 440, width: '100%', boxShadow: 'var(--shadow-modal)',
+        padding: '22px 22px 18px', maxWidth: 440, width: '100%', boxShadow: 'var(--shadow-modal)', outline: 'none',
       }} onClick={e => e.stopPropagation()}>
         <p id="sign-in-again-title" style={{ margin: '0 0 6px', fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
           {t('accountErrors.signInDialog.title')}
@@ -67,7 +122,7 @@ export default function SignInAgainDialog({ account, onClose, onSignedIn }) {
           {t('accountErrors.signInDialog.body', { email: account.email_address })}
         </p>
 
-        {account.oauth_provider === 'microsoft' && (
+        {provider === 'microsoft' && msRedirect === false && (
           <MicrosoftDeviceCode
             accountId={account.id}
             onSignedIn={() => onSignedInRef.current?.()}
@@ -76,27 +131,35 @@ export default function SignInAgainDialog({ account, onClose, onSignedIn }) {
           />
         )}
 
-        {account.oauth_provider === 'google' && (
+        {redirect && (
           <div>
-            {googleState === 'success' ? (
+            {redirectState?.result ? (
+              <div style={{ padding: 14, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
+                <SignInResult result={redirectState.result} onSignedIn={() => onSignedInRef.current?.()} onDone={onClose} onSignInAgain={() => setRedirectState(null)} />
+              </div>
+            ) : redirectState === 'success' ? (
               <div role="status" style={{ color: 'var(--green)', fontSize: 13, fontWeight: 500 }}>{t('accountErrors.signInDialog.success')}</div>
-            ) : googleState?.signedInAs ? (
+            ) : redirectState?.signedInAs ? (
               <div role="alert" style={{ color: 'var(--red)', fontSize: 13, lineHeight: 1.5, marginBottom: 12 }}>
-                {t('accountErrors.wrongAccount', { signedInAs: googleState.signedInAs, expected: googleState.expected })}
+                {t('accountErrors.wrongAccount', { signedInAs: redirectState.signedInAs, expected: redirectState.expected })}
               </div>
-            ) : googleState?.error ? (
+            ) : redirectState?.error ? (
               <div role="alert" style={{ color: 'var(--red)', fontSize: 13, marginBottom: 12, overflowWrap: 'anywhere' }}>
-                {t('common.error', { message: googleState.error })}
+                {t('common.error', { message: redirectState.error })}
               </div>
-            ) : googleState === 'waiting' ? (
-              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 12 }}>{t('accountErrors.signInDialog.waitingGoogle')}</div>
+            ) : redirectState === 'waiting' ? (
+              <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 12 }}>
+                {t(provider === 'google' ? 'accountErrors.signInDialog.waitingGoogle' : 'msSignIn.redirectWaiting')}
+              </div>
             ) : null}
-            {googleState !== 'success' && (
+            {!redirectState?.result && redirectState !== 'success' && (
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
                 <button type="button" onClick={onClose} style={{ ...button, background: 'transparent', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)' }}>
                   {t('common.cancel')}
                 </button>
-                <button type="button" onClick={openGoogle} style={button}>{t('accountErrors.signInDialog.continueGoogle')}</button>
+                <button type="button" onClick={openProvider} style={button}>
+                  {t(provider === 'google' ? 'accountErrors.signInDialog.continueGoogle' : 'msSignIn.continueMicrosoft')}
+                </button>
               </div>
             )}
           </div>

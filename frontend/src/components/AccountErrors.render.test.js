@@ -94,7 +94,8 @@ async function render(component, state) {
 describe('sidebar: a short label by kind that opens the account row', () => {
   for (const [code, label] of [
     ['ms_imap_disabled_personal', 'accountErrors.label.turnOnImap'],
-    ['ms_imap_disabled_work', 'accountErrors.label.turnOnImap'],
+    // Only the organization's IT can turn it on.
+    ['ms_imap_disabled_work', 'accountErrors.label.imapOff'],
     ['oauth_reauth', 'accountErrors.label.signInAgain'],
     ['oauth_app_config', 'accountErrors.label.cantConnect'],
     ['connection', 'accountErrors.label.cantConnect'],
@@ -203,6 +204,38 @@ describe('Settings > Accounts: the callout on the account row', () => {
     await wait(80);
     assert.ok(text().includes('msSignIn.connected {"email":"maria.lopez@outlook.com"}'));
     assert.equal(reloaded, 1);
+  });
+
+  test('the dialog takes focus, closes on Escape, and gives focus back', async () => {
+    pollResult = { status: 'pending' };
+    await openAccounts(account('oauth_reauth'));
+    const opener = byText('button', 'accountErrors.action.signIn');
+    opener.focus();
+    await click(opener);
+    const dialog = doc.querySelector('[role="dialog"]');
+    assert.ok(dialog.contains(doc.activeElement), 'focus moved into the dialog');
+    await React.act(async () => { doc.dispatchEvent(new dom.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true })); });
+    assert.equal(doc.querySelector('[role="dialog"]'), null);
+    assert.equal(doc.activeElement, opener);
+  });
+
+  test('a Microsoft account connected on Microsoft\'s page signs in again there, not with a code', async () => {
+    api.getIntegrationsStatus = async () => ({ microsoft: { workRedirect: true }, google: {} });
+    await openAccounts(account('oauth_reauth', { oauth_public_client: false }));
+    api.getIntegrationsStatus = async () => ({ microsoft: { workRedirect: true }, google: {} });
+    await click(byText('button', 'accountErrors.action.signIn'));
+    await React.act(async () => {});
+    assert.ok(byText('button', 'msSignIn.continueMicrosoft'));
+    assert.deepEqual(deviceStarts, []);
+  });
+
+  test('without Microsoft\'s page set up, such an account falls back to the code', async () => {
+    pollResult = { status: 'pending' };
+    await openAccounts(account('oauth_reauth', { oauth_public_client: false }));
+    api.getIntegrationsStatus = async () => ({ microsoft: { workRedirect: false }, google: {} });
+    await click(byText('button', 'accountErrors.action.signIn'));
+    await React.act(async () => {});
+    assert.deepEqual(deviceStarts, ['acct-1']);
   });
 
   test('the sidebar\'s Sign in again opens the dialog straight away', async () => {

@@ -12,6 +12,22 @@
 
 export const OUTLOOK_WEB_URL = 'https://outlook.live.com/mail/';
 
+// Set while a repair sign-in started in this tab is under way. The tab the provider sends back
+// to inherits it (sessionStorage is copied to a tab this one opens), so that tab can trust a
+// "you signed in as someone else" redirect as an answer to a repair it started.
+export const REPAIR_FLAG = 'mailflow_oauth_repair';
+
+const EMAIL_LIKE = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
+// The addresses from a same-tab "wrong account" redirect, only when this tab started a repair
+// and both look like addresses: anyone can craft a link with such parameters. Otherwise null.
+export function trustedWrongAccount(params, repairStarted) {
+  if (!repairStarted || params.get('oauth_error') !== 'wrong_account') return null;
+  const signedInAs = params.get('oauth_signed_in_as');
+  const expected = params.get('oauth_expected');
+  const ok = (v) => typeof v === 'string' && v.length <= 320 && EMAIL_LIKE.test(v);
+  return ok(signedInAs) && ok(expected) ? { signedInAs, expected } : null;
+}
+
 // Keys are spelled out in full so the locale tests can see that each one is used.
 const KINDS = {
   ms_imap_disabled_personal: {
@@ -21,7 +37,8 @@ const KINDS = {
     outroKey: 'accountErrors.imapOffPersonal.outro',
   },
   ms_imap_disabled_work: {
-    kind: 'imapOffWork', labelKey: 'accountErrors.label.turnOnImap', actions: ['retry'],
+    // Only the organization's IT can turn it on, so not "Turn on IMAP".
+    kind: 'imapOffWork', labelKey: 'accountErrors.label.imapOff', actions: ['retry'],
     titleKey: 'accountErrors.imapOffWork.title', bodyKey: 'accountErrors.imapOffWork.body',
   },
   oauth_reauth: {

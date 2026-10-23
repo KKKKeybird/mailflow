@@ -1964,6 +1964,7 @@
   "accountErrors": {
     "label": {
       "turnOnImap": "IMAP 켜기",
+      "imapOff": "IMAP 꺼짐",
       "signInAgain": "다시 로그인",
       "cantConnect": "연결할 수 없음",
       "openRow": "문제와 해결 방법 보기"
@@ -2013,7 +2014,9 @@
       "success": "로그인했습니다. MailFlow가 이 계정을 다시 연결하는 중입니다.",
       "continueGoogle": "Google로 계속",
       "waitingGoogle": "Google 페이지에서 로그인을 마친 다음 여기로 돌아오세요."
-    }
+    },
+    "signInFailed": "로그인하지 못했습니다",
+    "signInFailedBody": "설정 > 계정에서 해당 계정부터 다시 시작하세요."
   },
   "addAccount": {
     "title": "이메일 계정 추가",

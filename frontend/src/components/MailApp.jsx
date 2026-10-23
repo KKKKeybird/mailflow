@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { REPAIR_FLAG, trustedWrongAccount } from '../utils/accountErrors.js';
 import InboxReplyDraftObserver from './InboxReplyDraftObserver.js';
 import { useStore } from '../store/index.js';
 import { api } from '../utils/api.js';
@@ -711,12 +712,18 @@ export default function MailApp() {
       setAdminTab('accounts');
       setShowAdmin(true);
     } else if (oauthError) {
+      // A sign-in that ends in this tab, rather than in the one that started it, says how it went
+      // instead of vanishing. The addresses in a wrong-account answer are shown only for a repair
+      // this tab (or the one that opened it) started: anyone can craft such a link.
       window.history.replaceState({}, '', '/');
-      if (oauthError === 'wrong_account') {
-        addNotification({ type: 'error', title: t('accountErrors.signInDialog.title'), body: t('accountErrors.wrongAccount', {
-          signedInAs: params.get('oauth_signed_in_as'), expected: params.get('oauth_expected'),
-        }) });
-      }
+      let repairStarted = false;
+      try { repairStarted = !!sessionStorage.getItem(REPAIR_FLAG); sessionStorage.removeItem(REPAIR_FLAG); } catch { /* storage unavailable */ }
+      const wrong = trustedWrongAccount(params, repairStarted);
+      addNotification({
+        type: 'error',
+        title: t('accountErrors.signInFailed'),
+        body: wrong ? t('accountErrors.wrongAccount', wrong) : t('accountErrors.signInFailedBody'),
+      });
     } else if (oidcSuccess) {
       window.history.replaceState({}, '', '/');
       if (oidcSuccess === 'linked') {

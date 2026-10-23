@@ -1964,6 +1964,7 @@
   "accountErrors": {
     "label": {
       "turnOnImap": "Включите IMAP",
+      "imapOff": "IMAP отключен",
       "signInAgain": "Войдите снова",
       "cantConnect": "Нет подключения",
       "openRow": "Показать, что не так и как это исправить"
@@ -2013,7 +2014,9 @@
       "success": "Вход выполнен. MailFlow снова подключает этот аккаунт.",
       "continueGoogle": "Перейти в Google",
       "waitingGoogle": "Завершите вход на странице Google, затем вернитесь сюда."
-    }
+    },
+    "signInFailed": "Вход не удался",
+    "signInFailedBody": "Начните заново с аккаунта в разделе Настройки > Аккаунты."
   },
   "addAccount": {
     "title": "Добавить почтовый аккаунт",

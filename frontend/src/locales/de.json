@@ -1964,6 +1964,7 @@
   "accountErrors": {
     "label": {
       "turnOnImap": "IMAP einschalten",
+      "imapOff": "IMAP ist aus",
       "signInAgain": "Erneut anmelden",
       "cantConnect": "Keine Verbindung",
       "openRow": "Zeigen, was nicht stimmt und wie es sich beheben lässt"
@@ -2013,7 +2014,9 @@
       "success": "Angemeldet. MailFlow verbindet dieses Konto neu.",
       "continueGoogle": "Weiter zu Google",
       "waitingGoogle": "Schließen Sie die Anmeldung auf der Google-Seite ab und kommen Sie dann hierher zurück."
-    }
+    },
+    "signInFailed": "Die Anmeldung hat nicht funktioniert",
+    "signInFailedBody": "Beginnen Sie erneut beim Konto unter Einstellungen > Konten."
   },
   "addAccount": {
     "title": "E-Mail-Konto hinzufügen",
