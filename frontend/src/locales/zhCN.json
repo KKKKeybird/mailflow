@@ -2069,5 +2069,10 @@
     "google": {
       "setupToggle": "设置你自己的 Google OAuth 客户端"
     }
+  },
+  "accountForm": {
+    "signedInMicrosoft": "已以 {{email}} 使用 Microsoft 登录",
+    "signedInGoogle": "已以 {{email}} 使用 Google 登录",
+    "signedInNote": "服务器和登录信息来自此次登录。如果帐户无法连接，请重新登录。"
   }
 }

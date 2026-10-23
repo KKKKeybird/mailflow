@@ -2069,5 +2069,10 @@
     "google": {
       "setupToggle": "Configurar tu propio cliente OAuth de Google"
     }
+  },
+  "accountForm": {
+    "signedInMicrosoft": "Sesión iniciada con Microsoft como {{email}}",
+    "signedInGoogle": "Sesión iniciada con Google como {{email}}",
+    "signedInNote": "El servidor y el inicio de sesión vienen de esta conexión. Si la cuenta deja de conectarse, vuelve a iniciar sesión."
   }
 }

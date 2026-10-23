@@ -85,6 +85,9 @@ const PRESETS = {
 };
 
 // ─── Account Form (Add or Edit) ───────────────────────────────────────────────
+const OAUTH_PROVIDERS = new Set(['microsoft', 'google']);
+// What a sign-in owns on the account; saving other settings never sends these for it.
+const OAUTH_OWNED_FIELDS = ['imap_host', 'imap_port', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'auth_user', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass'];
 function isMicrosoftImapHost(host) {
   const h = (host || '').toLowerCase();
   return h.includes('.outlook.com') || h.includes('office365.com') || h.includes('.hotmail.com') || h.includes('.live.com');
@@ -92,11 +95,13 @@ function isMicrosoftImapHost(host) {
 
 // prefill (add only): { email, preset } from the Add account chooser.
 // onMicrosoftSignIn (add only): switch to "Sign in with Microsoft" when an Outlook.com host is typed.
-function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn }) {
+// onSignInAgain (edit only): "Sign in again" for an account connected through a sign-in.
+function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, onSignInAgain }) {
   const { t } = useTranslation();
   const { categorizationEnabled } = useStore();
 
   const isEdit = !!initial?.id;
+  const signedInWith = isEdit && OAUTH_PROVIDERS.has(initial?.oauth_provider) ? initial.oauth_provider : null;
   const [form, setForm] = useState(() => initial || {
     name: '', email_address: prefill?.email || '', color: '#6366f1', protocol: 'imap',
     imap_host: '', imap_port: 993, imap_skip_tls_verify: false,
@@ -283,6 +288,26 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn }) 
         </Field>
       )}
 
+      {/* A Microsoft or Google sign-in owns the server and login: shown, not editable (#674). */}
+      {signedInWith ? (
+        <div data-signed-in-with={signedInWith} style={{
+          margin: '16px 0 0', padding: '12px 14px', borderRadius: 8, background: 'var(--bg-tertiary)',
+          border: '1px solid var(--border-subtle)', display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap',
+        }}>
+          <div style={{ flex: '1 1 220px', minWidth: 0 }}>
+            <div style={{ fontSize: 13, fontWeight: 500, color: 'var(--text-primary)', overflowWrap: 'anywhere' }}>
+              {t(signedInWith === 'google' ? 'accountForm.signedInGoogle' : 'accountForm.signedInMicrosoft', { email: initial.email_address })}
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2, lineHeight: 1.5 }}>{t('accountForm.signedInNote')}</div>
+          </div>
+          {onSignInAgain && (
+            <button type="button" onClick={onSignInAgain} style={{
+              padding: '7px 14px', background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 7,
+              color: 'var(--text-primary)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+            }}>{t('accountErrors.action.signIn')}</button>
+          )}
+        </div>
+      ) : (<>
       <div style={{ height: 1, background: 'var(--border-subtle)', margin: '16px 0' }} />
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
         {t('admin.accounts.imapSection')}
@@ -440,6 +465,7 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn }) 
           </button>
         </div>
       </Field>
+      </>)}
 
       <div style={{ height: 1, background: 'var(--border-subtle)', margin: '16px 0' }} />
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
@@ -746,6 +772,7 @@ function AccountsTab() {
       updates.smtp_auth_user = null;
       updates.smtp_auth_pass = null;
     }
+    if (OAUTH_PROVIDERS.has(editTarget.oauth_provider)) for (const field of OAUTH_OWNED_FIELDS) delete updates[field];
     const updated = await api.updateAccount(editTarget.id, updates);
     updateAccount(editTarget.id, updated);
     api.getUnreadCounts().then(setUnreadCounts).catch(console.error);
@@ -946,7 +973,12 @@ function AccountsTab() {
         <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginBottom: 20 }}>
           {editTarget.email_address}
         </div>
-        <AccountForm initial={editTarget} onSave={handleEdit} onCancel={() => { setSubview('list'); setEditTarget(null); }} />
+        <AccountForm initial={editTarget} onSave={handleEdit} onCancel={() => { setSubview('list'); setEditTarget(null); }}
+          onSignInAgain={() => setSignInTarget(editTarget)} />
+        {signInTarget && (
+          <SignInAgainDialog account={signInTarget} onClose={() => setSignInTarget(null)}
+            onSignedIn={() => api.getAccounts().then(setAccounts).catch(console.error)} />
+        )}
       </div>
     );
   }

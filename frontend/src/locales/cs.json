@@ -2088,5 +2088,10 @@
     "google": {
       "setupToggle": "Nastavit vlastního klienta Google OAuth"
     }
+  },
+  "accountForm": {
+    "signedInMicrosoft": "Přihlášeno přes Microsoft jako {{email}}",
+    "signedInGoogle": "Přihlášeno přes Google jako {{email}}",
+    "signedInNote": "Server a přihlašovací údaje pocházejí z tohoto přihlášení. Pokud se účet přestane připojovat, přihlaste se znovu."
   }
 }

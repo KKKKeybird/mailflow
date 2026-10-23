@@ -193,13 +193,24 @@ router.post('/', async (req, res) => {
   }
 });
 
+// The fields an OAuth sign-in owns: the server and login it was set up with. The settings form
+// does not show them for such an account, and they are ignored here too, so no request can
+// point a Microsoft or Google sign-in at another server or swap its login.
+export const OAUTH_OWNED_FIELDS = [
+  'imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls',
+  'auth_user', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass',
+];
+
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const updates = req.body;
+  const updates = { ...req.body };
 
   // Verify ownership.
-  const check = await query('SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
+  const check = await query('SELECT id, oauth_provider FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
   if (!check.rows.length) return res.status(404).json({ error: 'Account not found' });
+  if (check.rows[0].oauth_provider) {
+    for (const field of OAUTH_OWNED_FIELDS) delete updates[field];
+  }
 
   if ('name' in updates && hasHeaderInjectionChars(updates.name)) {
     return res.status(400).json({ error: 'Name cannot contain control characters' });

@@ -2088,5 +2088,10 @@
     "google": {
       "setupToggle": "Skonfiguruj własnego klienta OAuth Google"
     }
+  },
+  "accountForm": {
+    "signedInMicrosoft": "Zalogowano przez Microsoft jako {{email}}",
+    "signedInGoogle": "Zalogowano przez Google jako {{email}}",
+    "signedInNote": "Serwer i login pochodzą z tego logowania. Jeśli konto przestanie się łączyć, zaloguj się ponownie."
   }
 }

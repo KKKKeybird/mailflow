@@ -227,3 +227,74 @@ describe('account form: Outlook.com address (#674)', () => {
     assert.ok(text().includes('admin.accounts.microsoftImapNote'));
   });
 });
+
+// An account connected through a sign-in (#674): the Edit form shows who it is signed in as and
+// "Sign in again", never the server, login and password fields or the OAuth2 banner, and
+// saving it sends none of those.
+describe('Edit form for an account connected through a sign-in', () => {
+  const ACCOUNT = (provider) => ({
+    id: 'acct', name: 'Maria', email_address: provider === 'google' ? 'maria@gmail.com' : 'maria.lopez@outlook.com', color: '#0078d4',
+    imap_host: provider === 'google' ? 'imap.gmail.com' : 'outlook.office365.com', imap_port: 993, auth_user: 'maria',
+    smtp_host: 'smtp.example.com', smtp_port: 587, smtp_tls: 'STARTTLS', oauth_provider: provider, oauth_public_client: true,
+  });
+  let updates;
+  let deviceStarts;
+  async function openEdit(account) {
+    updates = null;
+    deviceStarts = 0;
+    api.admin.getSettings = async () => ({ settings: {} });
+    api.getUnreadCounts = async () => ({});
+    api.getIntegrationsStatus = async () => ({ microsoft: BUILTIN, google: { configured: false } });
+    api.updateAccount = async (_id, body) => { updates = body; return { ...account, ...body }; };
+    api.startMsDeviceFlow = async () => { deviceStarts++; return { userCode: 'K7QWZP2M', verificationUri: 'https://microsoft.com/devicelogin', interval: 3600 }; };
+    api.pollMsDeviceFlow = async () => ({ status: 'pending' });
+    useStore.setState({ user: { id: 'u1' }, accounts: [account], adminTab: 'accounts' });
+    root = createRoot(document.getElementById('root'));
+    await React.act(async () => { root.render(React.createElement(AdminPanel)); });
+    await click(document.querySelector('button[title="common.edit"]'));
+    await React.act(async () => {});
+  }
+
+  for (const provider of ['microsoft', 'google']) {
+    test(`${provider}: signed-in block, no server or credential fields, no banner`, async () => {
+      await openEdit(ACCOUNT(provider));
+      const block = document.querySelector('[data-signed-in-with]');
+      assert.equal(block.dataset.signedInWith, provider);
+      assert.ok(block.textContent.includes(provider === 'google' ? 'accountForm.signedInGoogle' : 'accountForm.signedInMicrosoft'));
+      for (const label of ['admin.accounts.imapHost', 'admin.accounts.authUser', 'admin.accounts.smtpHost', 'admin.accounts.smtpAuthUser']) {
+        assert.ok(!text().includes(label), label);
+      }
+      assert.equal(document.querySelector('input[type="password"]'), null);
+      assert.ok(!text().includes('admin.accounts.microsoftImapUnsupported'));
+      // Non-credential settings stay.
+      assert.ok(text().includes('admin.accounts.displayName'));
+      assert.ok(text().includes('admin.accounts.signatureSection'));
+    });
+  }
+
+  test('saving sends no server, login or password fields', async () => {
+    await openEdit(ACCOUNT('microsoft'));
+    await click(button('admin.accounts.saveChanges'));
+    assert.ok(updates, 'saved');
+    for (const field of ['imap_host', 'imap_port', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'auth_user', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass']) {
+      assert.equal(field in updates, false, field);
+    }
+    assert.equal(updates.name, 'Maria');
+  });
+
+  test('Sign in again opens the sign-in for this account', async () => {
+    await openEdit(ACCOUNT('microsoft'));
+    await click(button('accountErrors.action.signIn'));
+    await React.act(async () => {});
+    assert.ok(document.querySelector('[role="dialog"]'));
+    assert.equal(deviceStarts, 1);
+  });
+
+  test('a password account keeps its server and login fields', async () => {
+    await openEdit({ ...ACCOUNT('microsoft'), oauth_provider: null, imap_host: 'imap.example.com', email_address: 'maria@example.com' });
+    assert.equal(document.querySelector('[data-signed-in-with]'), null);
+    assert.ok(text().includes('admin.accounts.imapHost'));
+    assert.ok(text().includes('admin.accounts.authUser'));
+  });
+});
+

@@ -2069,5 +2069,10 @@
     "google": {
       "setupToggle": "Eigenen Google-OAuth-Client einrichten"
     }
+  },
+  "accountForm": {
+    "signedInMicrosoft": "Mit Microsoft angemeldet als {{email}}",
+    "signedInGoogle": "Mit Google angemeldet als {{email}}",
+    "signedInNote": "Server und Anmeldung stammen aus dieser Anmeldung. Wenn das Konto keine Verbindung mehr herstellt, melden Sie sich erneut an."
   }
 }
