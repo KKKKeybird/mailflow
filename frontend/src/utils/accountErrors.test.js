@@ -84,8 +84,8 @@ describe('describeAccountError', () => {
 });
 
 describe('trustedWrongAccount', () => {
-  const params = (o) => new URLSearchParams(o);
-  const wrong = { oauth_error: 'wrong_account', oauth_signed_in_as: 'other@hotmail.com', oauth_expected: 'me@outlook.com' };
+  const params = (o) => o;
+  const wrong = { error: 'wrong_account', signedInAs: 'other@hotmail.com', expected: 'me@outlook.com' };
 
   test('names the addresses only for a repair this tab started', () => {
     assert.deepEqual(trustedWrongAccount(params(wrong), true), { signedInAs: 'other@hotmail.com', expected: 'me@outlook.com' });
@@ -93,8 +93,8 @@ describe('trustedWrongAccount', () => {
   });
 
   test('and only when both look like addresses', () => {
-    assert.equal(trustedWrongAccount(params({ ...wrong, oauth_signed_in_as: 'Your account is locked, call 555-0100' }), true), null);
-    assert.equal(trustedWrongAccount(params({ ...wrong, oauth_expected: '<b>x</b>@y.z' }), true), null);
-    assert.equal(trustedWrongAccount(params({ ...wrong, oauth_error: 'access_denied' }), true), null);
+    assert.equal(trustedWrongAccount(params({ ...wrong, signedInAs: 'Your account is locked, call 555-0100' }), true), null);
+    assert.equal(trustedWrongAccount(params({ ...wrong, expected: '<b>x</b>@y.z' }), true), null);
+    assert.equal(trustedWrongAccount(params({ ...wrong, error: 'access_denied' }), true), null);
   });
 });

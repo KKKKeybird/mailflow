@@ -18,12 +18,11 @@ export const OUTLOOK_WEB_URL = 'https://outlook.live.com/mail/';
 export const REPAIR_FLAG = 'mailflow_oauth_repair';
 
 const EMAIL_LIKE = /^[^\s@<>"]+@[^\s@<>"]+\.[^\s@<>"]+$/;
-// The addresses from a same-tab "wrong account" redirect, only when this tab started a repair
-// and both look like addresses: anyone can craft a link with such parameters. Otherwise null.
-export function trustedWrongAccount(params, repairStarted) {
-  if (!repairStarted || params.get('oauth_error') !== 'wrong_account') return null;
-  const signedInAs = params.get('oauth_signed_in_as');
-  const expected = params.get('oauth_expected');
+// The addresses from a "wrong account" sign-in result, only when this tab started a repair and
+// both look like addresses. Otherwise null, and the page says something generic.
+export function trustedWrongAccount(result, repairStarted) {
+  if (!repairStarted || result?.error !== 'wrong_account') return null;
+  const { signedInAs, expected } = result;
   const ok = (v) => typeof v === 'string' && v.length <= 320 && EMAIL_LIKE.test(v);
   return ok(signedInAs) && ok(expected) ? { signedInAs, expected } : null;
 }

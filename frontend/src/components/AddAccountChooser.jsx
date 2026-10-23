@@ -91,10 +91,13 @@ export default function AddAccountChooser({ status, isAdmin, onChoose, onOpenSet
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
         {tiles.map(tile => (
           <div key={tile.id} data-tile={tile.id} style={{ display: 'flex', flexDirection: 'column' }}>
-            <button type="button" disabled={tile.disabled} aria-disabled={tile.disabled}
-              onClick={() => onChoose(tile.id, email.trim())}
+            {/* aria-disabled, not disabled: a tile that is off stays focusable, so keyboard and
+                screen reader users reach the reason it gives. */}
+            <button type="button" aria-disabled={tile.disabled ? 'true' : undefined}
+              aria-describedby={`tile-${tile.id}-detail`}
+              onClick={() => { if (!tile.disabled) onChoose(tile.id, email.trim()); }}
               style={{
-                display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', width: '100%', height: '100%',
+                display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left', width: '100%', flex: 1,
                 padding: '12px 14px', borderRadius: 10, border: '1px solid var(--border-subtle)',
                 background: 'var(--bg-tertiary)', cursor: tile.disabled ? 'not-allowed' : 'pointer',
                 opacity: tile.disabled ? 0.55 : 1, color: 'var(--text-primary)',
@@ -102,7 +105,7 @@ export default function AddAccountChooser({ status, isAdmin, onChoose, onOpenSet
               <span style={{ flexShrink: 0, display: 'flex' }}>{tile.icon}</span>
               <span style={{ minWidth: 0 }}>
                 <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>{tile.name}</span>
-                <span style={{ display: 'block', fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
+                <span id={`tile-${tile.id}-detail`} style={{ display: 'block', fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
                   {tile.disabled ? tile.reason : tile.sub}
                 </span>
               </span>

@@ -14,7 +14,9 @@ describe('detectProvider', () => {
     ['me@gmail.com', 'gmail'],
     ['me@googlemail.com', 'gmail'],
     ['me@yahoo.com', 'yahoo'],
-    ['me@yahoo.co.jp', 'yahoo'],
+    ['me@yahoo.co.uk', 'yahoo'],
+    // Yahoo! JAPAN has its own servers: the IMAP form, not the Yahoo preset.
+    ['me@yahoo.co.jp', 'other'],
     ['me@ymail.com', 'yahoo'],
     ['me@icloud.com', 'icloud'],
     ['me@me.com', 'icloud'],

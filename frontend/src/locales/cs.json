@@ -2057,8 +2057,8 @@
       "other": "Jiný (IMAP)",
       "otherSub": "Zadat nastavení serveru"
     },
-    "personalOff": "Správce vypnul přihlašování k Outlook.com.",
-    "workOff": "Správce to zatím nenastavil.",
+    "personalOff": "Na tomto serveru není k dispozici.",
+    "workOff": "Na tomto serveru není k dispozici.",
     "openSettings": "Otevřít nastavení přihlášení Microsoft"
   },
   "msSignIn": {
@@ -2088,6 +2088,8 @@
     "redirectWaiting": "Dokončete přihlášení na otevřené stránce Microsoftu a pak se sem vraťte.",
     "useCode": "Použít raději kód",
     "useRedirect": "Přihlásit se raději na stránce Microsoftu",
-    "back": "Zpět"
+    "back": "Zpět",
+    "lost": "MailFlow ztratil přehled o tomto přihlášení, například kvůli restartu serveru. Pokud jste přihlášení na stránce Microsoftu dokončili, účet už možná je ve vašem seznamu.",
+    "checkAccounts": "Zkontrolovat účty"
   }
 }

@@ -53,12 +53,29 @@ async function repairTarget(userId, accountId, provider) {
   return row;
 }
 
-// Repair redirects carry the outcome as query parameters, so the page can explain it in the
-// user's language instead of showing server text.
-function wrongAccountRedirect(err) {
-  const params = new URLSearchParams({ oauth_error: 'wrong_account', oauth_signed_in_as: err.signedInAs, oauth_expected: err.expected });
-  return `/?${params}`;
+// How a redirect sign-in ended is kept in the session for the page to fetch (GET
+// /oauth/result), not put in the URL: addresses and server text do not belong in access logs
+// or browser history. The URL carries only a short code.
+function rememberResult(req, result) {
+  if (req.session) req.session.oauthResult = result;
 }
+function wrongAccountRedirect(req, err) {
+  rememberResult(req, { error: 'wrong_account', signedInAs: err.signedInAs, expected: err.expected });
+  return '/?oauth_error=wrong_account&oauth_result=1';
+}
+
+// The outcome of the last redirect sign-in, once: read and forgotten.
+router.get('/result', (req, res) => {
+  if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
+  const result = req.session.oauthResult || null;
+  delete req.session.oauthResult;
+  res.json({ result });
+});
+
+// How long the redirect callback waits for the mailbox before answering: shorter than the
+// device-code poll's, so the token exchange, the key fetch and this wait fit well inside the
+// proxy's 60-second read timeout for /oauth/.
+const CALLBACK_CONNECT_WAIT_MS = 15000;
 
 const MICROSOFT_AUTH_URL = 'https://login.microsoftonline.com';
 
@@ -148,16 +165,11 @@ router.get('/microsoft/callback', async (req, res) => {
 
     // Back to the app once the mailbox has answered (bounded), with how it went: the page that
     // started the sign-in shows "connected" only when it is.
-    const report = await connectReportFor(signedIn);
-    const params = new URLSearchParams({
-      oauth_success: 'microsoft', oauth_account_id: String(signedIn.accountId), oauth_email: signedIn.email,
-      oauth_connection: report.connection,
-    });
-    if (report.code) params.set('oauth_code', report.code);
-    if (report.error) params.set('oauth_detail', report.error);
-    res.redirect(`/?${params}`);
+    const report = await connectReportFor(signedIn, CALLBACK_CONNECT_WAIT_MS);
+    rememberResult(req, { provider: 'microsoft', accountId: signedIn.accountId, email: signedIn.email, ...report });
+    res.redirect('/?oauth_success=microsoft&oauth_result=1');
   } catch (err) {
-    if (err instanceof WrongAccountError) return res.redirect(wrongAccountRedirect(err));
+    if (err instanceof WrongAccountError) return res.redirect(wrongAccountRedirect(req, err));
     console.error('Microsoft OAuth callback error:', err);
     res.redirect(`/?oauth_error=${err.publicMessage ? encodeURIComponent(err.publicMessage) : 'Authentication+failed'}`);
   }
@@ -291,8 +303,16 @@ async function processMicrosoftTokens(userId, tokens, { tenantId, clientId, publ
 
 // How the first connection after a sign-in went, waited for (bounded) so the sign-in reports
 // "connected" only once the mailbox has accepted the login.
-function connectReportFor({ accountId, connecting }) {
-  return reportConnect(connecting, accountId, { isConnected: () => !!imapManager.isConnected?.(accountId) });
+function connectReportFor({ accountId, connecting }, waitMs) {
+  return reportConnect(connecting, accountId, { waitMs, isConnected: () => !!imapManager.isConnected?.(accountId) });
+}
+
+// How the account's connection stands now, for an answer given after the wait ended: it may
+// have connected, or recorded its failure, since.
+async function connectionNow(accountId, report) {
+  if (report.connection !== 'connecting') return report;
+  if (imapManager.isConnected?.(accountId)) return { connection: 'connected' };
+  return reportConnect(Promise.resolve(false), accountId);
 }
 
 // The client a repair signs in through: the one the account was connected with when it is
@@ -358,11 +378,16 @@ router.post('/microsoft/device', async (req, res) => {
 router.get('/microsoft/device/poll', async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
   const flow = deviceFlows.get(req.session.userId);
-  if (!flow) return res.status(400).json({ status: 'error', error: 'No pending device code flow' });
+  // Nothing pending: the flow finished, was replaced, or the server restarted mid sign-in
+  // (pending flows live in memory). The sign-in may well have completed, so the page says it
+  // lost track and points at the account list rather than claiming a failure.
+  if (!flow) return res.json({ status: 'lost' });
+  // Tokens are being stored by another poll: wait for it.
+  if (flow.phase === 'storing') return res.json({ status: 'pending' });
   // Signed in already: this poll answers with how the first connection went (waited for,
   // bounded), so the page shows "checking" in between instead of announcing success early.
   if (flow.phase === 'checking') {
-    const report = await flow.report;
+    const report = await connectionNow(flow.accountId, await flow.report);
     if (deviceFlows.get(req.session.userId) === flow) deviceFlows.delete(req.session.userId);
     return res.json({ status: 'success', accountId: flow.accountId, email: flow.email, ...report });
   }
@@ -398,18 +423,19 @@ router.get('/microsoft/device/poll', async (req, res) => {
       return res.json({ status: 'error', error: tokens.error_description || tokens.error || 'Token exchange failed' });
     }
 
-    deviceFlows.delete(req.session.userId);
+    // Marked, not deleted, while the tokens are stored, so a new sign-in started meanwhile is
+    // not overwritten by this one's result below.
+    flow.phase = 'storing';
     // Device-code flow never uses a client secret → public client. Its refresh must
     // omit the secret too, or Microsoft rejects it with AADSTS90023 (#216).
     const signedIn = await processMicrosoftTokens(req.session.userId, tokens, {
       tenantId: flow.tenantId, clientId: flow.clientId, publicClient: true, repairAccountId: flow.repairAccountId,
     });
-    deviceFlows.set(req.session.userId, {
-      phase: 'checking', accountId: signedIn.accountId, email: signedIn.email, report: connectReportFor(signedIn),
-    });
+    const checking = { phase: 'checking', accountId: signedIn.accountId, email: signedIn.email, report: connectReportFor(signedIn) };
+    if (deviceFlows.get(req.session.userId) === flow) deviceFlows.set(req.session.userId, checking);
     res.json({ status: 'checking', accountId: signedIn.accountId, email: signedIn.email });
   } catch (err) {
-    deviceFlows.delete(req.session.userId);
+    if (deviceFlows.get(req.session.userId) === flow) deviceFlows.delete(req.session.userId);
     if (err instanceof WrongAccountError) {
       return res.json({ status: 'wrong_account', signedInAs: err.signedInAs, expected: err.expected });
     }
@@ -624,7 +650,7 @@ router.get('/google/callback', async (req, res) => {
     await processGoogleTokens(userId, tokens, { clientId, repairAccountId });
     res.redirect('/?oauth_success=google');
   } catch (err) {
-    if (err instanceof WrongAccountError) return res.redirect(wrongAccountRedirect(err));
+    if (err instanceof WrongAccountError) return res.redirect(wrongAccountRedirect(req, err));
     console.error('Google OAuth callback error:', err);
     res.redirect('/?oauth_error=Authentication+failed');
   }

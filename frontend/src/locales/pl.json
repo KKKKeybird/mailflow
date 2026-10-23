@@ -2057,8 +2057,8 @@
       "other": "Inne (IMAP)",
       "otherSub": "Wpisz ustawienia serwera"
     },
-    "personalOff": "Administrator wyłączył logowanie do Outlook.com.",
-    "workOff": "Administrator jeszcze tego nie skonfigurował.",
+    "personalOff": "Niedostępne na tym serwerze.",
+    "workOff": "Niedostępne na tym serwerze.",
     "openSettings": "Otwórz ustawienia logowania Microsoft"
   },
   "msSignIn": {
@@ -2088,6 +2088,8 @@
     "redirectWaiting": "Dokończ logowanie na otwartej stronie Microsoft, a potem wróć tutaj.",
     "useCode": "Użyj kodu",
     "useRedirect": "Zaloguj się na stronie Microsoft",
-    "back": "Wstecz"
+    "back": "Wstecz",
+    "lost": "MailFlow stracił ślad tego logowania, np. z powodu ponownego uruchomienia serwera. Jeśli logowanie na stronie Microsoft zostało dokończone, konto może już być na liście.",
+    "checkAccounts": "Sprawdź swoje konta"
   }
 }

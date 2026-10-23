@@ -3192,6 +3192,21 @@ describe('ensureFreshToken: a refresh that cannot succeed is remembered, not swa
   });
 });
 
+describe('forgetAccountError', () => {
+  beforeEach(() => { query.mockReset(); query.mockResolvedValue({ rows: [] }); });
+
+  it('clears the row and the cache, so the same failure after a retry is written again', async () => {
+    const acct = { id: 'f1', user_id: 'u1', email_address: 'x@example.com' };
+    const self = { _syncErrorState: new Map(), _accountErrorStreak: new Map(), broadcast: vi.fn(), forgetAccountError: ImapManager.prototype.forgetAccountError };
+    await ImapManager.prototype._recordAccountError.call(self, acct, 'Invalid credentials');
+    await self.forgetAccountError('f1');
+    expect(query).toHaveBeenLastCalledWith('UPDATE email_accounts SET sync_error = NULL, sync_error_code = NULL WHERE id = $1', ['f1']);
+    query.mockClear();
+    await ImapManager.prototype._recordAccountError.call(self, acct, 'Invalid credentials');
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('_recordAccountError / _clearAccountError', () => {
   const acct = { id: 'a1', user_id: 'u1', email_address: 'x@example.com' };
 

@@ -371,6 +371,11 @@ export const api = {
 
   // Integrations
   getIntegrations: () => request('GET', '/integrations'),
+  // How the last redirect sign-in ended (kept in the session, not the URL), read once.
+  oauthResult: async () => {
+    const res = await fetch('/oauth/result', { credentials: 'include' });
+    return res.ok ? (await res.json()).result : null;
+  },
   getIntegrationsStatus: () => request('GET', '/integrations/status'),
   saveIntegration: (provider, config) => request('POST', `/integrations/${provider}`, config),
   deleteIntegration: (provider) => request('DELETE', `/integrations/${provider}`),

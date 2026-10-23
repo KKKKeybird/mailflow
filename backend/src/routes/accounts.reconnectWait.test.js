@@ -1,6 +1,11 @@
 import { describe, it, expect, vi, beforeAll, afterAll, beforeEach } from 'vitest';
 
-const engine = vi.hoisted(() => ({ clearConnectCooldown: vi.fn(), connectAccount: vi.fn(), isConnected: vi.fn(() => false) }));
+// The account row, as the engine and the route see it.
+const row = vi.hoisted(() => ({ sync_error: null, sync_error_code: null }));
+const engine = vi.hoisted(() => ({
+  clearConnectCooldown: vi.fn(), connectAccount: vi.fn(), isConnected: vi.fn(() => false),
+  forgetAccountError: vi.fn(async () => { row.sync_error = null; row.sync_error_code = null; }),
+}));
 vi.mock('../services/db.js', () => ({ query: vi.fn() }));
 vi.mock('../middleware/auth.js', () => ({ requireAuth: (req, _res, next) => { req.session = { userId: 'u1' }; next(); } }));
 vi.mock('../index.js', () => ({ imapManager: engine }));
@@ -27,9 +32,12 @@ describe('POST /api/accounts/:id/reconnect', () => {
   afterAll(() => new Promise(resolve => server.close(resolve)));
   beforeEach(() => {
     engine.connectAccount.mockReset();
+    // The error from before the retry.
+    row.sync_error = 'User is authenticated but not connected.';
+    row.sync_error_code = 'ms_imap_disabled_personal';
     query.mockReset().mockImplementation(async (sql) => {
       if (/SELECT \* FROM email_accounts WHERE id = \$1 AND user_id = \$2/.test(sql)) return { rows: [{ id: ID, user_id: 'u1' }] };
-      if (/SELECT sync_error, sync_error_code/.test(sql)) return { rows: [{ sync_error: 'User is authenticated but not connected.', sync_error_code: 'ms_imap_disabled_personal' }] };
+      if (/SELECT sync_error, sync_error_code/.test(sql)) return { rows: [{ ...row }] };
       return { rows: [] };
     });
   });
@@ -43,10 +51,22 @@ describe('POST /api/accounts/:id/reconnect', () => {
   });
 
   it('with wait, reports the failure the attempt recorded', async () => {
-    engine.connectAccount.mockResolvedValue(false);
+    engine.connectAccount.mockImplementation(async () => {
+      row.sync_error = 'User is authenticated but not connected.';
+      row.sync_error_code = 'ms_imap_disabled_personal';
+      return false;
+    });
     expect(await reconnect('?wait=1')).toEqual({
       ok: true, connection: 'failed', code: 'ms_imap_disabled_personal', error: 'User is authenticated but not connected.',
     });
+  });
+
+  // connectAccount returns false at once when another connect is running: that is not the
+  // previous failure again.
+  it('with wait, does not report the error from before as the result', async () => {
+    engine.connectAccount.mockResolvedValue(false);
+    expect(await reconnect('?wait=1')).toEqual({ ok: true, connection: 'connecting' });
+    expect(engine.forgetAccountError).toHaveBeenCalledWith(ID);
   });
 
   it('with wait, reports a connection that worked', async () => {

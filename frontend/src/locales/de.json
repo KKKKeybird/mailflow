@@ -2038,8 +2038,8 @@
       "other": "Andere (IMAP)",
       "otherSub": "Servereinstellungen eingeben"
     },
-    "personalOff": "Ihr Administrator hat die Anmeldung für Outlook.com ausgeschaltet.",
-    "workOff": "Ihr Administrator hat das noch nicht eingerichtet.",
+    "personalOff": "Auf diesem Server nicht verfügbar.",
+    "workOff": "Auf diesem Server nicht verfügbar.",
     "openSettings": "Microsoft-Anmeldeeinstellungen öffnen"
   },
   "msSignIn": {
@@ -2069,6 +2069,8 @@
     "redirectWaiting": "Schließen Sie die Anmeldung auf der geöffneten Microsoft-Seite ab und kommen Sie dann hierher zurück.",
     "useCode": "Stattdessen einen Code verwenden",
     "useRedirect": "Stattdessen auf der Microsoft-Seite anmelden",
-    "back": "Zurück"
+    "back": "Zurück",
+    "lost": "MailFlow hat diese Anmeldung aus den Augen verloren, etwa weil der Server neu gestartet wurde. Wenn Sie die Anmeldung auf der Microsoft-Seite abgeschlossen haben, ist das Konto vielleicht schon in Ihrer Liste.",
+    "checkAccounts": "Konten prüfen"
   }
 }

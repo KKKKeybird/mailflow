@@ -2038,8 +2038,8 @@
       "other": "Otra (IMAP)",
       "otherSub": "Introduce los datos del servidor"
     },
-    "personalOff": "Tu administrador desactivó el inicio de sesión de Outlook.com.",
-    "workOff": "Tu administrador aún no lo ha configurado.",
+    "personalOff": "No disponible en este servidor.",
+    "workOff": "No disponible en este servidor.",
     "openSettings": "Abrir la configuración de inicio de sesión de Microsoft"
   },
   "msSignIn": {
@@ -2069,6 +2069,8 @@
     "redirectWaiting": "Termina de iniciar sesión en la página de Microsoft que se abrió y luego vuelve aquí.",
     "useCode": "Usar un código en su lugar",
     "useRedirect": "Iniciar sesión en la página de Microsoft en su lugar",
-    "back": "Atrás"
+    "back": "Atrás",
+    "lost": "MailFlow perdió el rastro de este inicio de sesión, por ejemplo porque el servidor se reinició. Si terminaste de iniciar sesión en la página de Microsoft, puede que la cuenta ya esté en tu lista.",
+    "checkAccounts": "Revisar tus cuentas"
   }
 }

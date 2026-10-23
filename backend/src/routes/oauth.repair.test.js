@@ -109,7 +109,7 @@ describe('repairing an account by signing in again', () => {
     expect(writes()).toEqual([]);
     expect(mocks.imapManager.connectAccount).not.toHaveBeenCalled();
     // The flow is over: a second poll has nothing pending.
-    expect((await poll()).status).toBe('error');
+    expect((await poll()).status).toBe('lost');
   });
 
   it('updates the account it was started for when the address matches without regard to case', async () => {
@@ -165,10 +165,12 @@ describe('repairing an account by signing in again', () => {
 
     signedInAs = 'other@gmail.com';
     const cb = await realFetch(`${base}/oauth/google/callback?code=c&state=${session.oauthNonce}`, { redirect: 'manual' });
-    const location = new URL(cb.headers.get('location'), base);
-    expect(Object.fromEntries(location.searchParams)).toEqual({
-      oauth_error: 'wrong_account', oauth_signed_in_as: 'other@gmail.com', oauth_expected: 'maria@gmail.com',
+    // The addresses stay out of the URL (access logs, history); the page fetches them once.
+    expect(cb.headers.get('location')).toBe('/?oauth_error=wrong_account&oauth_result=1');
+    expect(await (await realFetch(`${base}/oauth/result`)).json()).toEqual({
+      result: { error: 'wrong_account', signedInAs: 'other@gmail.com', expected: 'maria@gmail.com' },
     });
+    expect(await (await realFetch(`${base}/oauth/result`)).json()).toEqual({ result: null });
     expect(writes()).toEqual([]);
     expect(session.oauthRepairAccountId).toBeUndefined();
   });
@@ -188,7 +190,49 @@ describe('repairing an account by signing in again', () => {
       connection: 'failed', code: 'ms_imap_disabled_personal', error: 'User is authenticated but not connected.',
     });
     // The flow is finished.
-    expect((await poll()).status).toBe('error');
+    expect((await poll()).status).toBe('lost');
+  });
+
+  // Pending flows live in memory: after a restart the page must not claim the sign-in failed.
+  it('answers "lost" when nothing is pending, not an error', async () => {
+    expect(await poll()).toEqual({ status: 'lost' });
+  });
+
+  it('a poll that comes after the wait ended reports the connection as it is now', async () => {
+    signedInAs = 'new.person@outlook.com';
+    let live = false;
+    mocks.imapManager.isConnected = vi.fn(() => live);
+    mocks.imapManager.connectAccount.mockResolvedValue(false); // ended without an error to show
+    try {
+      await startDevice({});
+      expect((await poll()).status).toBe('checking');
+      await new Promise(r => setTimeout(r, 30));
+      live = true; // connected since, on a later attempt
+      expect(await poll()).toMatchObject({ status: 'success', connection: 'connected' });
+    } finally {
+      delete mocks.imapManager.isConnected;
+    }
+  });
+
+  it('a new sign-in started while the tokens are stored is not overwritten by the old one', async () => {
+    signedInAs = 'new.person@outlook.com';
+    let release;
+    mocks.withTransaction.mockImplementationOnce(async (fn) => {
+      await new Promise(r => { release = r; });
+      return mocks.withTransaction.getMockImplementation()(fn);
+    });
+    await startDevice({});
+    const first = poll();
+    await new Promise(r => setTimeout(r, 30));
+    // While the first is storing, a concurrent poll waits instead of redeeming the code again.
+    expect(await poll()).toEqual({ status: 'pending' });
+    await startDevice({}); // a fresh sign-in replaces the pending one
+    release();
+    expect((await first).status).toBe('checking');
+    // The fresh flow is still the one pending: its poll asks Microsoft, it is not 'checking'.
+    const calls = globalThis.fetch.mock.calls.length;
+    await poll();
+    expect(globalThis.fetch.mock.calls.length).toBe(calls + 1);
   });
 
   it('reports connected as soon as the login is live, while the first sync is still running', async () => {
@@ -211,9 +255,10 @@ describe('repairing an account by signing in again', () => {
     await realFetch(`${base}/oauth/microsoft?accountId=11111111-1111-4111-8111-111111111111`, { redirect: 'manual' });
     expect(session.oauthRepairAccountId).toBe('11111111-1111-4111-8111-111111111111');
     const cb = await realFetch(`${base}/oauth/microsoft/callback?code=c&state=${session.oauthNonce}`, { redirect: 'manual' });
-    // Back to the page with how the first connection went, for it to report honestly.
-    expect(Object.fromEntries(new URL(cb.headers.get('location'), base).searchParams)).toEqual({
-      oauth_success: 'microsoft', oauth_account_id: '11111111-1111-4111-8111-111111111111', oauth_email: 'maria.lopez@outlook.com', oauth_connection: 'connected',
+    // Back to the page with only a short code; how the first connection went is fetched once.
+    expect(cb.headers.get('location')).toBe('/?oauth_success=microsoft&oauth_result=1');
+    expect(await (await realFetch(`${base}/oauth/result`)).json()).toEqual({
+      result: { provider: 'microsoft', accountId: '11111111-1111-4111-8111-111111111111', email: 'maria.lopez@outlook.com', connection: 'connected' },
     });
     expect(writes()[0][1][5]).toBe('11111111-1111-4111-8111-111111111111');
   });

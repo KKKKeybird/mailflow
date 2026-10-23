@@ -26,7 +26,8 @@ export function detectProvider(email) {
   if (!domain) return null;
   if (MICROSOFT_PERSONAL.test(domain)) return 'microsoftPersonal';
   if (GMAIL.test(domain)) return 'gmail';
-  if (YAHOO.test(domain)) return 'yahoo';
+  // Yahoo! JAPAN runs its own mail servers, which the Yahoo preset does not reach.
+  if (YAHOO.test(domain) && domain !== 'yahoo.co.jp') return 'yahoo';
   if (ICLOUD.test(domain)) return 'icloud';
   return 'other';
 }

@@ -2038,8 +2038,8 @@
       "other": "其他（IMAP）",
       "otherSub": "输入服务器设置"
     },
-    "personalOff": "你的管理员已关闭 Outlook.com 登录。",
-    "workOff": "你的管理员尚未设置此项。",
+    "personalOff": "此服务器上不可用。",
+    "workOff": "此服务器上不可用。",
     "openSettings": "打开 Microsoft 登录设置"
   },
   "msSignIn": {
@@ -2069,6 +2069,8 @@
     "redirectWaiting": "请在打开的 Microsoft 页面完成登录，然后回到这里。",
     "useCode": "改用代码",
     "useRedirect": "改为在 Microsoft 页面登录",
-    "back": "返回"
+    "back": "返回",
+    "lost": "MailFlow 丢失了此次登录的进度，例如因为服务器重新启动。如果你已在 Microsoft 页面完成登录，该帐户可能已在你的列表中。",
+    "checkAccounts": "查看你的帐户"
   }
 }

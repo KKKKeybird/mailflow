@@ -13,7 +13,8 @@ import AccountErrorCallout from './AccountErrorCallout.jsx';
 // onSignedIn(result) runs once the server has stored the sign-in, whatever the connection did:
 //   result = { accountId, email, connection: 'connected' | 'connecting' | 'failed', code, error }
 // onDone runs from the Done button after an outcome; onCancel from Cancel before one.
-export default function MicrosoftDeviceCode({ accountId = null, onSignedIn, onDone, onCancel }) {
+// onStatus(status) reports each step, for the page around it.
+export default function MicrosoftDeviceCode({ accountId = null, onSignedIn, onDone, onCancel, onStatus }) {
   const { t } = useTranslation();
   // starting | pending | checking | done | declined | expired | error | wrong_account
   const [status, setStatus] = useState('starting');
@@ -25,6 +26,9 @@ export default function MicrosoftDeviceCode({ accountId = null, onSignedIn, onDo
   const [attempt, setAttempt] = useState(0);
   const signedInRef = useRef(onSignedIn);
   signedInRef.current = onSignedIn;
+  const statusRef = useRef(onStatus);
+  statusRef.current = onStatus;
+  useEffect(() => { statusRef.current?.(status); }, [status]);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,7 +60,7 @@ export default function MicrosoftDeviceCode({ accountId = null, onSignedIn, onDo
       }
       if (answer.status === 'wrong_account') setWrong({ signedInAs: answer.signedInAs, expected: answer.expected });
       if (answer.status === 'error') setErrorText(answer.error || '');
-      setStatus(['declined', 'expired', 'wrong_account'].includes(answer.status) ? answer.status : 'error');
+      setStatus(['declined', 'expired', 'wrong_account', 'lost'].includes(answer.status) ? answer.status : 'error');
     };
     api.startMsDeviceFlow(accountId).then((data) => {
       if (cancelled) return;
@@ -110,6 +114,17 @@ export default function MicrosoftDeviceCode({ accountId = null, onSignedIn, onDo
     content = <div role="status" style={{ ...small, display: 'flex', alignItems: 'center', gap: 6 }}>{spinner}{t('msSignIn.checking')}</div>;
   } else if (status === 'wrong_account') {
     content = ended(t('accountErrors.wrongAccount', { signedInAs: wrong?.signedInAs, expected: wrong?.expected }));
+  } else if (status === 'lost') {
+    // The server no longer knows this sign-in (it restarted, say). It may have finished.
+    content = (
+      <div role="alert">
+        <div style={{ fontSize: 13, color: 'var(--text-primary)', lineHeight: 1.5 }}>{t('msSignIn.lost')}</div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 12, flexWrap: 'wrap' }}>
+          {onDone && <button type="button" onClick={onDone} style={primary}>{t('msSignIn.checkAccounts')}</button>}
+          <button type="button" onClick={() => setAttempt(a => a + 1)} style={quiet}>{t('msSignIn.startOver')}</button>
+        </div>
+      </div>
+    );
   } else if (status === 'declined') {
     content = ended(t('msSignIn.declined'));
   } else if (status === 'expired') {

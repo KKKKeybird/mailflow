@@ -41,6 +41,7 @@ import SignInAgainDialog from './SignInAgainDialog.jsx';
 import AddAccountChooser from './AddAccountChooser.jsx';
 import MicrosoftSignIn from './MicrosoftSignIn.jsx';
 import { describeAccountError } from '../utils/accountErrors.js';
+import { detectProvider } from '../utils/providerDetect.js';
 import { formatRelativeTime, daysSince } from '../utils/relativeTime.js';
 import { formatDateTime, formatDay, formatTime } from '../utils/formatDate.js';
 import { htmlLang } from '../utils/browserLanguage.js';
@@ -120,13 +121,22 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn }) 
   // instance's own app or MailFlow's built-in one (#674). Asked only once one is typed, and
   // only in a build that ships the built-in app; otherwise the note stays as it was.
   const [msPersonalReady, setMsPersonalReady] = useState(false);
+  const [msWorkReady, setMsWorkReady] = useState(false);
   const microsoftHost = isMicrosoftImapHost(form.imap_host);
+  // Which sign-in the Outlook host note offers: work or school for an address that is not a
+  // personal Microsoft one when work sign-in is set up, else personal.
+  const msSignInKind = detectProvider(form.email_address) !== 'microsoftPersonal' && msWorkReady ? 'work' : 'personal';
+  const msSignInOffered = msSignInKind === 'work' || msPersonalReady;
 
   useEffect(() => {
     if (!microsoftHost) return undefined;
     let cancelled = false;
     api.getIntegrationsStatus()
-      .then(d => { if (!cancelled) setMsPersonalReady(!!d.microsoft?.builtinAppShipped && !!d.microsoft?.personalAccounts); })
+      .then(d => {
+        if (cancelled) return;
+        setMsPersonalReady(!!d.microsoft?.builtinAppShipped && !!d.microsoft?.personalAccounts);
+        setMsWorkReady(!!d.microsoft?.workAccounts);
+      })
       .catch(() => {});
     return () => { cancelled = true; };
   }, [microsoftHost]);
@@ -364,11 +374,11 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn }) 
           <div>
             <div style={{ fontWeight: 600, marginBottom: 3 }}>{t('admin.accounts.microsoftImapUnsupported')}</div>
             <div style={{ color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-              {!isEdit && msPersonalReady && onMicrosoftSignIn ? t('admin.accounts.microsoftImapNoteSignIn')
+              {!isEdit && msSignInOffered && onMicrosoftSignIn ? t('admin.accounts.microsoftImapNoteSignIn')
                 : msPersonalReady ? t('admin.accounts.microsoftImapNoteReady') : t('admin.accounts.microsoftImapNote')}
             </div>
-            {!isEdit && msPersonalReady && onMicrosoftSignIn && (
-              <button type="button" onClick={onMicrosoftSignIn} style={{
+            {!isEdit && msSignInOffered && onMicrosoftSignIn && (
+              <button type="button" onClick={() => onMicrosoftSignIn(msSignInKind)} style={{
                 marginTop: 10, padding: '7px 14px', background: 'var(--accent)', border: 'none', borderRadius: 7,
                 color: 'var(--accent-text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
               }}>{t('msSignIn.titlePersonal')}</button>
@@ -911,7 +921,7 @@ function AccountsTab() {
               {t('admin.accounts.addTitle')}
             </div>
             <AccountForm key={`${addStep.preset}:${addStep.email}`} prefill={addStep} onSave={handleAdd} onCancel={toChooser}
-              onMicrosoftSignIn={() => setAddStep({ step: 'microsoft', mode: 'personal' })} />
+              onMicrosoftSignIn={(kind) => setAddStep({ step: 'microsoft', mode: kind === 'work' ? 'work' : 'personal' })} />
           </>
         )}
       </div>

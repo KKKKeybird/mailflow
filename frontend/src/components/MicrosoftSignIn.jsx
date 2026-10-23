@@ -15,6 +15,9 @@ export default function MicrosoftSignIn({ mode, status, onSignedIn, onDone, onCa
   const redirectAvailable = mode === 'work' && !!status?.workRedirect;
   const [useCode, setUseCode] = useState(!redirectAvailable);
   const [redirect, setRedirect] = useState(null); // null | 'waiting' | { result } | { error }
+  const [deviceStatus, setDeviceStatus] = useState(null);
+  // Once there is an outcome, the Outlook.com note would only repeat it.
+  const finished = ['done', 'lost'].includes(deviceStatus) || !!redirect?.result;
   // MailFlow's shared app signs personal accounts in when the instance has no app of its own.
   const sharedApp = mode === 'personal' && !status?.configured && !!status?.builtinApp;
 
@@ -57,7 +60,7 @@ export default function MicrosoftSignIn({ mode, status, onSignedIn, onDone, onCa
         {t(mode === 'work' ? 'msSignIn.titleWork' : 'msSignIn.titlePersonal')}
       </div>
 
-      {mode === 'personal' && (
+      {mode === 'personal' && !finished && (
         <div style={{ ...box, background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', marginBottom: 14 }}>
           <div style={{ fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>{t('msSignIn.beforeTitle')}</div>
           <div style={{ color: 'var(--text-secondary)' }}>{t('msSignIn.beforeBody')}</div>
@@ -73,7 +76,7 @@ export default function MicrosoftSignIn({ mode, status, onSignedIn, onDone, onCa
       )}
 
       {useCode ? (
-        <MicrosoftDeviceCode onSignedIn={onSignedIn} onDone={onDone} onCancel={onCancel} />
+        <MicrosoftDeviceCode onSignedIn={onSignedIn} onDone={onDone} onCancel={onCancel} onStatus={setDeviceStatus} />
       ) : (
         <div style={{ padding: 14, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
           {redirect?.result ? (

@@ -403,9 +403,12 @@ router.post('/:id/reconnect', async (req, res) => {
   // failures back off for up to six hours, and without this the button would answer
   // { ok: true } while connectAccount early-returned on the cooldown: a silent no-op.
   imapManager.clearConnectCooldown(id);
-  const connecting = imapManager.connectAccount(result.rows[0]).catch((err) => { console.error(err); return false; });
   // ?wait=1 answers with how the attempt went (bounded), for a "Try again" that has to say
-  // whether it worked; without it the reconnect runs in the background as before.
+  // whether it worked; without it the reconnect runs in the background as before. The old
+  // error is forgotten first: connectAccount returns false at once when another connect is
+  // already running, and that must read as "still connecting", not as the previous failure.
+  if (req.query.wait) await imapManager.forgetAccountError?.(id);
+  const connecting = imapManager.connectAccount(result.rows[0]).catch((err) => { console.error(err); return false; });
   if (req.query.wait) {
     return res.json({ ok: true, ...(await reportConnect(connecting, id, { isConnected: () => !!imapManager.isConnected?.(id) })) });
   }

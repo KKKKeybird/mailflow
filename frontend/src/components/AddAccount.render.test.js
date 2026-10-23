@@ -80,6 +80,7 @@ const setValue = (input, value) => act(async () => {
 });
 const submit = (form) => act(async () => { form.dispatchEvent(new dom.window.Event('submit', { bubbles: true, cancelable: true })); });
 const tile = (id) => doc.querySelector(`[data-tile="${id}"] button`);
+const isOff = (id) => tile(id).getAttribute('aria-disabled') === 'true';
 const state = () => doc.querySelector('[data-sign-in-state]')?.dataset.signInState;
 
 const CONFIGS = {
@@ -127,11 +128,14 @@ describe('the chooser, per instance configuration', () => {
     test(`${config}: Outlook.com ${personal ? 'on' : 'off'}, Microsoft 365 ${work ? 'on' : 'off'}`, async () => {
       await openAdd(config);
       assert.ok(text().includes('addAccount.title'));
-      assert.equal(tile('microsoftPersonal').disabled, !personal);
-      assert.equal(tile('microsoftWork').disabled, !work);
+      assert.equal(isOff('microsoftPersonal'), !personal);
+      assert.equal(isOff('microsoftWork'), !work);
       assert.equal(text().includes('addAccount.personalOff'), !personal);
       assert.equal(text().includes('addAccount.workOff'), !work);
-      for (const id of ['gmail', 'yahoo', 'icloud', 'other']) assert.equal(tile(id).disabled, false, id);
+      for (const id of ['gmail', 'yahoo', 'icloud', 'other']) assert.equal(isOff(id), false, id);
+      // A tile that is off still takes focus, and says why to assistive technology.
+      assert.equal(tile('microsoftWork').disabled, false);
+      assert.equal(doc.getElementById(tile('microsoftWork').getAttribute('aria-describedby'))?.textContent, work ? 'addAccount.tile.workSub' : 'addAccount.workOff');
       // No settings link for someone who cannot change them.
       assert.ok(!text().includes('addAccount.openSettings'));
     });
@@ -276,6 +280,38 @@ describe('Sign in with Microsoft, inline', () => {
       assert.equal(deviceStarts, 2);
     });
   }
+});
+
+describe('review follow-ups', () => {
+  test('the Outlook.com note goes away once there is an outcome', async () => {
+    await openAdd('builtin');
+    polls.push({ status: 'checking', accountId: 'n1', email: 'a@outlook.com' }, { status: 'success', accountId: 'n1', email: 'a@outlook.com', connection: 'connected' });
+    await click(tile('microsoftPersonal'));
+    assert.ok(text().includes('msSignIn.beforeTitle'));
+    await wait(40);
+    assert.ok(!text().includes('msSignIn.beforeTitle'));
+  });
+
+  test('a sign-in the server lost track of says so and points at the accounts', async () => {
+    await openAdd('builtin');
+    polls.push({ status: 'lost' });
+    await click(tile('microsoftPersonal'));
+    await wait(30);
+    assert.ok(text().includes('msSignIn.lost'));
+    assert.ok(!text().includes('msSignIn.error'));
+    await click(byText('button', 'msSignIn.checkAccounts'));
+    assert.ok(!text().includes('addAccount.title'), 'back to the account list');
+  });
+
+  test('an Outlook host typed for a work address offers the work sign-in, without the Outlook.com note', async () => {
+    await openAdd('ownCommon');
+    await typeAndContinue('maria@contoso.example');
+    await setValue(doc.querySelector('input[placeholder="admin.accounts.imapHostPh"]'), 'outlook.office365.com');
+    await act(async () => {});
+    await click(byText('button', 'msSignIn.titlePersonal'));
+    assert.ok(text().includes('msSignIn.titleWork'));
+    assert.ok(!text().includes('msSignIn.beforeTitle'));
+  });
 });
 
 describe('work and school accounts', () => {

@@ -2038,8 +2038,8 @@
       "other": "Outro (IMAP)",
       "otherSub": "Informar as configurações do servidor"
     },
-    "personalOff": "Seu administrador desativou o login do Outlook.com.",
-    "workOff": "Seu administrador ainda não configurou isso.",
+    "personalOff": "Não disponível neste servidor.",
+    "workOff": "Não disponível neste servidor.",
     "openSettings": "Abrir as configurações de login da Microsoft"
   },
   "msSignIn": {
@@ -2069,6 +2069,8 @@
     "redirectWaiting": "Conclua o login na página da Microsoft que abriu e depois volte aqui.",
     "useCode": "Usar um código",
     "useRedirect": "Entrar pela página da Microsoft",
-    "back": "Voltar"
+    "back": "Voltar",
+    "lost": "O MailFlow perdeu o acompanhamento deste login, por exemplo porque o servidor reiniciou. Se você concluiu o login na página da Microsoft, a conta pode já estar na sua lista.",
+    "checkAccounts": "Ver suas contas"
   }
 }

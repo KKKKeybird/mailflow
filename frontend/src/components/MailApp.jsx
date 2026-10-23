@@ -718,11 +718,14 @@ export default function MailApp() {
       window.history.replaceState({}, '', '/');
       let repairStarted = false;
       try { repairStarted = !!sessionStorage.getItem(REPAIR_FLAG); sessionStorage.removeItem(REPAIR_FLAG); } catch { /* storage unavailable */ }
-      const wrong = trustedWrongAccount(params, repairStarted);
-      addNotification({
-        type: 'error',
-        title: t('accountErrors.signInFailed'),
-        body: wrong ? t('accountErrors.wrongAccount', wrong) : t('accountErrors.signInFailedBody'),
+      const details = params.get('oauth_result') ? api.oauthResult().catch(() => null) : Promise.resolve(null);
+      details.then((result) => {
+        const wrong = trustedWrongAccount(result || { error: oauthError }, repairStarted);
+        addNotification({
+          type: 'error',
+          title: t('accountErrors.signInFailed'),
+          body: wrong ? t('accountErrors.wrongAccount', wrong) : t('accountErrors.signInFailedBody'),
+        });
       });
     } else if (oidcSuccess) {
       window.history.replaceState({}, '', '/');

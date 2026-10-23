@@ -2038,8 +2038,8 @@
       "other": "Altro (IMAP)",
       "otherSub": "Inserisci le impostazioni del server"
     },
-    "personalOff": "Il tuo amministratore ha disattivato l'accesso a Outlook.com.",
-    "workOff": "Il tuo amministratore non l'ha ancora configurato.",
+    "personalOff": "Non disponibile su questo server.",
+    "workOff": "Non disponibile su questo server.",
     "openSettings": "Apri le impostazioni di accesso Microsoft"
   },
   "msSignIn": {
@@ -2069,6 +2069,8 @@
     "redirectWaiting": "Completa l'accesso nella pagina di Microsoft che si è aperta, poi torna qui.",
     "useCode": "Usa invece un codice",
     "useRedirect": "Accedi invece nella pagina di Microsoft",
-    "back": "Indietro"
+    "back": "Indietro",
+    "lost": "MailFlow ha perso traccia di questo accesso, ad esempio perché il server è stato riavviato. Se hai completato l'accesso nella pagina di Microsoft, l'account potrebbe essere già nel tuo elenco.",
+    "checkAccounts": "Controlla i tuoi account"
   }
 }

@@ -3478,11 +3478,6 @@ export class ImapManager {
 
   // Cleared when a human explicitly changes the account, so fixing a password retries at once
   // instead of waiting out a cooldown that may be hours long.
-  // Whether the account has a live IMAP session (logged in), for the sign-in flow to report.
-  isConnected(accountId) {
-    return this.connections.has(accountId);
-  }
-
   clearConnectCooldown(accountId) {
     this._connectCooldown.delete(accountId);
     // The secondary backoff goes too. This is the explicit human action (editing the account,
@@ -3490,6 +3485,21 @@ export class ImapManager {
     // minute cap after the user has asked for a retry makes the button look broken.
     this._secondaryCooldown.delete(accountId);
   }
+
+  // Whether the account has a live IMAP session (logged in), for the sign-in flow to report.
+  isConnected(accountId) {
+    return this.connections.has(accountId);
+  }
+
+  // Forget the account's recorded error before an explicit retry whose outcome is reported
+  // back (Try again in the sign-in flow): a failure recorded after this is the retry's own,
+  // never the one from before. Deleting the cached state makes the next record write through
+  // even when the text is the same.
+  async forgetAccountError(accountId) {
+    this._syncErrorState.delete(accountId);
+    await query('UPDATE email_accounts SET sync_error = NULL, sync_error_code = NULL WHERE id = $1', [accountId]);
+  }
+
 
   // Arm/extend the backoff for secondary connections. Same ladder as _noteConnectionRefusal,
   // deliberately a different map: only a successful secondary connection clears this, so a

@@ -2038,8 +2038,8 @@
       "other": "기타(IMAP)",
       "otherSub": "서버 설정 입력"
     },
-    "personalOff": "관리자가 Outlook.com 로그인을 꺼 두었습니다.",
-    "workOff": "관리자가 아직 설정하지 않았습니다.",
+    "personalOff": "이 서버에서는 사용할 수 없습니다.",
+    "workOff": "이 서버에서는 사용할 수 없습니다.",
     "openSettings": "Microsoft 로그인 설정 열기"
   },
   "msSignIn": {
@@ -2069,6 +2069,8 @@
     "redirectWaiting": "열린 Microsoft 페이지에서 로그인을 마친 다음 여기로 돌아오세요.",
     "useCode": "대신 코드 사용",
     "useRedirect": "대신 Microsoft 페이지에서 로그인",
-    "back": "뒤로"
+    "back": "뒤로",
+    "lost": "서버가 다시 시작되는 등의 이유로 MailFlow가 이 로그인을 추적하지 못했습니다. Microsoft 페이지에서 로그인을 마쳤다면 계정이 이미 목록에 있을 수 있습니다.",
+    "checkAccounts": "계정 확인"
   }
 }

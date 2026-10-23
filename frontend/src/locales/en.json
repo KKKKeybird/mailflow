@@ -2038,8 +2038,8 @@
       "other": "Other (IMAP)",
       "otherSub": "Enter your server settings"
     },
-    "personalOff": "Your administrator has turned off Outlook.com sign-in.",
-    "workOff": "Your administrator has not set this up yet.",
+    "personalOff": "Not available on this server.",
+    "workOff": "Not available on this server.",
     "openSettings": "Open Microsoft sign-in settings"
   },
   "msSignIn": {
@@ -2069,6 +2069,8 @@
     "redirectWaiting": "Finish signing in on the Microsoft page that opened, then come back here.",
     "useCode": "Use a code instead",
     "useRedirect": "Sign in on Microsoft's page instead",
-    "back": "Back"
+    "back": "Back",
+    "lost": "MailFlow lost track of this sign-in, for example because the server restarted. If you finished signing in on Microsoft's page, the account may already be in your list.",
+    "checkAccounts": "Check your accounts"
   }
 }

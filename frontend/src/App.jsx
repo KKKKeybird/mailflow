@@ -47,22 +47,24 @@ export default function App() {
     const oauthSuccess = params.get('oauth_success');
     const oauthError = params.get('oauth_error');
     if ((oauthSuccess || oauthError) && window.opener) {
-      if (oauthSuccess) {
-        // A Microsoft sign-in also reports how the first connection went, for the page that
-        // started it to show.
-        window.opener.postMessage({
-          type: 'oauth_success', provider: oauthSuccess,
-          accountId: params.get('oauth_account_id'), email: params.get('oauth_email'),
-          connection: params.get('oauth_connection'), code: params.get('oauth_code'), detail: params.get('oauth_detail'),
-        }, window.location.origin);
-      } else {
-        // A repair signed in as another address reports both, for the page to explain.
-        window.opener.postMessage({
-          type: 'oauth_error', error: oauthError,
-          signedInAs: params.get('oauth_signed_in_as'), expected: params.get('oauth_expected'),
-        }, window.location.origin);
-      }
-      window.close();
+      const opener = window.opener;
+      // The details (how the first connection went, or which address was signed in instead)
+      // are kept in the session rather than the URL; fetch them once and hand them over.
+      const details = params.get('oauth_result') ? api.oauthResult().catch(() => null) : Promise.resolve(null);
+      details.then((result) => {
+        if (oauthSuccess) {
+          opener.postMessage({
+            type: 'oauth_success', provider: oauthSuccess,
+            accountId: result?.accountId, email: result?.email,
+            connection: result?.connection, code: result?.code, detail: result?.error,
+          }, window.location.origin);
+        } else {
+          opener.postMessage({
+            type: 'oauth_error', error: oauthError, signedInAs: result?.signedInAs, expected: result?.expected,
+          }, window.location.origin);
+        }
+        window.close();
+      });
       return;
     }
 

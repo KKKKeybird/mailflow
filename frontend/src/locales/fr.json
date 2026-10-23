@@ -2038,8 +2038,8 @@
       "other": "Autre (IMAP)",
       "otherSub": "Saisir les paramètres du serveur"
     },
-    "personalOff": "Votre administrateur a désactivé la connexion Outlook.com.",
-    "workOff": "Votre administrateur ne l'a pas encore configuré.",
+    "personalOff": "Non disponible sur ce serveur.",
+    "workOff": "Non disponible sur ce serveur.",
     "openSettings": "Ouvrir les paramètres de connexion Microsoft"
   },
   "msSignIn": {
@@ -2069,6 +2069,8 @@
     "redirectWaiting": "Terminez la connexion sur la page Microsoft qui s'est ouverte, puis revenez ici.",
     "useCode": "Utiliser un code à la place",
     "useRedirect": "Se connecter sur la page de Microsoft à la place",
-    "back": "Retour"
+    "back": "Retour",
+    "lost": "MailFlow a perdu la trace de cette connexion, par exemple parce que le serveur a redémarré. Si vous avez terminé la connexion sur la page de Microsoft, le compte est peut-être déjà dans votre liste.",
+    "checkAccounts": "Vérifier vos comptes"
   }
 }
