@@ -16,18 +16,18 @@ export function microsoftAvailability(status) {
 }
 
 const MicrosoftLogo = () => (
-  <svg width="22" height="22" viewBox="0 0 21 21" aria-hidden="true">
+  <svg width="20" height="20" viewBox="0 0 21 21" aria-hidden="true">
     <rect x="1" y="1" width="9" height="9" fill="#f25022"/><rect x="11" y="1" width="9" height="9" fill="#7fba00"/>
     <rect x="1" y="11" width="9" height="9" fill="#00a4ef"/><rect x="11" y="11" width="9" height="9" fill="#ffb900"/>
   </svg>
 );
 const MailIcon = ({ color }) => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" aria-hidden="true">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.75" aria-hidden="true">
     <rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2 7 12 14 22 7"/>
   </svg>
 );
 const ServerIcon = () => (
-  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.75" aria-hidden="true">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="1.75" aria-hidden="true">
     <rect x="3" y="4" width="18" height="7" rx="1.5"/><rect x="3" y="13" width="18" height="7" rx="1.5"/>
     <line x1="7" y1="7.5" x2="7.01" y2="7.5"/><line x1="7" y1="16.5" x2="7.01" y2="16.5"/>
   </svg>
@@ -89,9 +89,11 @@ export default function AddAccountChooser({ status, googleStatus, isAdmin, onCho
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '22px 0 10px', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
         {t('addAccount.orChoose')}
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gap: 10 }}>
+      {/* gridAutoRows 1fr: every tile the height of the tallest, so rows line up however the
+          names wrap. */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(220px, 1fr))', gridAutoRows: '1fr', gap: 10 }}>
         {tiles.map(tile => (
-          <div key={tile.id} data-tile={tile.id} style={{ display: 'flex', flexDirection: 'column' }}>
+          <div key={tile.id} data-tile={tile.id} style={{ display: 'flex' }}>
             {/* aria-disabled, not disabled: a tile that is off stays focusable, so keyboard and
                 screen reader users reach the reason it gives. */}
             <button type="button" aria-disabled={tile.disabled ? 'true' : undefined}
@@ -103,7 +105,10 @@ export default function AddAccountChooser({ status, googleStatus, isAdmin, onCho
                 background: 'var(--bg-tertiary)', cursor: tile.disabled ? 'not-allowed' : 'pointer',
                 opacity: tile.disabled ? 0.55 : 1, color: 'var(--text-primary)',
               }}>
-              <span style={{ flexShrink: 0, display: 'flex' }}>{tile.icon}</span>
+              <span style={{
+                flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 36, height: 36, borderRadius: 8, background: 'var(--bg-secondary)',
+              }}>{tile.icon}</span>
               <span style={{ minWidth: 0 }}>
                 <span style={{ display: 'block', fontSize: 13, fontWeight: 600 }}>{tile.name}</span>
                 <span id={`tile-${tile.id}-detail`} style={{ display: 'block', fontSize: 12, color: 'var(--text-tertiary)', marginTop: 2 }}>
@@ -111,15 +116,17 @@ export default function AddAccountChooser({ status, googleStatus, isAdmin, onCho
                 </span>
               </span>
             </button>
-            {tile.disabled && isAdmin && onOpenSettings && (
-              <button type="button" onClick={onOpenSettings} style={{
-                alignSelf: 'flex-start', marginTop: 4, background: 'none', border: 'none', padding: '2px 4px',
-                color: 'var(--accent)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
-              }}>{t('addAccount.openSettings')}</button>
-            )}
           </div>
         ))}
       </div>
+      {/* One link under the grid rather than one under each tile that is off, which made that
+          tile's row taller than the rest. */}
+      {isAdmin && onOpenSettings && tiles.some(tile => tile.disabled) && (
+        <button type="button" onClick={onOpenSettings} style={{
+          marginTop: 10, background: 'none', border: 'none', padding: '2px 0',
+          color: 'var(--accent)', fontSize: 12, cursor: 'pointer', textDecoration: 'underline',
+        }}>{t('addAccount.openSettings')}</button>
+      )}
     </div>
   );
 }
