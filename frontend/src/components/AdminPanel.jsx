@@ -326,7 +326,9 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, on
           )}
         </div>
       ) : null}
-      {signedInWith && (
+      {/* Microsoft only: a shared or delegated Microsoft 365 mailbox opens with one's own sign-in
+          as its address; Gmail has no such way. */}
+      {signedInWith === 'microsoft' && (
         <div style={{ marginTop: 14 }}>
           <Field label={t('accountForm.mailboxLabel')}>
             <input value={form.auth_user || ''} onChange={e => set('auth_user', e.target.value)}
@@ -820,9 +822,12 @@ function AccountsTab() {
     const updates = { name: form.name, sender_name: form.sender_name || null, color: form.color, icon: form.icon || null, imap_host: form.imap_host, imap_port: form.imap_port, imap_skip_tls_verify: !!form.imap_skip_tls_verify, smtp_host: form.smtp_host, smtp_port: form.smtp_port, smtp_tls: form.smtp_tls, signature: form.signature || null, categorization_enabled: !!form.categorization_enabled, antispam_enabled: !!form.antispam_enabled, trusted_authserv_id: (form.trusted_authserv_id || '').trim() || null, include_in_unified_inbox: form.include_in_unified_inbox !== false };
     Object.assign(updates, autoRecipientFields(form), { signature_enabled: form.signature_enabled !== false });
     if (form.auth_pass) updates.auth_pass = form.auth_pass;
-    if (form.auth_user) updates.auth_user = form.auth_user;
-    // A signed-in account's mailbox left empty means its own: the account's address.
-    else if (OAUTH_PROVIDERS.has(editTarget.oauth_provider)) updates.auth_user = editTarget.email_address;
+    if (OAUTH_PROVIDERS.has(editTarget.oauth_provider)) {
+      // Sent only when it changed: a new login reconnects the account, and a cosmetic save
+      // (color, signature) must not. Left empty, it means the account's own address.
+      const mailbox = (form.auth_user || '').trim() || editTarget.email_address;
+      if (mailbox !== (editTarget.auth_user || editTarget.email_address)) updates.auth_user = mailbox;
+    } else if (form.auth_user) updates.auth_user = form.auth_user;
     // Separate SMTP credentials (optional). A username sends both (a blank password on
     // edit keeps the stored one); a blank username clears both back to the IMAP login.
     if (form.smtp_auth_user) {

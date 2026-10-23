@@ -280,8 +280,24 @@ describe('Edit form for an account connected through a sign-in', () => {
       assert.equal(field in updates, false, field);
     }
     assert.equal(updates.name, 'Maria');
-    // The mailbox to open stays as it was.
-    assert.equal(updates.auth_user, 'maria');
+    // Unchanged, the mailbox to open is not sent: a cosmetic save must not reconnect.
+    assert.equal('auth_user' in updates, false);
+  });
+
+  test('a Google account has no mailbox to open', async () => {
+    await openEdit(ACCOUNT('google'));
+    assert.ok(!text().includes('accountForm.mailboxLabel'));
+    await click(button('admin.accounts.saveChanges'));
+    assert.equal('auth_user' in updates, false);
+  });
+
+  test('emptying a mailbox that is already the own address sends nothing', async () => {
+    await openEdit({ ...ACCOUNT('microsoft'), auth_user: 'maria.lopez@outlook.com' });
+    const input = [...document.querySelectorAll('input')].find(i => i.value === 'maria.lopez@outlook.com' && i.placeholder);
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+    await React.act(async () => { setter.call(input, ''); input.dispatchEvent(new window.Event('input', { bubbles: true })); });
+    await click(button('admin.accounts.saveChanges'));
+    assert.equal('auth_user' in updates, false);
   });
 
   test('the mailbox to open can be changed, for a shared or delegated mailbox', async () => {
