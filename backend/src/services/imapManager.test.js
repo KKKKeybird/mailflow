@@ -17,7 +17,7 @@ vi.mock('./mailAccess.js', () => ({ getAccountAddresses: vi.fn(async () => []) }
 import { ImapManager, PREFETCH_MAX_CONSECUTIVE_ERRORS, INLINE_IMAGE_REPEAT_BUDGET, hasIdlePooledClient, shouldPrewarmPool, acquirePooledClient, releasePooledClient, MIN_SYNC_INTERVAL_MS, AUTO_IDLE_DELAY_MS, countMissingInboxCopies, fetchBackfillBatch, providerProfile, makeClientCfg, relocateExemptGuard, insertCopiedSibling, deleteMessageCopyRow, emitSectionsChanged, ensureMailbox, createKeyedSemaphore, isConnectionRefusal, connectCooldownMs, effectiveSyncIntervalMs, folderSyncDue, planModseqSync, connectStaggerFor, walkStructure, extractBodyFromMsg, attachmentsFromStructure, contentLocationFromMimeHeader, bodyFallbackApplies, parsePersistentCap, resolvePersistentCap, persistentEligible, shouldRetryIPv4, classifyMoveBySearch, computeThreadId, noteDraftsChanged } from './imapManager.js';
 import { pluginRegistry } from '../plugins/registry.js';
 import { ensureFreshToken } from './imapManager.js';
-import { clearRefreshFailure, noteRefreshFailure, refreshFailureFor } from './accountErrorCode.js';
+import { clearRefreshFailure, noteFreshToken, noteRefreshFailure, refreshFailureFor } from './accountErrorCode.js';
 import { refreshMicrosoftToken } from '../routes/oauth.js';
 import { EventEmitter } from 'node:events';
 import { ImapFlow } from 'imapflow';
@@ -3152,6 +3152,23 @@ describe('_recordAccountError: sync_error_code', () => {
     noteRefreshFailure(outlook.id, { code: 'oauth_reauth', detail: 'AADSTS700082: The refresh token has expired due to inactivity.' });
     await ImapManager.prototype._recordAccountError.call(self, outlook, 'AUTHENTICATE failed.');
     expect(written()).toEqual(['AADSTS700082: The refresh token has expired due to inactivity.', outlook.id, 'oauth_reauth']);
+  });
+
+  it('rewrites the same text when its code changes', async () => {
+    const self = ctx();
+    const acct = { ...outlook, id: 'ms-dedup' };
+    noteFreshToken(acct.id);
+    await ImapManager.prototype._recordAccountError.call(self, acct, 'AUTHENTICATE failed.');
+    expect(written()).toEqual(['AUTHENTICATE failed.', acct.id, 'connection']);
+    // The token is no longer fresh: same text, now "sign in again".
+    noteFreshToken(acct.id, Date.now() - 60 * 60 * 1000);
+    query.mockClear();
+    await ImapManager.prototype._recordAccountError.call(self, acct, 'AUTHENTICATE failed.');
+    expect(written()).toEqual(['AUTHENTICATE failed.', acct.id, 'oauth_reauth']);
+    // And unchanged, it is not written again.
+    query.mockClear();
+    await ImapManager.prototype._recordAccountError.call(self, acct, 'AUTHENTICATE failed.');
+    expect(written()).toBeUndefined();
   });
 
   it('clears the code with the text', async () => {

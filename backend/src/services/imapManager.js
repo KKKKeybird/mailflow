@@ -3573,7 +3573,10 @@ export class ImapManager {
     // What kind of failure this is, for the UI to say what to do (sync_error_code). An auth
     // failure caused by a refresh that already failed for good is recorded as that refresh.
     const { code, detail } = classifyAccountError(account, rawDetail, { authFailure: isAuthFailure(rawDetail) });
-    if (this._syncErrorState.get(account.id) === detail) return;
+    // The same text with a new code (a connection error that becomes "sign in again" once the
+    // token is no longer fresh) is a change the UI must see: de-duplicate on both.
+    const recorded = `${code}\u0000${detail}`;
+    if (this._syncErrorState.get(account.id) === recorded) return;
     // Hold back a failure that is likely to heal itself. Only RECOVERABLE failures are
     // deferred: an authentication or configuration failure will never clear on its own and is
     // reported immediately, because it is the user who has to act on it. A recoverable failure
@@ -3586,7 +3589,7 @@ export class ImapManager {
       const forgets = this._errorForgets?.get(account.id);
       await query('UPDATE email_accounts SET sync_error = $1, sync_error_code = $3 WHERE id = $2', [detail, account.id, code]);
       // Not cached when forgetAccountError ran meanwhile: the row may hold its NULL instead.
-      if (this._errorForgets?.get(account.id) === forgets) this._syncErrorState.set(account.id, detail);
+      if (this._errorForgets?.get(account.id) === forgets) this._syncErrorState.set(account.id, recorded);
       this.broadcast({ type: 'account_error', accountId: account.id, error: detail, code }, account.user_id);
     } catch (err) {
       // Leave _syncErrorState untouched so the next failure retries the write.
