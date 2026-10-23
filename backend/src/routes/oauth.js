@@ -482,7 +482,7 @@ async function doRefreshMicrosoftToken(account) {
   if (!clientId) throw terminalRefreshError('Microsoft integration not configured. Set the Client ID and Tenant ID under Settings > Mail sign-in.', 'oauth_app_config');
 
   const storedRefreshToken = decrypt(account.oauth_refresh_token);
-  if (!storedRefreshToken) throw terminalRefreshError('OAuth refresh token is missing or corrupted — please reconnect your account', 'oauth_reauth');
+  if (!storedRefreshToken) throw terminalRefreshError('OAuth refresh token is missing or corrupted: please reconnect your account', 'oauth_reauth');
 
   // Public clients (device-code flow — personal Outlook.com/Hotmail) must NOT send a
   // client_secret on refresh: Microsoft rejects it with AADSTS90023 ("Public clients
@@ -793,7 +793,7 @@ async function doRefreshGoogleToken(account) {
   const { clientId, clientSecret } = getGoogleConfig();
 
   const storedRefreshToken = decrypt(account.oauth_refresh_token);
-  if (!storedRefreshToken) throw terminalRefreshError('OAuth refresh token is missing or corrupted — please reconnect your account', 'oauth_reauth');
+  if (!storedRefreshToken) throw terminalRefreshError('OAuth refresh token is missing or corrupted: please reconnect your account', 'oauth_reauth');
 
   const tokenRes = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',
@@ -812,7 +812,7 @@ async function doRefreshGoogleToken(account) {
     // invalid_grant means the user revoked access, changed password, or the token
     // expired from disuse. No retry will fix it — the account must be reconnected.
     if (tokens.error === 'invalid_grant') {
-      throw terminalRefreshError('Google access was revoked or expired — please reconnect this account', 'oauth_reauth');
+      throw terminalRefreshError('Google access was revoked or expired: please reconnect this account', 'oauth_reauth');
     }
     const code = classifyRefreshFailure(tokens);
     const message = tokens.error_description || tokens.error || 'Token refresh failed';

@@ -276,7 +276,7 @@ const SAME_VALUE_ALLOWED = {
 
   // "Backup" — loanword used as-is in it and ptBR; "Restaurar…" is the same verb in es and ptBR
   'admin.tabs.backup':    [['en', 'it', 'ptBR']],
-  // "Continuar", "Copiar código", "Copiado" — the same words in Spanish and Portuguese
+  // "Continuar", "Copiar código", "Copiado": the same words in Spanish and Portuguese
   'addAccount.continue': [['es', 'ptBR']],
   'msSignIn.copy':       [['es', 'ptBR']],
   'msSignIn.copied':     [['es', 'ptBR']],
