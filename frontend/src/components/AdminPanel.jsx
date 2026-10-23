@@ -5822,6 +5822,7 @@ function AboutTab() {
   const supportRows = [
     [t('admin.about.kofi'),           'https://ko-fi.com/mailflow'],
     [t('admin.about.githubSponsors'), 'https://github.com/sponsors/maathimself'],
+    [t('admin.about.businessLicense'), 'https://mailflow.sh/#pricing'],
   ];
 
   const rowStyle = (last) => ({
