@@ -8,6 +8,9 @@ import { describe, it, expect, beforeAll, afterAll, afterEach } from 'vitest';
 // status route touches neither.
 import { vi } from 'vitest';
 vi.mock('../services/db.js', () => ({ query: vi.fn(async () => ({ rows: [] })) }));
+// These cases describe an instance without the shared app; the shipped app is covered in
+// integrations.builtinApp.test.js (#674).
+vi.mock('../services/microsoftBuiltinApp.js', () => ({ MAILFLOW_MS_CLIENT_ID: '00000000-0000-0000-0000-000000000000' }));
 vi.mock('../services/encryption.js', () => ({
   encrypt: (v) => v,
   decrypt: (v) => v,
