@@ -15,7 +15,7 @@
 
 ## Licensing
 
-MailFlow is dual-licensed:
+Licensing and paid options:
 
 - **[AGPL-3.0](LICENSE)**: free for everyone, individuals and businesses, to self-host. If you modify MailFlow and let others use it over a network, you must publish your changes under the same license.
 - **Business License**: $100 per instance per year. MailFlow is free for everyone under the AGPL, including businesses. If you use it in a business, we ask you to buy a yearly license to support development. It isn't legally required or enforced. [Buy one here](https://mailflow.sh/#pricing).
