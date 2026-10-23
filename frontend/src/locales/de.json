@@ -900,7 +900,7 @@
       "errorRequired": "E-Mail, Benutzername und IMAP-Host sind erforderlich",
       "errorPasswordRequired": "Für neue Konten ist ein Passwort erforderlich",
       "microsoftImapUnsupported": "Outlook.com / Hotmail erfordert OAuth2 (Modern Auth)",
-      "microsoftImapNote": "Microsoft akzeptiert für Postfächer von Outlook.com, Hotmail, Live und MSN keine Passwörter mehr, und die Anmeldung mit Microsoft ist auf diesem Server nicht eingerichtet. Bitten Sie Ihren Administrator, sie unter E-Mail-Anmeldung einzuschalten.",
+      "microsoftImapNote": "Microsoft akzeptiert für Postfächer von Outlook.com, Hotmail, Live und MSN keine Passwörter mehr, und die Anmeldung mit Microsoft ist auf diesem Server nicht eingerichtet. Bitten Sie Ihren Administrator, sie unter E-Mail-Anbieter einzuschalten.",
       "microsoftImapNoteReady": "Microsoft akzeptiert für Postfächer von Outlook.com, Hotmail, Live und MSN keine Passwörter mehr. Fügen Sie dieses Postfach stattdessen unter Konto hinzufügen mit „Mit Microsoft anmelden“ hinzu.",
       "reindex": "Für die Suche neu indizieren",
       "reindexing": "Nachrichten werden indiziert...",
@@ -1963,7 +1963,7 @@
     "appConfig": {
       "title": "Die Anmeldung für dieses Konto ist nicht richtig eingerichtet",
       "bodyUser": "Der E-Mail-Anbieter hat die App abgelehnt, mit der sich MailFlow anmeldet. Bitten Sie Ihren Administrator, die Anmeldeeinstellungen zu prüfen.",
-      "bodyAdmin": "Der E-Mail-Anbieter hat die App abgelehnt, mit der sich MailFlow anmeldet. Prüfen Sie ihre Einstellungen unter E-Mail-Anmeldung. Unter Einzelheiten steht, was der Anbieter gemeldet hat."
+      "bodyAdmin": "Der E-Mail-Anbieter hat die App abgelehnt, mit der sich MailFlow anmeldet. Prüfen Sie ihre Einstellungen unter E-Mail-Anbieter. Unter Einzelheiten steht, was der Anbieter gemeldet hat."
     },
     "authFailed": {
       "title": "Der Server hat das Passwort abgelehnt",
@@ -1977,8 +1977,7 @@
       "openOutlook": "Outlook.com öffnen",
       "retry": "Erneut versuchen",
       "signIn": "Erneut anmelden",
-      "edit": "Konto bearbeiten",
-      "openMailSignIn": "E-Mail-Anmeldung öffnen"
+      "edit": "Konto bearbeiten"
     },
     "details": "Einzelheiten",
     "wrongAccount": "Sie haben sich als {{signedInAs}} angemeldet, nicht als {{expected}}. Melden Sie sich mit {{expected}} an, um dieses Konto zu reparieren.",

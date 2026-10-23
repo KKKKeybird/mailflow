@@ -251,8 +251,8 @@ describe('Settings > Accounts: the callout on the account row', () => {
     assert.deepEqual(buttons(), []);
     await openAccounts(account('oauth_app_config'), { isAdmin: true });
     assert.ok(callout().textContent.includes('accountErrors.appConfig.bodyAdmin'));
-    assert.deepEqual(buttons(), ['accountErrors.action.openMailSignIn']);
-    await click(byText('button', 'accountErrors.action.openMailSignIn'));
+    assert.deepEqual(buttons(), ['addAccount.openSettings']);
+    await click(byText('button', 'addAccount.openSettings'));
     assert.equal(useStore.getState().adminTab, 'mail-signin');
   });
 

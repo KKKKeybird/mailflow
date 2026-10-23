@@ -973,7 +973,7 @@
       "errorRequired": "El correo, el usuario y el servidor IMAP son obligatorios",
       "errorPasswordRequired": "La contraseña es obligatoria para cuentas nuevas",
       "microsoftImapUnsupported": "Outlook.com / Hotmail requiere OAuth2 (Modern Auth)",
-      "microsoftImapNote": "Microsoft ya no acepta contraseñas para los buzones de Outlook.com, Hotmail, Live y MSN, y el inicio de sesión con Microsoft no está configurado en este servidor. Pide a tu administrador que lo active en Inicio de sesión de correo.",
+      "microsoftImapNote": "Microsoft ya no acepta contraseñas para los buzones de Outlook.com, Hotmail, Live y MSN, y el inicio de sesión con Microsoft no está configurado en este servidor. Pide a tu administrador que lo active en Proveedores de correo.",
       "microsoftImapNoteReady": "Microsoft ya no acepta contraseñas para los buzones de Outlook.com, Hotmail, Live y MSN. Añade este buzón con «Iniciar sesión con Microsoft» en Añadir cuenta.",
       "reindex": "Re-indexar para búsqueda",
       "reindexing": "Indexando mensajes...",
@@ -1963,7 +1963,7 @@
     "appConfig": {
       "title": "El inicio de sesión de esta cuenta no está bien configurado",
       "bodyUser": "El proveedor de correo rechazó la aplicación con la que MailFlow inicia sesión. Pide a tu administrador que revise la configuración de inicio de sesión.",
-      "bodyAdmin": "El proveedor de correo rechazó la aplicación con la que MailFlow inicia sesión. Revisa su configuración en Inicio de sesión de correo. En los detalles de abajo se ve lo que respondió el proveedor."
+      "bodyAdmin": "El proveedor de correo rechazó la aplicación con la que MailFlow inicia sesión. Revisa su configuración en Proveedores de correo. En los detalles de abajo se ve lo que respondió el proveedor."
     },
     "authFailed": {
       "title": "El servidor rechazó la contraseña",
@@ -1977,8 +1977,7 @@
       "openOutlook": "Abrir Outlook.com",
       "retry": "Reintentar",
       "signIn": "Volver a iniciar sesión",
-      "edit": "Editar cuenta",
-      "openMailSignIn": "Abrir Inicio de sesión de correo"
+      "edit": "Editar cuenta"
     },
     "details": "Detalles",
     "wrongAccount": "Iniciaste sesión como {{signedInAs}}, no como {{expected}}. Inicia sesión con {{expected}} para reparar esta cuenta.",

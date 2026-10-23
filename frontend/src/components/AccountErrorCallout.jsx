@@ -35,7 +35,7 @@ export default function AccountErrorCallout({ account, isAdmin, onRetry, onSignI
         return [<button key={action} type="button" onClick={onEdit} style={style}>{t('accountErrors.action.edit')}</button>];
       case 'admin':
         return isAdmin && onOpenIntegrations
-          ? [<button key={action} type="button" onClick={onOpenIntegrations} style={style}>{t('accountErrors.action.openMailSignIn')}</button>]
+          ? [<button key={action} type="button" onClick={onOpenIntegrations} style={style}>{t('addAccount.openSettings')}</button>]
           : [];
       default:
         return [];

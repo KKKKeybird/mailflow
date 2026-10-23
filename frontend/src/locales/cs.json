@@ -1161,7 +1161,7 @@
       "errorRequired": "Je vyžadován e-mail, uživatelské jméno a server IMAP",
       "errorPasswordRequired": "U nových účtů je vyžadováno heslo",
       "microsoftImapUnsupported": "Outlook.com / Hotmail vyžaduje OAuth2 (moderní ověřování)",
-      "microsoftImapNote": "Microsoft už nepřijímá hesla pro schránky Outlook.com, Hotmail, Live a MSN a přihlášení přes Microsoft není na tomto serveru nastavené. Požádejte správce, aby ho zapnul v sekci Přihlášení k poště.",
+      "microsoftImapNote": "Microsoft už nepřijímá hesla pro schránky Outlook.com, Hotmail, Live a MSN a přihlášení přes Microsoft není na tomto serveru nastavené. Požádejte správce, aby ho zapnul v sekci Poskytovatelé e-mailu.",
       "microsoftImapNoteReady": "Microsoft už nepřijímá hesla pro schránky Outlook.com, Hotmail, Live a MSN. Přidejte tuto schránku raději přes „Přihlásit se přes Microsoft“ v Přidat účet.",
       "reindex": "Znovu indexovat pro vyhledávání",
       "reindexing": "Indexování zpráv…",
@@ -1982,7 +1982,7 @@
     "appConfig": {
       "title": "Přihlášení k tomuto účtu není správně nastavené",
       "bodyUser": "Poskytovatel pošty odmítl aplikaci, přes kterou se MailFlow přihlašuje. Požádejte správce, aby zkontroloval nastavení přihlášení.",
-      "bodyAdmin": "Poskytovatel pošty odmítl aplikaci, přes kterou se MailFlow přihlašuje. Zkontrolujte její nastavení v sekci Přihlášení k poště. Podrobnosti níže ukazují odpověď poskytovatele."
+      "bodyAdmin": "Poskytovatel pošty odmítl aplikaci, přes kterou se MailFlow přihlašuje. Zkontrolujte její nastavení v sekci Poskytovatelé e-mailu. Podrobnosti níže ukazují odpověď poskytovatele."
     },
     "authFailed": {
       "title": "Server odmítl heslo",
@@ -1996,8 +1996,7 @@
       "openOutlook": "Otevřít Outlook.com",
       "retry": "Zkusit znovu",
       "signIn": "Přihlásit se znovu",
-      "edit": "Upravit účet",
-      "openMailSignIn": "Otevřít Přihlášení k poště"
+      "edit": "Upravit účet"
     },
     "details": "Podrobnosti",
     "wrongAccount": "Přihlásili jste se jako {{signedInAs}}, ne jako {{expected}}. Přihlaste se jako {{expected}}, abyste tento účet opravili.",

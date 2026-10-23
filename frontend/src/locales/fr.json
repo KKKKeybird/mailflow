@@ -973,7 +973,7 @@
       "errorRequired": "L'e-mail, le nom d'utilisateur et le serveur IMAP sont requis",
       "errorPasswordRequired": "Le mot de passe est requis pour les nouveaux comptes",
       "microsoftImapUnsupported": "Outlook.com / Hotmail nécessite OAuth2 (Modern Auth)",
-      "microsoftImapNote": "Microsoft n'accepte plus les mots de passe pour les boîtes Outlook.com, Hotmail, Live et MSN, et la connexion avec Microsoft n'est pas configurée sur ce serveur. Demandez à votre administrateur de l'activer dans Connexion des boîtes mail.",
+      "microsoftImapNote": "Microsoft n'accepte plus les mots de passe pour les boîtes Outlook.com, Hotmail, Live et MSN, et la connexion avec Microsoft n'est pas configurée sur ce serveur. Demandez à votre administrateur de l'activer dans Fournisseurs de messagerie.",
       "microsoftImapNoteReady": "Microsoft n'accepte plus les mots de passe pour les boîtes Outlook.com, Hotmail, Live et MSN. Ajoutez plutôt cette boîte avec « Se connecter avec Microsoft » dans Ajouter un compte.",
       "reindex": "Réindexer pour la recherche",
       "reindexing": "Indexation des messages...",
@@ -1963,7 +1963,7 @@
     "appConfig": {
       "title": "La connexion de ce compte n'est pas configurée correctement",
       "bodyUser": "Le fournisseur de messagerie a refusé l'application avec laquelle MailFlow se connecte. Demandez à votre administrateur de vérifier les paramètres de connexion.",
-      "bodyAdmin": "Le fournisseur de messagerie a refusé l'application avec laquelle MailFlow se connecte. Vérifiez ses paramètres dans Connexion des boîtes mail. Les détails ci-dessous indiquent la réponse du fournisseur."
+      "bodyAdmin": "Le fournisseur de messagerie a refusé l'application avec laquelle MailFlow se connecte. Vérifiez ses paramètres dans Fournisseurs de messagerie. Les détails ci-dessous indiquent la réponse du fournisseur."
     },
     "authFailed": {
       "title": "Le serveur a refusé le mot de passe",
@@ -1977,8 +1977,7 @@
       "openOutlook": "Ouvrir Outlook.com",
       "retry": "Réessayer",
       "signIn": "Se reconnecter",
-      "edit": "Modifier le compte",
-      "openMailSignIn": "Ouvrir Connexion des boîtes mail"
+      "edit": "Modifier le compte"
     },
     "details": "Détails",
     "wrongAccount": "Vous vous êtes connecté en tant que {{signedInAs}}, et non {{expected}}. Connectez-vous avec {{expected}} pour réparer ce compte.",

@@ -975,7 +975,7 @@
       "errorRequired": "邮箱地址、用户名和 IMAP 服务器为必填项",
       "errorPasswordRequired": "添加新账户时必须填写密码",
       "microsoftImapUnsupported": "Outlook.com / Hotmail 需要使用 OAuth2（新式验证）",
-      "microsoftImapNote": "Microsoft 不再接受 Outlook.com、Hotmail、Live 和 MSN 邮箱的密码，而此服务器尚未设置 Microsoft 登录。请让管理员在“邮箱登录”中开启。",
+      "microsoftImapNote": "Microsoft 不再接受 Outlook.com、Hotmail、Live 和 MSN 邮箱的密码，而此服务器尚未设置 Microsoft 登录。请让管理员在“邮件服务商”中开启。",
       "microsoftImapNoteReady": "Microsoft 不再接受 Outlook.com、Hotmail、Live 和 MSN 邮箱的密码。请改为在“添加帐户”中使用“使用 Microsoft 登录”添加此邮箱。",
       "reindex": "重新索引以供搜索",
       "reindexing": "正在索引邮件...",
@@ -1963,7 +1963,7 @@
     "appConfig": {
       "title": "此帐户的登录设置不正确",
       "bodyUser": "邮件服务商拒绝了 MailFlow 用于登录的应用。请让管理员检查登录设置。",
-      "bodyAdmin": "邮件服务商拒绝了 MailFlow 用于登录的应用。请在“邮箱登录”中检查它的设置。下方详细信息显示了服务商的回复。"
+      "bodyAdmin": "邮件服务商拒绝了 MailFlow 用于登录的应用。请在“邮件服务商”中检查它的设置。下方详细信息显示了服务商的回复。"
     },
     "authFailed": {
       "title": "服务器拒绝了密码",
@@ -1977,8 +1977,7 @@
       "openOutlook": "打开 Outlook.com",
       "retry": "重试",
       "signIn": "重新登录",
-      "edit": "编辑帐户",
-      "openMailSignIn": "打开邮箱登录"
+      "edit": "编辑帐户"
     },
     "details": "详细信息",
     "wrongAccount": "你登录的是 {{signedInAs}}，而不是 {{expected}}。请使用 {{expected}} 登录以修复此帐户。",

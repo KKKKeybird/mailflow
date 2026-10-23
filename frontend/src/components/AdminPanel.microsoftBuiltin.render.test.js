@@ -1,5 +1,5 @@
 // Render test for Microsoft sign-in settings and MailFlow's built-in app (#674): what
-// Settings > Mail sign-in shows administrators in each state the server reports, the
+// Settings > Email providers shows administrators in each state the server reports, the
 // admin's switch for the shared app, and the add-account note for Outlook.com addresses.
 //
 // Same loader hooks as ProfileModal.render.test.js: node --test cannot parse JSX, and
@@ -93,10 +93,10 @@ async function openTab(tab, { isAdmin, microsoft = BUILTIN }) {
   await React.act(async () => {});
 }
 
-// Settings > Mail sign-in (#674): app configuration for administrators only. Users add their
+// Settings > Email providers (#674): app configuration for administrators only. Users add their
 // accounts under Add account; Integrations keeps the apps (Todoist, CardDAV) for everyone.
 describe('who sees what', () => {
-  test('a non-admin has no Mail sign-in section, and Integrations shows no mail sign-in', async () => {
+  test('a non-admin has no Email providers section, and Integrations shows no mail sign-in', async () => {
     await openTab('integrations', { isAdmin: false });
     assert.ok(!text().includes('admin.tabs.mailSignIn'));
     assert.ok(!text().includes(PREFIX + 'setupTitle'));
@@ -104,7 +104,7 @@ describe('who sees what', () => {
     assert.ok(text().includes('admin.integrations.todoist.title'));
   });
 
-  test('even asked for directly, Mail sign-in renders nothing for a non-admin', async () => {
+  test('even asked for directly, Email providers renders nothing for a non-admin', async () => {
     await openTab('mail-signin', { isAdmin: false });
     assert.ok(!text().includes('mailSignIn.title'));
   });
@@ -127,7 +127,7 @@ describe('who sees what', () => {
   });
 });
 
-describe('Mail sign-in > Microsoft', () => {
+describe('Email providers > Microsoft', () => {
   test('shared app only: personal accounts use it, work accounts are not set up, no connect buttons', async () => {
     await openTab('mail-signin', { isAdmin: true, microsoft: BUILTIN });
     assert.ok(section('personal').textContent.includes('mailSignIn.ms.statusShared'));
@@ -180,7 +180,7 @@ describe('Mail sign-in > Microsoft', () => {
   });
 });
 
-describe('Mail sign-in > Google', () => {
+describe('Email providers > Google', () => {
   test('configuration only, collapsed until asked for', async () => {
     await openTab('mail-signin', { isAdmin: true });
     assert.ok(text().includes('admin.integrations.google.title'));

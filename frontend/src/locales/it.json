@@ -973,7 +973,7 @@
       "errorRequired": "Email, nome utente e host IMAP sono obbligatori",
       "errorPasswordRequired": "La password è richiesta per i nuovi account",
       "microsoftImapUnsupported": "Outlook.com / Hotmail richiede OAuth2 (Modern Auth)",
-      "microsoftImapNote": "Microsoft non accetta più password per le caselle Outlook.com, Hotmail, Live e MSN, e l'accesso con Microsoft non è configurato su questo server. Chiedi al tuo amministratore di attivarlo in Accesso alla posta.",
+      "microsoftImapNote": "Microsoft non accetta più password per le caselle Outlook.com, Hotmail, Live e MSN, e l'accesso con Microsoft non è configurato su questo server. Chiedi al tuo amministratore di attivarlo in Provider di posta.",
       "microsoftImapNoteReady": "Microsoft non accetta più password per le caselle Outlook.com, Hotmail, Live e MSN. Aggiungi invece questa casella con «Accedi con Microsoft» in Aggiungi account.",
       "reindex": "Reindicizza per la ricerca",
       "reindexing": "Indicizzazione messaggi...",
@@ -1963,7 +1963,7 @@
     "appConfig": {
       "title": "L'accesso per questo account non è configurato correttamente",
       "bodyUser": "Il provider di posta ha rifiutato l'app con cui MailFlow accede. Chiedi al tuo amministratore di controllare le impostazioni di accesso.",
-      "bodyAdmin": "Il provider di posta ha rifiutato l'app con cui MailFlow accede. Controlla le sue impostazioni in Accesso alla posta. I dettagli qui sotto mostrano la risposta del provider."
+      "bodyAdmin": "Il provider di posta ha rifiutato l'app con cui MailFlow accede. Controlla le sue impostazioni in Provider di posta. I dettagli qui sotto mostrano la risposta del provider."
     },
     "authFailed": {
       "title": "Il server ha rifiutato la password",
@@ -1977,8 +1977,7 @@
       "openOutlook": "Apri Outlook.com",
       "retry": "Riprova",
       "signIn": "Accedi di nuovo",
-      "edit": "Modifica account",
-      "openMailSignIn": "Apri Accesso alla posta"
+      "edit": "Modifica account"
     },
     "details": "Dettagli",
     "wrongAccount": "Hai effettuato l'accesso come {{signedInAs}}, non come {{expected}}. Accedi con {{expected}} per sistemare questo account.",

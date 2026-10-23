@@ -2748,7 +2748,7 @@ function IntegrationsTab() {
   );
 }
 
-// ─── Mail sign-in (admin) ────────────────────────────────────────────────────
+// ─── Email providers (admin) ─────────────────────────────────────────────────
 // How people sign in to Microsoft and Google mailboxes: MailFlow's shared Microsoft app for
 // personal accounts, and the instance's own Microsoft and Google apps. Configuration only;
 // everyone adds their own accounts under Accounts > Add account. (#674)
@@ -8462,7 +8462,7 @@ function makeSearchIndex(t) {
     { label: t('admin.appearance.language'), keywords: ['language', 'locale', 'french', 'english', 'spanish', 'german', 'deutsch', 'russian', 'chinese', 'italian', 'czech', 'čeština', 'portuguese', 'português', 'brasil', 'korean', '한국어', 'français', 'español'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     { label: t('admin.appearance.fontSize'), keywords: ['font size', 'text size', 'zoom', 'scale', 'accessibility', 'larger text'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     { label: t('admin.appearance.typography'), keywords: ['font', 'typography', 'typeface', 'serif', 'sans', 'monospace', 'reading font'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
-    // Mail sign-in (admin)
+    // Email providers (admin)
     { label: t('mailSignIn.ms.title'), keywords: ['microsoft', 'outlook', 'hotmail', '365', 'oauth', 'azure', 'entra', 'client id', 'tenant', 'ms365', 'office', 'shared app', 'sign in', 'email providers', 'mailbox', 'mail sign-in'], tab: 'mail-signin', adminOnly: true, breadcrumb: t('admin.tabs.mailSignIn') },
     { label: t('admin.integrations.google.title'), keywords: ['google', 'gmail', 'workspace', 'oauth', 'client id', 'sign in', 'email providers', 'mailbox'], tab: 'mail-signin', adminOnly: true, breadcrumb: t('admin.tabs.mailSignIn') },
     // Integrations

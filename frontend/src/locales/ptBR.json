@@ -975,7 +975,7 @@
       "errorRequired": "E-mail, nome de usuário e servidor IMAP são obrigatórios",
       "errorPasswordRequired": "A senha é obrigatória para novas contas",
       "microsoftImapUnsupported": "Outlook.com / Hotmail exige OAuth2 (Autenticação Moderna)",
-      "microsoftImapNote": "A Microsoft não aceita mais senhas para caixas do Outlook.com, Hotmail, Live e MSN, e o login com a Microsoft não está configurado neste servidor. Peça ao administrador para ativá-lo em Login de e-mail.",
+      "microsoftImapNote": "A Microsoft não aceita mais senhas para caixas do Outlook.com, Hotmail, Live e MSN, e o login com a Microsoft não está configurado neste servidor. Peça ao administrador para ativá-lo em Provedores de e-mail.",
       "microsoftImapNoteReady": "A Microsoft não aceita mais senhas para caixas do Outlook.com, Hotmail, Live e MSN. Adicione esta caixa com \"Entrar com a Microsoft\" em Adicionar conta.",
       "reindex": "Reindexar para pesquisa",
       "reindexing": "Indexando mensagens...",
@@ -1963,7 +1963,7 @@
     "appConfig": {
       "title": "O login desta conta não está configurado corretamente",
       "bodyUser": "O provedor de e-mail recusou o app com que o MailFlow faz login. Peça ao administrador para verificar as configurações de login.",
-      "bodyAdmin": "O provedor de e-mail recusou o app com que o MailFlow faz login. Verifique as configurações dele em Login de e-mail. Os detalhes abaixo mostram o que o provedor respondeu."
+      "bodyAdmin": "O provedor de e-mail recusou o app com que o MailFlow faz login. Verifique as configurações dele em Provedores de e-mail. Os detalhes abaixo mostram o que o provedor respondeu."
     },
     "authFailed": {
       "title": "O servidor recusou a senha",
@@ -1977,8 +1977,7 @@
       "openOutlook": "Abrir o Outlook.com",
       "retry": "Tentar novamente",
       "signIn": "Entrar novamente",
-      "edit": "Editar conta",
-      "openMailSignIn": "Abrir Login de e-mail"
+      "edit": "Editar conta"
     },
     "details": "Mais informações",
     "wrongAccount": "Você entrou como {{signedInAs}}, não como {{expected}}. Entre com {{expected}} para consertar esta conta.",

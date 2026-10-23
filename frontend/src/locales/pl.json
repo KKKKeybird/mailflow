@@ -991,7 +991,7 @@
       "errorRequired": "Adres e-mail, nazwa użytkownika i serwer IMAP są wymagane",
       "errorPasswordRequired": "Hasło jest wymagane dla nowych kont",
       "microsoftImapUnsupported": "Outlook.com / Hotmail wymaga OAuth2 (Modern Auth)",
-      "microsoftImapNote": "Microsoft nie przyjmuje już haseł do skrzynek Outlook.com, Hotmail, Live i MSN, a logowanie przez Microsoft nie jest skonfigurowane na tym serwerze. Poproś administratora o włączenie go w sekcji Logowanie do poczty.",
+      "microsoftImapNote": "Microsoft nie przyjmuje już haseł do skrzynek Outlook.com, Hotmail, Live i MSN, a logowanie przez Microsoft nie jest skonfigurowane na tym serwerze. Poproś administratora o włączenie go w sekcji Dostawcy poczty.",
       "microsoftImapNoteReady": "Microsoft nie przyjmuje już haseł do skrzynek Outlook.com, Hotmail, Live i MSN. Dodaj tę skrzynkę przez „Zaloguj się przez Microsoft” w sekcji Dodaj konto.",
       "reindex": "Ponownie zindeksuj wyszukiwanie",
       "reindexing": "Indeksowanie wiadomości...",
@@ -1982,7 +1982,7 @@
     "appConfig": {
       "title": "Logowanie do tego konta nie jest poprawnie skonfigurowane",
       "bodyUser": "Dostawca poczty odrzucił aplikację, przez którą loguje się MailFlow. Poproś administratora o sprawdzenie ustawień logowania.",
-      "bodyAdmin": "Dostawca poczty odrzucił aplikację, przez którą loguje się MailFlow. Sprawdź jej ustawienia w sekcji Logowanie do poczty. Szczegóły poniżej pokazują odpowiedź dostawcy."
+      "bodyAdmin": "Dostawca poczty odrzucił aplikację, przez którą loguje się MailFlow. Sprawdź jej ustawienia w sekcji Dostawcy poczty. Szczegóły poniżej pokazują odpowiedź dostawcy."
     },
     "authFailed": {
       "title": "Serwer odrzucił hasło",
@@ -1996,8 +1996,7 @@
       "openOutlook": "Otwórz Outlook.com",
       "retry": "Spróbuj ponownie",
       "signIn": "Zaloguj się ponownie",
-      "edit": "Edytuj konto",
-      "openMailSignIn": "Otwórz Logowanie do poczty"
+      "edit": "Edytuj konto"
     },
     "details": "Szczegóły",
     "wrongAccount": "Zalogowano jako {{signedInAs}}, a nie {{expected}}. Zaloguj się jako {{expected}}, aby naprawić to konto.",

@@ -354,7 +354,7 @@ router.post('/microsoft/device', async (req, res) => {
   const kind = DEVICE_KINDS.has(req.body?.kind) ? req.body.kind : undefined;
   const client = repair ? msRepairClient(repair) : getMsDeviceClient(kind);
   if (!client) {
-    return res.status(400).json({ error: 'Microsoft integration not configured. Set the Client ID and Tenant ID under Settings > Mail sign-in.' });
+    return res.status(400).json({ error: 'Microsoft integration not configured. Set the Client ID and Tenant ID under Settings > Email providers.' });
   }
   const { clientId, tenantId } = client;
 
@@ -479,7 +479,7 @@ export function refreshMicrosoftToken(account) {
 async function doRefreshMicrosoftToken(account) {
   // The client the account was connected with: its refresh token is valid for no other (#674).
   const { clientId, clientSecret, tenantId } = msRefreshClient(account);
-  if (!clientId) throw terminalRefreshError('Microsoft integration not configured. Set the Client ID and Tenant ID under Settings > Mail sign-in.', 'oauth_app_config');
+  if (!clientId) throw terminalRefreshError('Microsoft integration not configured. Set the Client ID and Tenant ID under Settings > Email providers.', 'oauth_app_config');
 
   const storedRefreshToken = decrypt(account.oauth_refresh_token);
   if (!storedRefreshToken) throw terminalRefreshError('OAuth refresh token is missing or corrupted: please reconnect your account', 'oauth_reauth');
