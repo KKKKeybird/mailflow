@@ -1040,7 +1040,7 @@
       "behavior": "Chování",
       "plugins": "Pluginy",
       "backup": "Záloha",
-      "mailSignIn": "Přihlášení k poště"
+      "mailSignIn": "Poskytovatelé e-mailu"
     },
     "categories": {
       "title": "Kategorie e-mailů",
@@ -1716,7 +1716,7 @@
     },
     "sso": {
       "title": "Jednotné přihlašování",
-      "description": "Nastavte externí poskytovatele OIDC, aby se uživatelé mohli přihlašovat účty své organizace.",
+      "description": "Jak se lidé přihlašují do samotného MailFlow přes poskytovatele identity vaší organizace (OIDC). Připojení schránek najdete v části Poskytovatelé e-mailu.",
       "passwordLoginTitle": "Přihlašování heslem",
       "passwordLoginDesc": "Pokud je vypnuto, uživatelé se mohou přihlásit pouze přes SSO. Vyžaduje alespoň jednoho zapnutého poskytovatele SSO a účet správce musí být propojen s identitou SSO.",
       "passwordLoginEnabled": "Přihlašování heslem je zapnuté",
@@ -2034,7 +2034,7 @@
     },
     "personalOff": "Na tomto serveru není k dispozici.",
     "workOff": "Na tomto serveru není k dispozici.",
-    "openSettings": "Otevřít nastavení přihlášení Microsoft"
+    "openSettings": "Otevřít nastavení poskytovatelů e-mailu"
   },
   "msSignIn": {
     "titlePersonal": "Přihlásit se přes Microsoft",
@@ -2068,8 +2068,8 @@
     "checkAccounts": "Zkontrolovat účty"
   },
   "mailSignIn": {
-    "title": "Přihlášení k poště",
-    "description": "Jak se lidé přihlašují ke schránkám Microsoft a Google. Každý si přidává vlastní účty v Účty > Přidat účet.",
+    "title": "Poskytovatelé e-mailu",
+    "description": "Jak se MailFlow připojuje ke schránkám Microsoft a Google. Je to něco jiného než jednotné přihlašování (SSO), kterým se lidé přihlašují do samotného MailFlow. Každý si přidává vlastní účty v Účty > Přidat účet.",
     "required": "Nejdřív vyplňte povinná pole.",
     "saved": "Uloženo.",
     "ms": {

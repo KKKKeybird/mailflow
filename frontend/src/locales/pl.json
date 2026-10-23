@@ -860,7 +860,7 @@
       "behavior": "Zachowanie",
       "plugins": "Wtyczki",
       "backup": "Kopia zapasowa",
-      "mailSignIn": "Logowanie do poczty"
+      "mailSignIn": "Dostawcy poczty"
     },
     "rules": {
       "title": "Reguły skrzynki odbiorczej",
@@ -1526,7 +1526,7 @@
     },
     "sso": {
       "title": "Jednokrotne logowanie",
-      "description": "Skonfiguruj zewnętrznych dostawców OIDC, aby użytkownicy mogli logować się za pomocą kont organizacyjnych.",
+      "description": "Jak użytkownicy logują się do samego MailFlow przez dostawcę tożsamości organizacji (OIDC). Łączenie skrzynek znajdziesz w sekcji Dostawcy poczty.",
       "passwordLoginTitle": "Logowanie hasłem",
       "passwordLoginDesc": "Po wyłączeniu użytkownicy mogą logować się tylko przez SSO. Wymaga to co najmniej jednego włączonego dostawcy SSO i połączenia konta administratora z tożsamością SSO.",
       "passwordLoginEnabled": "logowanie hasłem jest włączone",
@@ -2034,7 +2034,7 @@
     },
     "personalOff": "Niedostępne na tym serwerze.",
     "workOff": "Niedostępne na tym serwerze.",
-    "openSettings": "Otwórz ustawienia logowania Microsoft"
+    "openSettings": "Otwórz ustawienia dostawców poczty"
   },
   "msSignIn": {
     "titlePersonal": "Zaloguj się przez Microsoft",
@@ -2068,8 +2068,8 @@
     "checkAccounts": "Sprawdź swoje konta"
   },
   "mailSignIn": {
-    "title": "Logowanie do poczty",
-    "description": "Jak użytkownicy logują się do skrzynek Microsoft i Google. Każdy dodaje własne konta w sekcji Konta > Dodaj konto.",
+    "title": "Dostawcy poczty",
+    "description": "Jak MailFlow łączy się ze skrzynkami Microsoft i Google. To coś innego niż logowanie jednokrotne (SSO), za pomocą którego loguje się do samego MailFlow. Każdy dodaje własne konta w sekcji Konta > Dodaj konto.",
     "required": "Najpierw wypełnij wymagane pola.",
     "saved": "Zapisano.",
     "ms": {

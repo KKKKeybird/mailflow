@@ -456,7 +456,7 @@ Microsoft has disabled basic (password) auth for Outlook.com, Hotmail, and most
 Microsoft 365 accounts, so they connect with **Sign in with Microsoft**: in **Settings →
 Accounts → Add account**, type the address or pick **Outlook.com, Hotmail, Live, MSN** or
 **Microsoft 365 (work or school)**. Administrators configure how this works under
-**Settings → Mail sign-in**.
+**Settings → Email providers**.
 
 **Personal accounts (Outlook.com, Hotmail, Live, MSN) need no setup.** MailFlow shows a
 code; open [microsoft.com/devicelogin](https://microsoft.com/devicelogin) on any device
@@ -471,7 +471,7 @@ publisher verification status of the app registration and does not change what t
 app can access.
 
 To stop offering the shared app, turn off **Let people sign in with MailFlow's shared
-app** in Settings → Mail sign-in, or set `MS_BUILTIN_APP=false` in `.env`.
+app** in Settings → Email providers, or set `MS_BUILTIN_APP=false` in `.env`.
 Once the switch has been used, its setting takes precedence over `MS_BUILTIN_APP`.
 Turning it off stops new sign-ins through the shared app; accounts already connected
 through it keep refreshing through it. Personal accounts then need your own app
@@ -516,7 +516,7 @@ Then follow the steps for your account type:
 
 1. In the Azure app, open **Authentication** and set **"Allow public client flows"**
    to **Yes**. No client secret or redirect URI is needed.
-2. In Settings → Mail sign-in → **Set up your own Microsoft Entra app**, enter the
+2. In Settings → Email providers → **Set up your own Microsoft Entra app**, enter the
    **Application (client) ID** and **Directory (tenant) ID** (`common`), leave Client
    secret and Redirect URI blank, then save.
 3. People then add their accounts under Accounts → Add account, which shows the code to
@@ -526,10 +526,10 @@ Then follow the steps for your account type:
 
 1. In the Azure app, open **Authentication → Add a platform → Web**, and set the
    redirect URI to `https://<your-mailflow-host>/oauth/microsoft/callback` (the exact
-   value is shown under Settings → Mail sign-in).
+   value is shown under Settings → Email providers).
 2. Under **Certificates & secrets → New client secret**, create a secret and copy its
    **Value** (not the Secret ID).
-3. In Settings → Mail sign-in, enter the Application (client) ID, Directory (tenant) ID,
+3. In Settings → Email providers, enter the Application (client) ID, Directory (tenant) ID,
    Client secret and Redirect URI, then save. People then add their accounts under
    Accounts → Add account → **Microsoft 365 (work or school)**, which signs in on
    Microsoft's page.

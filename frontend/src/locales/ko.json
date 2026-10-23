@@ -843,7 +843,7 @@
       "plugins": "플러그인",
       "backup": "백업",
       "groupAiExtensions": "AI 및 확장",
-      "mailSignIn": "메일 로그인"
+      "mailSignIn": "이메일 제공업체"
     },
     "close": "닫기",
     "rules": {
@@ -1507,7 +1507,7 @@
     },
     "sso": {
       "title": "싱글 사인온(SSO)",
-      "description": "사용자가 조직 계정으로 로그인할 수 있도록 외부 OIDC 공급자를 구성합니다.",
+      "description": "조직의 ID 공급자(OIDC)를 통해 MailFlow 자체에 로그인하는 방식입니다. 사서함 연결은 이메일 제공업체에서 설정합니다.",
       "passwordLoginTitle": "비밀번호 로그인",
       "passwordLoginDesc": "비활성화되면 사용자는 SSO를 통해서만 로그인할 수 있습니다. 활성화된 SSO 공급자가 하나 이상 필요하며 관리자 계정이 SSO ID에 연결되어 있어야 합니다.",
       "passwordLoginDisabled": "비밀번호 로그인이 비활성화되었습니다",
@@ -2015,7 +2015,7 @@
     },
     "personalOff": "이 서버에서는 사용할 수 없습니다.",
     "workOff": "이 서버에서는 사용할 수 없습니다.",
-    "openSettings": "Microsoft 로그인 설정 열기"
+    "openSettings": "이메일 제공업체 설정 열기"
   },
   "msSignIn": {
     "titlePersonal": "Microsoft로 로그인",
@@ -2049,8 +2049,8 @@
     "checkAccounts": "계정 확인"
   },
   "mailSignIn": {
-    "title": "메일 로그인",
-    "description": "Microsoft 및 Google 사서함에 로그인하는 방식입니다. 각자 계정 > 계정 추가에서 자신의 계정을 추가합니다.",
+    "title": "이메일 제공업체",
+    "description": "MailFlow가 Microsoft 및 Google 사서함에 연결하는 방식입니다. MailFlow 자체에 로그인하는 방식인 SSO와는 별개입니다. 각자 계정 > 계정 추가에서 자신의 계정을 추가합니다.",
     "required": "먼저 필수 항목을 채우세요.",
     "saved": "저장했습니다.",
     "ms": {

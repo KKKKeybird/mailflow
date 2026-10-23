@@ -8463,8 +8463,8 @@ function makeSearchIndex(t) {
     { label: t('admin.appearance.fontSize'), keywords: ['font size', 'text size', 'zoom', 'scale', 'accessibility', 'larger text'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     { label: t('admin.appearance.typography'), keywords: ['font', 'typography', 'typeface', 'serif', 'sans', 'monospace', 'reading font'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     // Mail sign-in (admin)
-    { label: t('mailSignIn.ms.title'), keywords: ['microsoft', 'outlook', 'hotmail', '365', 'oauth', 'azure', 'entra', 'client id', 'tenant', 'ms365', 'office', 'shared app', 'sign in'], tab: 'mail-signin', adminOnly: true, breadcrumb: t('admin.tabs.mailSignIn') },
-    { label: t('admin.integrations.google.title'), keywords: ['google', 'gmail', 'workspace', 'oauth', 'client id', 'sign in'], tab: 'mail-signin', adminOnly: true, breadcrumb: t('admin.tabs.mailSignIn') },
+    { label: t('mailSignIn.ms.title'), keywords: ['microsoft', 'outlook', 'hotmail', '365', 'oauth', 'azure', 'entra', 'client id', 'tenant', 'ms365', 'office', 'shared app', 'sign in', 'email providers', 'mailbox', 'mail sign-in'], tab: 'mail-signin', adminOnly: true, breadcrumb: t('admin.tabs.mailSignIn') },
+    { label: t('admin.integrations.google.title'), keywords: ['google', 'gmail', 'workspace', 'oauth', 'client id', 'sign in', 'email providers', 'mailbox'], tab: 'mail-signin', adminOnly: true, breadcrumb: t('admin.tabs.mailSignIn') },
     // Integrations
     { label: t('admin.integrations.todoist.title'), keywords: ['todoist', 'tasks', 'to-do', 'carddav', 'contacts sync'], tab: 'integrations', breadcrumb: tabLabel('integrations') },
     { label: t('admin.ai.title'), keywords: ['ai', 'artificial intelligence', 'chatgpt', 'ollama', 'llm', 'language model', 'summarize', 'draft', 'compose assistant', 'openai', 'local ai', 'inference', 'gpt'], tab: 'ai', adminOnly: true, breadcrumb: tabLabel('ai') },
@@ -8489,7 +8489,7 @@ function makeSearchIndex(t) {
     // Admin-only
     { label: t('admin.systemEmail.tabUsers'), keywords: ['user', 'invite', 'admin', 'role', 'manage users', 'add user'], tab: 'users', adminOnly: true, breadcrumb: tabLabel('users') },
     { label: t('admin.systemEmail.tabEmail'), keywords: ['system email', 'smtp', 'admin email', 'invite email', 'outgoing email'], tab: 'users', adminOnly: true, breadcrumb: tabLabel('users') },
-    { label: t('admin.sso.title'), keywords: ['sso', 'oidc', 'single sign on', 'oauth', 'provider', 'identity provider'], tab: 'sso', adminOnly: true, breadcrumb: tabLabel('sso') },
+    { label: t('admin.sso.title'), keywords: ['sso', 'oidc', 'single sign on', 'single sign-on', 'oauth', 'provider', 'identity provider', 'log in to mailflow'], tab: 'sso', adminOnly: true, breadcrumb: tabLabel('sso') },
     { label: t('admin.backup.title'), keywords: ['backup', 'restore', 'export', 'import', 'migrate', 'move server', 'transfer', 'download settings'], tab: 'backup', adminOnly: true, breadcrumb: tabLabel('backup') },
   ];
 }

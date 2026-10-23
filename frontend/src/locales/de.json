@@ -844,7 +844,7 @@
       "behavior": "Verhalten",
       "plugins": "Plugins",
       "backup": "Sicherung",
-      "mailSignIn": "E-Mail-Anmeldung"
+      "mailSignIn": "E-Mail-Anbieter"
     },
     "accounts": {
       "title": "E-Mail-Konten",
@@ -1432,7 +1432,7 @@
     },
     "sso": {
       "title": "Single Sign-On",
-      "description": "Externe OIDC-Anbieter konfigurieren, damit Benutzer sich mit ihren Organisationskonten anmelden können.",
+      "description": "Wie sich Personen bei MailFlow selbst anmelden, über den Identitätsanbieter deiner Organisation (OIDC). Postfächer verbinden findest du unter E-Mail-Anbieter.",
       "passwordLoginTitle": "Passwort-Login",
       "passwordLoginDesc": "Wenn deaktiviert, können Benutzer sich nur über SSO anmelden. Erfordert mindestens einen aktivierten SSO-Anbieter und das Admin-Konto muss mit einer SSO-Identität verknüpft sein.",
       "passwordLoginEnabled": "Passwort-Login ist aktiviert",
@@ -2015,7 +2015,7 @@
     },
     "personalOff": "Auf diesem Server nicht verfügbar.",
     "workOff": "Auf diesem Server nicht verfügbar.",
-    "openSettings": "Microsoft-Anmeldeeinstellungen öffnen"
+    "openSettings": "E-Mail-Anbieter-Einstellungen öffnen"
   },
   "msSignIn": {
     "titlePersonal": "Mit Microsoft anmelden",
@@ -2049,8 +2049,8 @@
     "checkAccounts": "Konten prüfen"
   },
   "mailSignIn": {
-    "title": "E-Mail-Anmeldung",
-    "description": "Wie sich Personen bei Microsoft- und Google-Postfächern anmelden. Alle fügen ihre eigenen Konten unter Konten > Konto hinzufügen hinzu.",
+    "title": "E-Mail-Anbieter",
+    "description": "Wie sich MailFlow mit den Microsoft- und Google-Postfächern verbindet. Das ist etwas anderes als Single Sign-On, mit dem sich Personen bei MailFlow selbst anmelden. Alle fügen ihre eigenen Konten unter Konten > Konto hinzufügen hinzu.",
     "required": "Füllen Sie zuerst die Pflichtfelder aus.",
     "saved": "Gespeichert.",
     "ms": {
