@@ -102,13 +102,13 @@ let polls;
 let deviceStarts;
 let reconnects;
 let reloaded;
-async function openAdd(config, { isAdmin = false, accounts = [], intent = { action: 'add' } } = {}) {
+async function openAdd(config, { isAdmin = false, accounts = [], intent = { action: 'add' }, google = { configured: false, signIn: false } } = {}) {
   if (root) await act(async () => root.unmount());
   polls = [];
   deviceStarts = 0;
   reconnects = [];
   reloaded = 0;
-  api.getIntegrationsStatus = async () => ({ microsoft: CONFIGS[config], google: { configured: false } });
+  api.getIntegrationsStatus = async () => ({ microsoft: CONFIGS[config], google });
   api.admin.getSettings = async () => ({ settings: {} });
   api.getUnreadCounts = async () => ({});
   api.getAccounts = async () => { reloaded++; return accounts; };
@@ -294,9 +294,11 @@ describe('review follow-ups', () => {
   test('the Outlook.com note goes away once there is an outcome', async () => {
     await openAdd('builtin');
     polls.push({ status: 'checking', accountId: 'n1', email: 'a@outlook.com' }, { status: 'success', accountId: 'n1', email: 'a@outlook.com', connection: 'connected' });
+    // (That it shows before an outcome is covered by the detection tests; with a 10 ms poll
+    // the outcome can already be here by the first check.)
     await click(tile('microsoftPersonal'));
-    assert.ok(text().includes('msSignIn.beforeTitle'));
     await until(() => text().includes('msSignIn.connected'));
+    assert.ok(text().includes('msSignIn.connected'));
     assert.ok(!text().includes('msSignIn.beforeTitle'));
   });
 
@@ -382,3 +384,61 @@ describe('empty states open the same chooser', () => {
     assert.equal(s.showAdmin, true);
   });
 });
+
+// Gmail (#674): Google sign-in from the chooser when the instance's Google client is set up,
+// otherwise the app-password form with where to make one.
+describe('Gmail', () => {
+  const GOOGLE_ON = { configured: true, signIn: true };
+  const message = (data) => act(async () => {
+    dom.window.dispatchEvent(new dom.window.MessageEvent('message', { origin: dom.window.location.origin, data }));
+  });
+
+  test('with Google sign-in set up, the tile and a gmail.com address go to Sign in with Google', async () => {
+    await openAdd('builtin', { google: GOOGLE_ON });
+    assert.ok(doc.querySelector('[data-tile="gmail"]').textContent.includes('addAccount.tile.gmailSignIn'));
+    await typeAndContinue('maria@googlemail.com');
+    assert.ok(text().includes('googleSignIn.title'));
+    assert.ok(byText('button', 'accountErrors.signInDialog.continueGoogle'));
+    assert.ok(text().includes('googleSignIn.finePrint'));
+  });
+
+  test('the outcome is the connection, not just the sign-in', async () => {
+    await openAdd('builtin', { google: GOOGLE_ON });
+    await click(tile('gmail'));
+    await click(byText('button', 'accountErrors.signInDialog.continueGoogle'));
+    await message({ type: 'oauth_success', provider: 'google', accountId: 'g1', email: 'maria@gmail.com', connection: 'connected' });
+    assert.ok(text().includes('msSignIn.connected {"email":"maria@gmail.com"}'));
+    assert.ok(reloaded >= 1);
+  });
+
+  test('a refused first connection shows the Google account error', async () => {
+    await openAdd('builtin', { google: GOOGLE_ON });
+    await click(tile('gmail'));
+    await message({ type: 'oauth_success', provider: 'google', accountId: 'g1', email: 'maria@gmail.com', connection: 'failed', code: 'oauth_reauth', detail: 'Invalid credentials' });
+    const callout = doc.querySelector('[data-error-kind]');
+    assert.equal(callout.dataset.errorKind, 'signIn');
+    assert.ok(callout.textContent.includes('accountErrors.signIn.titleGoogle'));
+  });
+
+  test('without it, the app-password form with a link to make one', async () => {
+    await openAdd('builtin');
+    assert.ok(doc.querySelector('[data-tile="gmail"]').textContent.includes('addAccount.tile.gmailSub'));
+    await click(tile('gmail'));
+    assert.equal(doc.querySelector('input[placeholder="admin.accounts.imapHostPh"]').value, 'imap.gmail.com');
+    await act(async () => {});
+    const note = doc.querySelector('[data-gmail-note]');
+    assert.ok(note.textContent.includes('googleSignIn.appPasswordNote'));
+    assert.equal(note.querySelector('a').getAttribute('href'), 'https://myaccount.google.com/apppasswords');
+  });
+
+  test('a Workspace address on imap.gmail.com is offered Sign in with Google from the form', async () => {
+    await openAdd('builtin', { google: GOOGLE_ON });
+    await typeAndContinue('maria@company.example');
+    await setValue(doc.querySelector('input[placeholder="admin.accounts.imapHostPh"]'), 'imap.gmail.com');
+    await act(async () => {});
+    assert.ok(doc.querySelector('[data-gmail-note]').textContent.includes('googleSignIn.formNote'));
+    await click(byText('button', 'googleSignIn.title'));
+    assert.ok(byText('button', 'accountErrors.signInDialog.continueGoogle'));
+  });
+});
+

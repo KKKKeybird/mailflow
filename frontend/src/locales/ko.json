@@ -2005,6 +2005,7 @@
       "workSub": "조직의 Microsoft 계정으로 로그인",
       "gmail": "Gmail",
       "gmailSub": "앱 비밀번호 사용",
+      "gmailSignIn": "Google로 로그인",
       "yahoo": "Yahoo Mail",
       "yahooSub": "앱 비밀번호 사용",
       "icloud": "iCloud Mail",
@@ -2074,5 +2075,12 @@
     "signedInMicrosoft": "Microsoft로 {{email}} 계정에 로그인됨",
     "signedInGoogle": "Google로 {{email}} 계정에 로그인됨",
     "signedInNote": "서버와 로그인 정보는 이 로그인에서 가져옵니다. 계정이 연결되지 않으면 다시 로그인하세요."
+  },
+  "googleSignIn": {
+    "title": "Google로 로그인",
+    "finePrint": "Google 페이지에서 직접 로그인하며, Google은 접근 권한을 이 서버로 바로 보냅니다.",
+    "formNote": "Gmail 및 Google Workspace 사서함은 앱 비밀번호 대신 Google로 로그인할 수 있습니다.",
+    "appPasswordNote": "Gmail에는 일반 비밀번호가 아닌 앱 비밀번호가 필요합니다. Google 계정에서 2단계 인증을 켠 다음 앱 비밀번호를 만들어 비밀번호 칸에 입력하세요.",
+    "createAppPassword": "앱 비밀번호 만들기"
   }
 }

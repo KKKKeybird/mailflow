@@ -39,6 +39,7 @@ import AccountErrorCallout from './AccountErrorCallout.jsx';
 import SignInAgainDialog from './SignInAgainDialog.jsx';
 import AddAccountChooser from './AddAccountChooser.jsx';
 import MicrosoftSignIn from './MicrosoftSignIn.jsx';
+import GoogleSignIn from './GoogleSignIn.jsx';
 import { describeAccountError } from '../utils/accountErrors.js';
 import { detectProvider } from '../utils/providerDetect.js';
 import { formatRelativeTime, daysSince } from '../utils/relativeTime.js';
@@ -86,6 +87,8 @@ const PRESETS = {
 
 // ─── Account Form (Add or Edit) ───────────────────────────────────────────────
 const OAUTH_PROVIDERS = new Set(['microsoft', 'google']);
+// Google's page for creating an app password (needs 2-Step Verification on the account).
+const GOOGLE_APP_PASSWORDS_URL = 'https://myaccount.google.com/apppasswords';
 // What a sign-in owns on the account; saving other settings never sends these for it.
 const OAUTH_OWNED_FIELDS = ['imap_host', 'imap_port', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls', 'auth_user', 'auth_pass', 'smtp_auth_user', 'smtp_auth_pass'];
 function isMicrosoftImapHost(host) {
@@ -96,7 +99,7 @@ function isMicrosoftImapHost(host) {
 // prefill (add only): { email, preset } from the Add account chooser.
 // onMicrosoftSignIn (add only): switch to "Sign in with Microsoft" when an Outlook.com host is typed.
 // onSignInAgain (edit only): "Sign in again" for an account connected through a sign-in.
-function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, onSignInAgain }) {
+function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, onGoogleSignIn, onSignInAgain }) {
   const { t } = useTranslation();
   const { categorizationEnabled } = useStore();
 
@@ -131,19 +134,24 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, on
   // personal Microsoft one when work sign-in is set up, else personal.
   const msSignInKind = detectProvider(form.email_address) !== 'microsoftPersonal' && msWorkReady ? 'work' : 'personal';
   const msSignInOffered = msSignInKind === 'work' || msPersonalReady;
+  // Gmail and Google Workspace (imap.gmail.com, any address): sign in with Google when the
+  // instance's Google client is set up, else an app password, with where to make one.
+  const gmailHost = !isEdit && /^imap\.gmail\.com$/i.test((form.imap_host || '').trim());
+  const [googleSignInReady, setGoogleSignInReady] = useState(false);
 
   useEffect(() => {
-    if (!microsoftHost) return undefined;
+    if (!microsoftHost && !gmailHost) return undefined;
     let cancelled = false;
     api.getIntegrationsStatus()
       .then(d => {
         if (cancelled) return;
         setMsPersonalReady(!!d.microsoft?.builtinAppShipped && !!d.microsoft?.personalAccounts);
         setMsWorkReady(!!d.microsoft?.workAccounts);
+        setGoogleSignInReady(!!d.google?.signIn);
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [microsoftHost]);
+  }, [microsoftHost, gmailHost]);
 
   useEffect(() => {
     api.admin.getSettings()
@@ -411,7 +419,31 @@ function AccountForm({ initial, onSave, onCancel, prefill, onMicrosoftSignIn, on
         </div>
       )}
 
-      <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0 16px', marginTop: isMicrosoftImapHost(form.imap_host) ? 16 : '4px' }} />
+      {gmailHost && (
+        <div data-gmail-note style={{
+          padding: '10px 14px', marginTop: 10, borderRadius: 8, fontSize: 13, lineHeight: 1.5,
+          background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)', color: 'var(--text-secondary)',
+        }}>
+          {googleSignInReady && onGoogleSignIn ? (
+            <>
+              <div>{t('googleSignIn.formNote')}</div>
+              <button type="button" onClick={onGoogleSignIn} style={{
+                marginTop: 10, padding: '7px 14px', background: 'var(--accent)', border: 'none', borderRadius: 7,
+                color: 'var(--accent-text)', fontSize: 13, fontWeight: 500, cursor: 'pointer',
+              }}>{t('googleSignIn.title')}</button>
+            </>
+          ) : (
+            <>
+              <div>{t('googleSignIn.appPasswordNote')}</div>
+              <a href={GOOGLE_APP_PASSWORDS_URL} target="_blank" rel="noreferrer" style={{ display: 'inline-block', marginTop: 6, color: 'var(--accent)', fontWeight: 500 }}>
+                {t('googleSignIn.createAppPassword')}
+              </a>
+            </>
+          )}
+        </div>
+      )}
+
+      <div style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0 16px', marginTop: isMicrosoftImapHost(form.imap_host) || gmailHost ? 16 : '4px' }} />
       <div style={{ fontSize: 11, color: 'var(--text-secondary)', marginBottom: 10, fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
         {t('admin.accounts.smtpSection')}
       </div>
@@ -697,6 +729,7 @@ function AccountsTab() {
   // Add account: the chooser, then the IMAP form or "Sign in with Microsoft" (#674).
   const [addStep, setAddStep] = useState({ step: 'choose' }); // { step: 'choose' } | { step: 'form', preset, email } | { step: 'microsoft', mode }
   const [msStatus, setMsStatus] = useState(null); // GET /api/integrations/status's microsoft entry
+  const [googleStatus, setGoogleStatus] = useState(null); // ...and its google entry
   const startAdd = () => { setAddStep({ step: 'choose' }); setSubview('add'); };
 
   useEffect(() => {
@@ -704,14 +737,17 @@ function AccountsTab() {
     let cancelled = false;
     setMsStatus(null);
     api.getIntegrationsStatus()
-      .then(d => { if (!cancelled) setMsStatus(d?.microsoft || {}); })
-      .catch(() => { if (!cancelled) setMsStatus({}); });
+      .then(d => { if (!cancelled) { setMsStatus(d?.microsoft || {}); setGoogleStatus(d?.google || {}); } })
+      .catch(() => { if (!cancelled) { setMsStatus({}); setGoogleStatus({}); } });
     return () => { cancelled = true; };
   }, [subview]);
 
   const chooseProvider = (choice, email) => {
     if (choice === 'microsoftPersonal') setAddStep({ step: 'microsoft', mode: 'personal' });
     else if (choice === 'microsoftWork') setAddStep({ step: 'microsoft', mode: 'work' });
+    // Gmail signs in on Google's page when the instance's Google client is set up; otherwise
+    // it is the app-password form.
+    else if (choice === 'gmail' && googleStatus?.signIn) setAddStep({ step: 'google' });
     else setAddStep({ step: 'form', preset: choice === 'other' ? null : choice, email });
   };
   const reloadAccounts = () => api.getAccounts().then(setAccounts).catch(console.error);
@@ -932,7 +968,7 @@ function AccountsTab() {
           {addStep.step === 'choose' ? t('sidebar.backToAccounts') : t('msSignIn.back')}
         </button>
         {addStep.step === 'choose' && (
-          <AddAccountChooser status={msStatus} isAdmin={isAdmin} onChoose={chooseProvider}
+          <AddAccountChooser status={msStatus} googleStatus={googleStatus} isAdmin={isAdmin} onChoose={chooseProvider}
             onOpenSettings={() => setAdminTab('mail-signin')} />
         )}
         {addStep.step === 'microsoft' && (
@@ -941,13 +977,17 @@ function AccountsTab() {
             onDone={() => { reloadAccounts(); toList(); }}
             onCancel={toChooser} />
         )}
+        {addStep.step === 'google' && (
+          <GoogleSignIn onSignedIn={reloadAccounts} onDone={() => { reloadAccounts(); toList(); }} onCancel={toChooser} />
+        )}
         {addStep.step === 'form' && (
           <>
             <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 20 }}>
               {t('admin.accounts.addTitle')}
             </div>
             <AccountForm key={`${addStep.preset}:${addStep.email}`} prefill={addStep} onSave={handleAdd} onCancel={toChooser}
-              onMicrosoftSignIn={(kind) => setAddStep({ step: 'microsoft', mode: kind === 'work' ? 'work' : 'personal' })} />
+              onMicrosoftSignIn={(kind) => setAddStep({ step: 'microsoft', mode: kind === 'work' ? 'work' : 'personal' })}
+              onGoogleSignIn={() => setAddStep({ step: 'google' })} />
           </>
         )}
       </div>

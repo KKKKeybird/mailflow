@@ -2005,6 +2005,7 @@
       "workSub": "Sign in with your organization's Microsoft account",
       "gmail": "Gmail",
       "gmailSub": "Use an app password",
+      "gmailSignIn": "Sign in with Google",
       "yahoo": "Yahoo Mail",
       "yahooSub": "Use an app password",
       "icloud": "iCloud Mail",
@@ -2074,5 +2075,12 @@
     "signedInMicrosoft": "Signed in with Microsoft as {{email}}",
     "signedInGoogle": "Signed in with Google as {{email}}",
     "signedInNote": "The server and login come from this sign-in. If the account stops connecting, sign in again."
+  },
+  "googleSignIn": {
+    "title": "Sign in with Google",
+    "finePrint": "You sign in on Google's own page, and Google sends access straight to this server.",
+    "formNote": "Gmail and Google Workspace mailboxes can sign in with Google instead of an app password.",
+    "appPasswordNote": "Gmail needs an app password, not your regular password. Turn on 2-Step Verification for your Google account, then create an app password and enter it in the password field.",
+    "createAppPassword": "Create an app password"
   }
 }

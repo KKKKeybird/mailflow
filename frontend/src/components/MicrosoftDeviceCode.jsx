@@ -178,7 +178,7 @@ export default function MicrosoftDeviceCode({ accountId = null, kind, onSignedIn
 
 // How a sign-in ended, once the server has waited for the mailbox: connected, still
 // connecting, or refused (the account's error, with its fix and Try again).
-export function SignInResult({ result, onSignedIn, onDone, onSignInAgain }) {
+export function SignInResult({ result, onSignedIn, onDone, onSignInAgain, provider = 'microsoft' }) {
   const { t } = useTranslation();
   const [current, setCurrent] = useState(result);
   const [retrying, setRetrying] = useState(false);
@@ -224,7 +224,7 @@ export function SignInResult({ result, onSignedIn, onDone, onSignInAgain }) {
     return (
       <div data-sign-in-state="failed" style={{ margin: '0 -14px' }}>
         <AccountErrorCallout
-          account={{ id: current.accountId, email_address: current.email, oauth_provider: 'microsoft', sync_error: current.error, sync_error_code: current.code }}
+          account={{ id: current.accountId, email_address: current.email, oauth_provider: provider, sync_error: current.error, sync_error_code: current.code }}
           onRetry={retry}
           onSignIn={onSignInAgain}
         />

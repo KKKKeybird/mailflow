@@ -2005,6 +2005,7 @@
       "workSub": "Inicia sesión con la cuenta Microsoft de tu organización",
       "gmail": "Gmail",
       "gmailSub": "Usar una contraseña de aplicación",
+      "gmailSignIn": "Iniciar sesión con Google",
       "yahoo": "Yahoo Mail",
       "yahooSub": "Usar una contraseña de aplicación",
       "icloud": "iCloud Mail",
@@ -2074,5 +2075,12 @@
     "signedInMicrosoft": "Sesión iniciada con Microsoft como {{email}}",
     "signedInGoogle": "Sesión iniciada con Google como {{email}}",
     "signedInNote": "El servidor y el inicio de sesión vienen de esta conexión. Si la cuenta deja de conectarse, vuelve a iniciar sesión."
+  },
+  "googleSignIn": {
+    "title": "Iniciar sesión con Google",
+    "finePrint": "Inicias sesión en la propia página de Google, y Google envía el acceso directamente a este servidor.",
+    "formNote": "Los buzones de Gmail y Google Workspace pueden iniciar sesión con Google en lugar de usar una contraseña de aplicación.",
+    "appPasswordNote": "Gmail necesita una contraseña de aplicación, no tu contraseña habitual. Activa la verificación en dos pasos de tu cuenta de Google, crea una contraseña de aplicación y escríbela en el campo de contraseña.",
+    "createAppPassword": "Crear una contraseña de aplicación"
   }
 }

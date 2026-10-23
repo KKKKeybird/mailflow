@@ -2024,6 +2024,7 @@
       "workSub": "Přihlaste se účtem Microsoft vaší organizace",
       "gmail": "Gmail",
       "gmailSub": "Použít heslo aplikace",
+      "gmailSignIn": "Přihlásit se přes Google",
       "yahoo": "Yahoo Mail",
       "yahooSub": "Použít heslo aplikace",
       "icloud": "iCloud Mail",
@@ -2093,5 +2094,12 @@
     "signedInMicrosoft": "Přihlášeno přes Microsoft jako {{email}}",
     "signedInGoogle": "Přihlášeno přes Google jako {{email}}",
     "signedInNote": "Server a přihlašovací údaje pocházejí z tohoto přihlášení. Pokud se účet přestane připojovat, přihlaste se znovu."
+  },
+  "googleSignIn": {
+    "title": "Přihlásit se přes Google",
+    "finePrint": "Přihlašujete se na stránce Googlu a Google posílá přístup přímo na tento server.",
+    "formNote": "Schránky Gmail a Google Workspace se mohou místo hesla aplikace přihlásit přes Google.",
+    "appPasswordNote": "Gmail vyžaduje heslo aplikace, ne vaše běžné heslo. Zapněte pro účet Google dvoufázové ověření, vytvořte heslo aplikace a zadejte ho do pole pro heslo.",
+    "createAppPassword": "Vytvořit heslo aplikace"
   }
 }

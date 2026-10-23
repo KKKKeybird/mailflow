@@ -88,6 +88,8 @@ router.get('/status', async (req, res) => {
     },
     google: {
       configured: !!process.env.GOOGLE_CLIENT_ID,
+      // Everything the sign-in on Google's page needs: Add account offers it only then.
+      signIn: !!process.env.GOOGLE_CLIENT_ID && !!process.env.GOOGLE_CLIENT_SECRET && !!process.env.GOOGLE_REDIRECT_URI,
     },
   });
 });

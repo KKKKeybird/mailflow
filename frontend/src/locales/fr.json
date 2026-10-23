@@ -2005,6 +2005,7 @@
       "workSub": "Se connecter avec le compte Microsoft de votre organisation",
       "gmail": "Gmail",
       "gmailSub": "Utiliser un mot de passe d'application",
+      "gmailSignIn": "Se connecter avec Google",
       "yahoo": "Yahoo Mail",
       "yahooSub": "Utiliser un mot de passe d'application",
       "icloud": "iCloud Mail",
@@ -2074,5 +2075,12 @@
     "signedInMicrosoft": "Connecté avec Microsoft en tant que {{email}}",
     "signedInGoogle": "Connecté avec Google en tant que {{email}}",
     "signedInNote": "Le serveur et l'identifiant proviennent de cette connexion. Si le compte ne se connecte plus, reconnectez-vous."
+  },
+  "googleSignIn": {
+    "title": "Se connecter avec Google",
+    "finePrint": "Vous vous connectez sur la page de Google, et Google envoie l'accès directement à ce serveur.",
+    "formNote": "Les boîtes Gmail et Google Workspace peuvent se connecter avec Google au lieu d'un mot de passe d'application.",
+    "appPasswordNote": "Gmail demande un mot de passe d'application, pas votre mot de passe habituel. Activez la validation en deux étapes de votre compte Google, puis créez un mot de passe d'application et saisissez-le dans le champ du mot de passe.",
+    "createAppPassword": "Créer un mot de passe d'application"
   }
 }

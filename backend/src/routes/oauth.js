@@ -666,8 +666,12 @@ router.get('/google/callback', async (req, res) => {
       throw new Error(tokens.error_description || tokens.error || 'Token exchange failed');
     }
 
-    await processGoogleTokens(userId, tokens, { clientId, repairAccountId });
-    res.redirect('/?oauth_success=google');
+    const signedIn = await processGoogleTokens(userId, tokens, { clientId, repairAccountId });
+    // As for Microsoft: back once the mailbox has answered (bounded), with the outcome kept in
+    // the session for the page to read.
+    const report = await connectReportFor(signedIn, CALLBACK_CONNECT_WAIT_MS);
+    rememberResult(req, { provider: 'google', accountId: signedIn.accountId, email: signedIn.email, ...report });
+    res.redirect('/?oauth_success=google&oauth_result=1');
   } catch (err) {
     if (err instanceof WrongAccountError) return res.redirect(wrongAccountRedirect(req, err));
     console.error('Google OAuth callback error:', err);
@@ -766,10 +770,11 @@ async function processGoogleTokens(userId, tokens, { clientId, repairAccountId =
   imapManager.clearConnectCooldown(account.id);
   clearRefreshFailure(account.id);
   noteFreshToken(account.id);
-  imapManager.connectAccount(account).catch(err =>
-    console.error(`OAuth connect failed for ${redactEmail(email)}:`, err.message)
-  );
-  return email;
+  const connecting = imapManager.connectAccount(account).catch((err) => {
+    console.error(`OAuth connect failed for ${redactEmail(email)}:`, err.message);
+    return false;
+  });
+  return { email: account.email_address || email, accountId: account.id, connecting };
 }
 
 // Serialize refreshes per account, same reasoning as Microsoft. Google does not

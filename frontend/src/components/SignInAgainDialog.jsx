@@ -143,7 +143,7 @@ export default function SignInAgainDialog({ account, onClose, onSignedIn }) {
           <div>
             {redirectState?.result ? (
               <div style={{ padding: 14, borderRadius: 8, background: 'var(--bg-elevated)', border: '1px solid var(--border)' }}>
-                <SignInResult result={redirectState.result} onSignedIn={() => onSignedInRef.current?.()} onDone={onClose} onSignInAgain={() => setRedirectState(null)} />
+                <SignInResult provider={provider} result={redirectState.result} onSignedIn={() => onSignedInRef.current?.()} onDone={onClose} onSignInAgain={() => setRedirectState(null)} />
               </div>
             ) : redirectState === 'success' ? (
               <div role="status" style={{ color: 'var(--green)', fontSize: 13, fontWeight: 500 }}>{t('accountErrors.signInDialog.success')}</div>

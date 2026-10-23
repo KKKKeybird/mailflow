@@ -33,7 +33,8 @@ const ServerIcon = () => (
   </svg>
 );
 
-export default function AddAccountChooser({ status, isAdmin, onChoose, onOpenSettings }) {
+// googleStatus: the status's google entry; with signIn, the Gmail tile signs in on Google's page.
+export default function AddAccountChooser({ status, googleStatus, isAdmin, onChoose, onOpenSettings }) {
   const { t } = useTranslation();
   const [email, setEmail] = useState('');
   const [notice, setNotice] = useState('');
@@ -45,7 +46,7 @@ export default function AddAccountChooser({ status, isAdmin, onChoose, onOpenSet
       disabled: !loading && !available.personal, reason: t('addAccount.personalOff') },
     { id: 'microsoftWork', name: t('addAccount.tile.work'), sub: t('addAccount.tile.workSub'), icon: <MicrosoftLogo />,
       disabled: !loading && !available.work, reason: t('addAccount.workOff') },
-    { id: 'gmail', name: t('addAccount.tile.gmail'), sub: t('addAccount.tile.gmailSub'), icon: <MailIcon color="#ea4335" /> },
+    { id: 'gmail', name: t('addAccount.tile.gmail'), sub: googleStatus?.signIn ? t('addAccount.tile.gmailSignIn') : t('addAccount.tile.gmailSub'), icon: <MailIcon color="#ea4335" /> },
     { id: 'yahoo', name: t('addAccount.tile.yahoo'), sub: t('addAccount.tile.yahooSub'), icon: <MailIcon color="#6001d2" /> },
     { id: 'icloud', name: t('addAccount.tile.icloud'), sub: t('addAccount.tile.icloudSub'), icon: <MailIcon color="#3693f3" /> },
     { id: 'other', name: t('addAccount.tile.other'), sub: t('addAccount.tile.otherSub'), icon: <ServerIcon /> },

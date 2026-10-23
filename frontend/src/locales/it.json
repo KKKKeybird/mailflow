@@ -2005,6 +2005,7 @@
       "workSub": "Accedi con l'account Microsoft della tua organizzazione",
       "gmail": "Gmail",
       "gmailSub": "Usa una password per le app",
+      "gmailSignIn": "Accedi con Google",
       "yahoo": "Yahoo Mail",
       "yahooSub": "Usa una password per le app",
       "icloud": "iCloud Mail",
@@ -2074,5 +2075,12 @@
     "signedInMicrosoft": "Accesso con Microsoft come {{email}}",
     "signedInGoogle": "Accesso con Google come {{email}}",
     "signedInNote": "Il server e l'accesso provengono da questo login. Se l'account smette di connettersi, accedi di nuovo."
+  },
+  "googleSignIn": {
+    "title": "Accedi con Google",
+    "finePrint": "Accedi nella pagina di Google, e Google invia l'accesso direttamente a questo server.",
+    "formNote": "Le caselle Gmail e Google Workspace possono accedere con Google invece di usare una password per le app.",
+    "appPasswordNote": "Gmail richiede una password per le app, non la tua password abituale. Attiva la verifica in due passaggi per il tuo account Google, poi crea una password per le app e inseriscila nel campo della password.",
+    "createAppPassword": "Crea una password per le app"
   }
 }

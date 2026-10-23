@@ -2005,6 +2005,7 @@
       "workSub": "Mit dem Microsoft-Konto Ihrer Organisation anmelden",
       "gmail": "Gmail",
       "gmailSub": "App-Passwort verwenden",
+      "gmailSignIn": "Mit Google anmelden",
       "yahoo": "Yahoo Mail",
       "yahooSub": "App-Passwort verwenden",
       "icloud": "iCloud Mail",
@@ -2074,5 +2075,12 @@
     "signedInMicrosoft": "Mit Microsoft angemeldet als {{email}}",
     "signedInGoogle": "Mit Google angemeldet als {{email}}",
     "signedInNote": "Server und Anmeldung stammen aus dieser Anmeldung. Wenn das Konto keine Verbindung mehr herstellt, melden Sie sich erneut an."
+  },
+  "googleSignIn": {
+    "title": "Mit Google anmelden",
+    "finePrint": "Sie melden sich auf der Seite von Google an, und Google schickt den Zugang direkt an diesen Server.",
+    "formNote": "Postfächer von Gmail und Google Workspace können sich statt mit einem App-Passwort mit Google anmelden.",
+    "appPasswordNote": "Gmail braucht ein App-Passwort, nicht Ihr normales Passwort. Schalten Sie die Bestätigung in zwei Schritten für Ihr Google-Konto ein, erstellen Sie dann ein App-Passwort und geben Sie es im Passwortfeld ein.",
+    "createAppPassword": "App-Passwort erstellen"
   }
 }

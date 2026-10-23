@@ -293,6 +293,26 @@ describe('repairing an account by signing in again', () => {
     }
   });
 
+  it('a Google sign-in reports the first connection through the session, with the stored address', async () => {
+    process.env.GOOGLE_CLIENT_ID = 'g-client';
+    process.env.GOOGLE_CLIENT_SECRET = 'g-secret';
+    process.env.GOOGLE_REDIRECT_URI = 'https://mail.example/oauth/google/callback';
+    mocks.imapManager.connectAccount.mockResolvedValue(false);
+    mocks.query.mockImplementation(async (sql, params) => (/SELECT sync_error, sync_error_code/.test(sql)
+      ? { rows: [{ sync_error: '[AUTHENTICATIONFAILED] Invalid credentials (Failure)', sync_error_code: 'oauth_reauth' }] }
+      : pick(sql, params) || { rows: [] }));
+    await realFetch(`${base}/oauth/google?accountId=22222222-2222-4222-8222-222222222222`, { redirect: 'manual' });
+    signedInAs = 'MARIA@gmail.com';
+    const cb = await realFetch(`${base}/oauth/google/callback?code=c&state=${session.oauthNonce}`, { redirect: 'manual' });
+    expect(cb.headers.get('location')).toBe('/?oauth_success=google&oauth_result=1');
+    expect(await (await realFetch(`${base}/oauth/result`)).json()).toEqual({
+      result: {
+        provider: 'google', accountId: '22222222-2222-4222-8222-222222222222', email: 'maria@gmail.com',
+        connection: 'failed', code: 'oauth_reauth', error: '[AUTHENTICATIONFAILED] Invalid credentials (Failure)',
+      },
+    });
+  });
+
   it('carries a repair through the Microsoft redirect', async () => {
     process.env.MS_CLIENT_ID = 'own-app-id';
     process.env.MS_CLIENT_SECRET = 'secret';

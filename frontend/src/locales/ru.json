@@ -2005,6 +2005,7 @@
       "workSub": "Войдите через аккаунт Microsoft вашей организации",
       "gmail": "Gmail",
       "gmailSub": "Использовать пароль приложения",
+      "gmailSignIn": "Войти через Google",
       "yahoo": "Yahoo Mail",
       "yahooSub": "Использовать пароль приложения",
       "icloud": "iCloud Mail",
@@ -2074,5 +2075,12 @@
     "signedInMicrosoft": "Вход через Microsoft как {{email}}",
     "signedInGoogle": "Вход через Google как {{email}}",
     "signedInNote": "Сервер и логин взяты из этого входа. Если аккаунт перестанет подключаться, войдите снова."
+  },
+  "googleSignIn": {
+    "title": "Войти через Google",
+    "finePrint": "Вы входите на странице Google, и Google передает доступ напрямую на этот сервер.",
+    "formNote": "Ящики Gmail и Google Workspace могут входить через Google вместо пароля приложения.",
+    "appPasswordNote": "Для Gmail нужен пароль приложения, а не обычный пароль. Включите двухэтапную аутентификацию в аккаунте Google, создайте пароль приложения и введите его в поле пароля.",
+    "createAppPassword": "Создать пароль приложения"
   }
 }
