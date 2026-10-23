@@ -9,7 +9,7 @@
 <p align="center">
   <a href="#installation">Quick Start</a> ·
   <a href="#email-provider-setup">Setup Guide</a> ·
-  <a href="https://mailflow.sh/#supporters">Contributing</a> ·
+  <a href="#supporters">Support MailFlow</a> ·
   <a href="https://mailflow.sh/#roadmap">Roadmap</a>
 </p>
 
@@ -18,10 +18,10 @@
 Licensing and paid options:
 
 - **[AGPL-3.0](LICENSE)**: free for everyone, individuals and businesses, to self-host. If you modify MailFlow and let others use it over a network, you must publish your changes under the same license.
-- **Business License**: $100 per instance per year. MailFlow is free for everyone under the AGPL, including businesses. If you use it in a business, we ask you to buy a yearly license to support development. It isn't legally required or enforced. [Buy one here](https://mailflow.sh/#pricing).
-- **[Private modifications license](LICENSE-COMMERCIAL)** (commercial license): $500 per installation, one-time. Only for a business that wants to modify MailFlow and run it without publishing its changes; most businesses don't need it. [Purchase here](https://mailflow.sh/#pricing).
-- **Hosting providers and MSPs**: partner plans for offering MailFlow to your customers: a revenue share for hosting platforms, or MSP plans from $500 per year for 5 client instances. Partners are listed on mailflow.sh and hear about security releases before they ship. [Details](https://mailflow.sh/#pricing), or get in touch at contact@mailflow.sh.
-- **Business support**: from $600 per year, for teams that rely on MailFlow, with help setting up, priority answers and a say in the roadmap. Includes a business license. Get in touch at contact@mailflow.sh.
+- **Business License**: $100 per instance per year, plus tax. MailFlow is free for everyone under the AGPL, including businesses. If you use it in a business, we ask you to buy a yearly license to support development. It isn't legally required or enforced. [Buy one here](https://mailflow.sh/#pricing), or sponsor at $40/month on [GitHub Sponsors](https://github.com/sponsors/maathimself), which includes one.
+- **[Private modifications license](LICENSE-COMMERCIAL)** (commercial license): $500 per installation, one-time, plus tax. Only for a business that wants to modify MailFlow and run it without publishing its changes; most businesses don't need it. [Purchase here](https://mailflow.sh/#pricing).
+- **Hosting providers and MSPs**: partner plans for offering MailFlow to your customers: a revenue share for hosting platforms, or MSP plans: Starter at $500 per year for 5 client instances, and Partner at $1,200 per year for 20 (plus tax). Partners are listed on mailflow.sh and get an email before each security release with its date and severity; the fix itself is public to everyone at the same time. [Details](https://mailflow.sh/#pricing), or get in touch at contact@mailflow.sh.
+- **Business support**: from $600 per year, plus tax, for teams that rely on MailFlow, with help setting up, priority answers and a say in the roadmap. Includes a business license. Get in touch at contact@mailflow.sh.
 
 **Personal self-hosting is free and always will be.**
 
@@ -44,7 +44,7 @@ If you contribute code, please read the [Contributor License Agreement](CLA.md).
 - **Real-time notifications** — WebSocket-powered new-mail toasts and web push notifications
 - **PWA** — installable as a desktop or mobile app with push notification support
 - **Command palette** — Cmd+K / Ctrl+K quick-access for actions and navigation
-- **Keyboard shortcuts** — full shortcut set, fully customisable per user
+- **Keyboard shortcuts** — full shortcut set, fully customizable per user
 - **Smart contact autocomplete** — learns from sent mail to rank suggestions
 - **Reply / Forward / Compose** — correct per-account SMTP routing; font family groups, email priority
 - **Folder navigation** — expand any account to browse folders
@@ -195,7 +195,7 @@ docker compose pull
 docker compose up -d
 ```
 
-To pin to a specific version instead of `latest`, add `MAILFLOW_VERSION=2.7.0` to your `.env`.
+To pin to a specific version instead of `latest`, add `MAILFLOW_VERSION=4.0.4` to your `.env`.
 
 ---
 
@@ -686,6 +686,8 @@ MailFlow is free and open source, and built and maintained by one person. Sponso
 
 ## Upgrading
 
+From v3 on, each release's notes on [GitHub Releases](https://github.com/maathimself/mailflow/releases) list its upgrade steps. The notes below cover older versions.
+
 ### GTD
 
 GTD is opt-in per account (**Settings → Categories → GTD**). Migrations for the new schema are additive and apply automatically on first startup. No operator action needed.
@@ -725,6 +727,8 @@ If any accounts were configured with **Skip TLS verification** (e.g. for a self-
 ---
 
 ## Security notes
+
+To report a vulnerability, see [SECURITY.md](SECURITY.md). Please don't open a public issue.
 
 - The first registered user becomes the admin automatically
 - Close open registration in Settings → Users once you've set up your accounts
