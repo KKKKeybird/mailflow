@@ -4087,21 +4087,21 @@ describe('computeThreadId subject fallback requires a shared correspondent (#468
     // Two unrelated senders writing to it have it in common, which is not correspondence:
     // forwarded mail, catch-all domains, mailing lists and BCC all produce this.
     const FWD_ACCOUNT = 'acct-forwarded';
-    getAccountAddresses.mockResolvedValue(['simanoom@gmail.com']);
+    getAccountAddresses.mockResolvedValue(['forward@example.com']);
     query.mockResolvedValueOnce({
       rows: [{
         thread_id: 'storage-alert-thread',
         from_email: 'alert-3385@lxisa.zub',
-        to_addresses: [{ email: 'me@aol.com' }],
+        to_addresses: [{ email: 'me@example.com' }],
         cc_addresses: [],
       }],
     });
 
     const id = await computeThreadId(FWD_ACCOUNT, '<second@yxcoi.isj>', ...noHeaders, 'Action required: storage 100% full', {
       fromEmail: 'alert-6476@yxcoi.isj',
-      to: [{ email: 'me@aol.com' }],
+      to: [{ email: 'me@example.com' }],
       cc: [],
-      own: 'simanoom@gmail.com',
+      own: 'forward@example.com',
     });
 
     expect(id).toBe('<second@yxcoi.isj>'); // its own thread, not the first sender's
