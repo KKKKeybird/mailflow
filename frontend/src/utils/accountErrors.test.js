@@ -1,7 +1,7 @@
 import { describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { describeAccountError, needsSignIn, OUTLOOK_WEB_URL, trustedWrongAccount } from './accountErrors.js';
+import { describeAccountError, needsSignIn, OUTLOOK_WEB_URL, signInResultNotice, trustedWrongAccount } from './accountErrors.js';
 
 const en = JSON.parse(readFileSync(new URL('../locales/en.json', import.meta.url), 'utf8'));
 const lookup = (key) => key.split('.').reduce((o, k) => o?.[k], en);
@@ -96,5 +96,16 @@ describe('trustedWrongAccount', () => {
     assert.equal(trustedWrongAccount(params({ ...wrong, signedInAs: 'Your account is locked, call 555-0100' }), true), null);
     assert.equal(trustedWrongAccount(params({ ...wrong, expected: '<b>x</b>@y.z' }), true), null);
     assert.equal(trustedWrongAccount(params({ ...wrong, error: 'access_denied' }), true), null);
+  });
+});
+
+describe('signInResultNotice', () => {
+  test('connected, still connecting, and an error with its own title', () => {
+    assert.deepEqual(signInResultNotice({ connection: 'connected', email: 'a@outlook.com' }, 'microsoft'), { type: 'info', titleKey: 'msSignIn.connected', values: { email: 'a@outlook.com' } });
+    assert.equal(signInResultNotice({ connection: 'connecting', email: 'a@outlook.com' }, 'microsoft').titleKey, 'msSignIn.stillConnecting');
+    const failed = signInResultNotice({ connection: 'failed', code: 'ms_imap_disabled_work', error: 'x', email: 'a@contoso.example' }, 'microsoft');
+    assert.equal(failed.type, 'error');
+    assert.equal(failed.titleKey, 'accountErrors.imapOffWork.title');
+    assert.equal(signInResultNotice(null, 'microsoft'), null);
   });
 });

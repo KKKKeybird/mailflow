@@ -66,7 +66,7 @@ describe('POST /api/accounts/:id/reconnect', () => {
   it('with wait, does not report the error from before as the result', async () => {
     engine.connectAccount.mockResolvedValue(false);
     expect(await reconnect('?wait=1')).toEqual({ ok: true, connection: 'connecting' });
-    expect(engine.forgetAccountError).toHaveBeenCalledWith(ID);
+    expect(engine.forgetAccountError).toHaveBeenCalledWith(ID, 'u1');
   });
 
   it('with wait, reports a connection that worked', async () => {

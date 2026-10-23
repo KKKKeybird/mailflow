@@ -2055,7 +2055,7 @@
     "ms": {
       "title": "Microsoft",
       "description": "Outlook.com, Hotmail, Live, MSN 및 Microsoft 365 사서함",
-      "personalTitle": "개인 계정(Outlook.com, Hotmail)",
+      "personalTitle": "개인 계정(Outlook.com, Hotmail, Live, MSN)",
       "statusShared": "MailFlow 공용 앱 사용 중",
       "statusOwn": "자체 앱 사용 중",
       "statusOff": "꺼짐",

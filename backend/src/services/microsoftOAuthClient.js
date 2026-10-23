@@ -37,7 +37,7 @@ export function getMsConfig() {
 }
 
 const PERSONAL_TENANTS = new Set(['common', 'consumers']);
-const ownAppAdmitsPersonal = ({ clientId, tenantId }) => !!clientId && PERSONAL_TENANTS.has(tenantId.trim().toLowerCase());
+export const ownAppAdmitsPersonal = ({ clientId, tenantId }) => !!clientId && PERSONAL_TENANTS.has(tenantId.trim().toLowerCase());
 const builtinClient = () => ({ clientId: MAILFLOW_MS_CLIENT_ID, tenantId: MS_BUILTIN_TENANT_ID, builtin: true });
 
 // Client for a new device-code sign-in, by the kind of account being added (#674):

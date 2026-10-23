@@ -418,7 +418,7 @@ router.post('/:id/reconnect', async (req, res) => {
   // whether it worked; without it the reconnect runs in the background as before. The old
   // error is forgotten first: connectAccount returns false at once when another connect is
   // already running, and that must read as "still connecting", not as the previous failure.
-  if (req.query.wait) await imapManager.forgetAccountError?.(id);
+  if (req.query.wait) await imapManager.forgetAccountError?.(id, req.session.userId);
   const connecting = imapManager.connectAccount(result.rows[0]).catch((err) => { console.error(err); return false; });
   if (req.query.wait) {
     return res.json({ ok: true, ...(await reportConnect(connecting, id, { isConnected: () => !!imapManager.isConnected?.(id) })) });

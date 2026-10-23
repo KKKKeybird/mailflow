@@ -136,10 +136,10 @@ describe.skipIf(!ADMIN_URL)('account error codes and repair sign-in on PostgreSQ
       await ImapManager.prototype._recordAccountError.call(self, acct, 'User is authenticated but not connected.');
       return false;
     };
-    expect(await signIn('maria.lopez@outlook.com')).toEqual({ status: 'checking', accountId: account.id, email: 'maria.lopez@outlook.com' });
+    expect(await signIn('maria.lopez@outlook.com')).toEqual({ status: 'checking', accountId: account.id, email: 'Maria.Lopez@outlook.com' });
     const headers = { 'x-user': user.id };
     expect(await (await realFetch(`${base}/oauth/microsoft/device/poll`, { headers })).json()).toEqual({
-      status: 'success', accountId: account.id, email: 'maria.lopez@outlook.com',
+      status: 'success', accountId: account.id, email: 'Maria.Lopez@outlook.com',
       connection: 'failed', code: 'ms_imap_disabled_personal', error: 'User is authenticated but not connected.',
     });
     // Turned on in Outlook.com, the account connects: the error goes.

@@ -3197,10 +3197,33 @@ describe('forgetAccountError', () => {
 
   it('clears the row and the cache, so the same failure after a retry is written again', async () => {
     const acct = { id: 'f1', user_id: 'u1', email_address: 'x@example.com' };
-    const self = { _syncErrorState: new Map(), _accountErrorStreak: new Map(), broadcast: vi.fn(), forgetAccountError: ImapManager.prototype.forgetAccountError };
+    const self = { _syncErrorState: new Map(), _accountErrorStreak: new Map(), _errorForgets: new Map(), broadcast: vi.fn(), forgetAccountError: ImapManager.prototype.forgetAccountError };
     await ImapManager.prototype._recordAccountError.call(self, acct, 'Invalid credentials');
     await self.forgetAccountError('f1');
     expect(query).toHaveBeenLastCalledWith('UPDATE email_accounts SET sync_error = NULL, sync_error_code = NULL WHERE id = $1', ['f1']);
+    query.mockClear();
+    await ImapManager.prototype._recordAccountError.call(self, acct, 'Invalid credentials');
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('tells open account lists the error is gone', async () => {
+    const self = { _syncErrorState: new Map(), _errorForgets: new Map(), broadcast: vi.fn() };
+    await ImapManager.prototype.forgetAccountError.call(self, 'f2', 'u1');
+    expect(self.broadcast).toHaveBeenCalledWith({ type: 'account_connected', accountId: 'f2' }, 'u1');
+  });
+
+  it('a record in flight during the forget does not cache its text, so the next identical failure is written', async () => {
+    const acct = { id: 'f3', user_id: 'u1', email_address: 'x@example.com' };
+    const self = { _syncErrorState: new Map(), _accountErrorStreak: new Map(), _errorForgets: new Map(), broadcast: vi.fn() };
+    let release;
+    query.mockImplementationOnce(() => new Promise(r => { release = () => r({ rows: [] }); }));
+    const inFlight = ImapManager.prototype._recordAccountError.call(self, acct, 'Invalid credentials');
+    await new Promise(r => setTimeout(r, 0));
+    // The forget's UPDATE lands, then the in-flight record's write completes.
+    await ImapManager.prototype.forgetAccountError.call(self, 'f3', 'u1');
+    release();
+    await inFlight;
+    expect(self._syncErrorState.has('f3')).toBe(false);
     query.mockClear();
     await ImapManager.prototype._recordAccountError.call(self, acct, 'Invalid credentials');
     expect(query).toHaveBeenCalledTimes(1);

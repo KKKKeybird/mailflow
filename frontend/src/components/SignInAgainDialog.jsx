@@ -44,21 +44,29 @@ export default function SignInAgainDialog({ account, onClose, onSignedIn }) {
         try { sessionStorage.removeItem(REPAIR_FLAG); } catch { /* storage unavailable */ }
         onSignedInRef.current?.();
         if (e.data.connection) {
-          setRedirectState({ result: { accountId: e.data.accountId || account.id, email: e.data.email || account.email_address, connection: e.data.connection, code: e.data.code, error: e.data.detail } });
+          // The address as stored on the account, not the casing typed at the provider.
+          setRedirectState({ result: { accountId: account.id, email: account.email_address, connection: e.data.connection, code: e.data.code, error: e.data.detail } });
         } else {
           setRedirectState('success');
           closeTimer.current = setTimeout(() => onCloseRef.current?.(), 2500);
         }
       } else if (e.data?.type === 'oauth_error' && e.data?.error === 'wrong_account') {
+        try { sessionStorage.removeItem(REPAIR_FLAG); } catch { /* storage unavailable */ }
         setRedirectState({ signedInAs: e.data.signedInAs, expected: e.data.expected });
       } else if (e.data?.type === 'oauth_error') {
+        try { sessionStorage.removeItem(REPAIR_FLAG); } catch { /* storage unavailable */ }
         setRedirectState({ error: e.data.error });
       }
     };
     window.addEventListener('message', handle);
     return () => window.removeEventListener('message', handle);
   }, [redirect, provider, account?.id]); // eslint-disable-line react-hooks/exhaustive-deps -- callbacks are read through refs
-  useEffect(() => () => clearTimeout(closeTimer.current), []);
+  // The repair flag is only for the sign-in this dialog started: whatever the outcome, closing
+  // the dialog ends it.
+  useEffect(() => () => {
+    clearTimeout(closeTimer.current);
+    try { sessionStorage.removeItem(REPAIR_FLAG); } catch { /* storage unavailable */ }
+  }, []);
 
   // Focus moves into the dialog, stays there while it is open, and returns where it was;
   // Escape closes it.

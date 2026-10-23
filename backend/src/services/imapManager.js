@@ -2609,6 +2609,7 @@ export class ImapManager {
     // Lets the success paths skip a redundant UPDATE on every sync tick.
     this._syncErrorState = new Map();
     this._accountErrorStreak = new Map(); // accountId -> consecutive recoverable failures not yet surfaced
+    this._errorForgets = new Map(); // accountId -> times forgetAccountError ran (see there)
     this.onDemandSyncing = new Set(); // `${accountId}:${folder}` — prevent duplicate on-demand syncs
     // Bounded engine facade handed to plugin hooks instead of `this` — plugins get only the reviewed
     // sync/label primitives (see mailEngineFacade), never the raw engine, its connections, or locks.
@@ -3495,9 +3496,17 @@ export class ImapManager {
   // back (Try again in the sign-in flow): a failure recorded after this is the retry's own,
   // never the one from before. Deleting the cached state makes the next record write through
   // even when the text is the same.
-  async forgetAccountError(accountId) {
+  //
+  // A record that was in flight when this ran must not leave its text in the cache: its UPDATE
+  // may land before this one, and a cached copy would then hide the next identical failure.
+  // The forget count tells _recordAccountError to skip caching a write it started before.
+  async forgetAccountError(accountId, userId) {
+    this._errorForgets.set(accountId, (this._errorForgets.get(accountId) || 0) + 1);
     this._syncErrorState.delete(accountId);
     await query('UPDATE email_accounts SET sync_error = NULL, sync_error_code = NULL WHERE id = $1', [accountId]);
+    this._syncErrorState.delete(accountId);
+    // Open account lists drop the old error too ('account_connected' clears it client-side).
+    if (userId !== undefined) this.broadcast({ type: 'account_connected', accountId }, userId);
   }
 
 
@@ -3570,8 +3579,10 @@ export class ImapManager {
     this._accountErrorStreak.set(account.id, streak);
     if (isConnectionRefusal(detail) && streak < ACCOUNT_ERROR_MIN_STREAK) return;
     try {
+      const forgets = this._errorForgets?.get(account.id);
       await query('UPDATE email_accounts SET sync_error = $1, sync_error_code = $3 WHERE id = $2', [detail, account.id, code]);
-      this._syncErrorState.set(account.id, detail);
+      // Not cached when forgetAccountError ran meanwhile: the row may hold its NULL instead.
+      if (this._errorForgets?.get(account.id) === forgets) this._syncErrorState.set(account.id, detail);
       this.broadcast({ type: 'account_error', accountId: account.id, error: detail, code }, account.user_id);
     } catch (err) {
       // Leave _syncErrorState untouched so the next failure retries the write.

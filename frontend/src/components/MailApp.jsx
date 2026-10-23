@@ -1,6 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { REPAIR_FLAG, trustedWrongAccount } from '../utils/accountErrors.js';
+import { REPAIR_FLAG, signInResultNotice, trustedWrongAccount } from '../utils/accountErrors.js';
 import InboxReplyDraftObserver from './InboxReplyDraftObserver.js';
 import { useStore } from '../store/index.js';
 import { api } from '../utils/api.js';
@@ -706,11 +706,20 @@ export default function MailApp() {
 
     if (provider) {
       window.history.replaceState({}, '', '/');
+      try { sessionStorage.removeItem(REPAIR_FLAG); } catch { /* storage unavailable */ }
       api.getAccounts()
         .then(accounts => { setAccounts(accounts); })
         .catch(console.error);
       setAdminTab('accounts');
       setShowAdmin(true);
+      // How the first connection went, kept in the session by the sign-in: read it (which also
+      // clears it) and say so here, since no other tab is waiting for it.
+      if (params.get('oauth_result')) {
+        api.oauthResult().then((result) => {
+          const note = signInResultNotice(result, provider);
+          if (note) addNotification({ type: note.type, title: t(note.titleKey, note.values), body: note.bodyKey ? t(note.bodyKey, note.values) : undefined });
+        }).catch(() => {});
+      }
     } else if (oauthError) {
       // A sign-in that ends in this tab, rather than in the one that started it, says how it went
       // instead of vanishing. The addresses in a wrong-account answer are shown only for a repair

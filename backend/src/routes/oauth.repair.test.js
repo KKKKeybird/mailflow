@@ -26,6 +26,9 @@ const ACCOUNTS = {
   '11111111-1111-4111-8111-111111111111': { id: '11111111-1111-4111-8111-111111111111', user_id: 'user-1', email_address: 'Maria.Lopez@outlook.com', imap_host: 'outlook.office365.com', oauth_provider: 'microsoft', oauth_client_id: 'builtin-app-id' },
   '22222222-2222-4222-8222-222222222222': { id: '22222222-2222-4222-8222-222222222222', user_id: 'user-1', email_address: 'maria@gmail.com', imap_host: 'imap.gmail.com', oauth_provider: 'google' },
   '33333333-3333-4333-8333-333333333333': { id: '33333333-3333-4333-8333-333333333333', user_id: 'user-1', email_address: 'maria@example.com', imap_host: 'imap.example.com', oauth_provider: null },
+  // Connected through the instance's own app on the common tenant.
+  '55555555-5555-4555-8555-555555555555': { id: '55555555-5555-4555-8555-555555555555', user_id: 'user-1', email_address: 'maria@outlook.com', imap_host: 'outlook.office365.com', oauth_provider: 'microsoft', oauth_client_id: 'own-app-id', oauth_tenant_id: 'common' },
+  '66666666-6666-4666-8666-666666666666': { id: '66666666-6666-4666-8666-666666666666', user_id: 'user-1', email_address: 'maria@contoso.example', imap_host: 'outlook.office365.com', oauth_provider: 'microsoft', oauth_client_id: 'own-app-id', oauth_tenant_id: 'contoso.example' },
 };
 
 let session;
@@ -115,8 +118,9 @@ describe('repairing an account by signing in again', () => {
   it('updates the account it was started for when the address matches without regard to case', async () => {
     noteRefreshFailure('11111111-1111-4111-8111-111111111111', { code: 'oauth_reauth', detail: 'AADSTS700082: expired' });
     await startDevice({ accountId: '11111111-1111-4111-8111-111111111111' });
-    expect(await poll()).toEqual({ status: 'checking', accountId: '11111111-1111-4111-8111-111111111111', email: 'maria.lopez@outlook.com' });
-    expect(await poll()).toEqual({ status: 'success', accountId: '11111111-1111-4111-8111-111111111111', email: 'maria.lopez@outlook.com', connection: 'connected' });
+    // The address as stored on the account, not the casing the person signed in with.
+    expect(await poll()).toEqual({ status: 'checking', accountId: '11111111-1111-4111-8111-111111111111', email: 'Maria.Lopez@outlook.com' });
+    expect(await poll()).toEqual({ status: 'success', accountId: '11111111-1111-4111-8111-111111111111', email: 'Maria.Lopez@outlook.com', connection: 'connected' });
 
     const [sql, params] = writes()[0];
     expect(writes()).toHaveLength(1);
@@ -146,6 +150,19 @@ describe('repairing an account by signing in again', () => {
     process.env.MS_CLIENT_ID = 'own-app-id';
     process.env.MS_TENANT_ID = 'organizations';
     expect((await startDevice({ kind })).status).toBe(200);
+    const [calledUrl, init] = globalThis.fetch.mock.calls[0];
+    expect(calledUrl).toBe(url);
+    expect(init.body.get('client_id')).toBe(clientId);
+  });
+
+  // The own app's tenant changed to organizations after these accounts were connected.
+  it.each([
+    ['a personal account goes to the shared app', '55555555-5555-4555-8555-555555555555', 'https://login.microsoftonline.com/consumers/oauth2/v2.0/devicecode', 'builtin-app-id'],
+    ['a work account keeps the tenant it was connected with', '66666666-6666-4666-8666-666666666666', 'https://login.microsoftonline.com/contoso.example/oauth2/v2.0/devicecode', 'own-app-id'],
+  ])('repair after the own app\'s tenant changed: %s', async (_label, id, url, clientId) => {
+    process.env.MS_CLIENT_ID = 'own-app-id';
+    process.env.MS_TENANT_ID = 'organizations';
+    expect((await startDevice({ accountId: id })).status).toBe(200);
     const [calledUrl, init] = globalThis.fetch.mock.calls[0];
     expect(calledUrl).toBe(url);
     expect(init.body.get('client_id')).toBe(clientId);
@@ -286,7 +303,7 @@ describe('repairing an account by signing in again', () => {
     // Back to the page with only a short code; how the first connection went is fetched once.
     expect(cb.headers.get('location')).toBe('/?oauth_success=microsoft&oauth_result=1');
     expect(await (await realFetch(`${base}/oauth/result`)).json()).toEqual({
-      result: { provider: 'microsoft', accountId: '11111111-1111-4111-8111-111111111111', email: 'maria.lopez@outlook.com', connection: 'connected' },
+      result: { provider: 'microsoft', accountId: '11111111-1111-4111-8111-111111111111', email: 'Maria.Lopez@outlook.com', connection: 'connected' },
     });
     expect(writes()[0][1][5]).toBe('11111111-1111-4111-8111-111111111111');
   });

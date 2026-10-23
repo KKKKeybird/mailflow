@@ -6,7 +6,7 @@ import { imapManager } from '../index.js';
 import { providerProfile, PROVIDERS } from '../services/imapManager.js';
 import { encrypt, decrypt } from '../services/encryption.js';
 import { redactEmail } from '../utils/redact.js';
-import { getMsConfig, getMsDeviceClient, msBuiltinAppEnabled, msRefreshClient } from '../services/microsoftOAuthClient.js';
+import { getMsConfig, getMsDeviceClient, msBuiltinAppEnabled, msRefreshClient, ownAppAdmitsPersonal } from '../services/microsoftOAuthClient.js';
 import { MAILFLOW_MS_CLIENT_ID } from '../services/microsoftBuiltinApp.js';
 import { classifyRefreshFailure, clearRefreshFailure, isPersonalMicrosoftAccount, noteFreshToken, terminalRefreshError } from '../services/accountErrorCode.js';
 import { isUuid } from '../utils/uuid.js';
@@ -298,7 +298,8 @@ async function processMicrosoftTokens(userId, tokens, { tenantId, clientId, publ
     console.error(`OAuth connect failed for ${redactEmail(email)}:`, err.message);
     return false;
   });
-  return { email, accountId: account.id, connecting };
+  // The address as stored on the account, not as typed at the provider (case can differ).
+  return { email: account.email_address || email, accountId: account.id, connecting };
 }
 
 // How the first connection after a sign-in went, waited for (bounded) so the sign-in reports
@@ -322,10 +323,19 @@ function msRepairClient(repair) {
     return { clientId: MAILFLOW_MS_CLIENT_ID, tenantId: 'consumers', builtin: true };
   }
   const config = getMsConfig();
+  const personal = isPersonalMicrosoftAccount(repair);
   if (repair?.oauth_client_id && repair.oauth_client_id === config.clientId) {
-    return { clientId: config.clientId, tenantId: config.tenantId, builtin: false };
+    // A personal account whose own app no longer accepts personal accounts (its tenant is now
+    // organizations or a single tenant) signs in again the way new personal accounts do.
+    if (personal && !ownAppAdmitsPersonal(config)) return getMsDeviceClient('personal');
+    // Otherwise the tenant the account was connected with: the configured one may have changed.
+    return { clientId: config.clientId, tenantId: repair.oauth_tenant_id || config.tenantId, builtin: false };
   }
-  return getMsDeviceClient(isPersonalMicrosoftAccount(repair) ? 'personal' : 'work');
+  // No usable recorded client (an account from before clients were recorded, or one whose app
+  // was replaced): pick by the kind of address. Without the sign-in's own claims, a personal
+  // Microsoft account on a non-Microsoft address cannot be told from a work one and is tried
+  // as work.
+  return getMsDeviceClient(personal ? 'personal' : 'work');
 }
 
 // The kind of account a new device-code sign-in is for, as the page says: 'personal' or 'work'.

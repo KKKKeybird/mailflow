@@ -91,3 +91,14 @@ export function describeAccountError(account) {
 export function needsSignIn(account) {
   return describeAccountError(account)?.actions.includes('signIn') || false;
 }
+
+// The notice for a sign-in that ended in this tab: connected, still connecting, or the
+// account's error. null when there is nothing to report.
+export function signInResultNotice(result, provider) {
+  if (!result?.connection) return null;
+  const values = { email: result.email };
+  if (result.connection === 'connected') return { type: 'info', titleKey: 'msSignIn.connected', values };
+  if (result.connection === 'connecting') return { type: 'info', titleKey: 'msSignIn.stillConnecting', values };
+  const info = describeAccountError({ oauth_provider: result.provider || provider, email_address: result.email, sync_error: result.error || 'error', sync_error_code: result.code });
+  return { type: 'error', titleKey: info.titleKey, bodyKey: info.bodyKey || info.userBodyKey, values };
+}
