@@ -57,6 +57,7 @@ const APP_CONFIG_AADSTS = new Set([
   '700016',  // application not found in the directory
   '7000112', // application disabled
   '7000215', // invalid client secret
+  '7000222', // client secret expired
   '7000218', // secret required: "Allow public client flows" is off for a device-code app
 ]);
 const REAUTH_OAUTH_ERRORS = new Set(['invalid_grant', 'interaction_required', 'consent_required', 'login_required']);

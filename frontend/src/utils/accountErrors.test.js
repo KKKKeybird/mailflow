@@ -40,7 +40,7 @@ describe('describeAccountError', () => {
 
   test('an app problem has a body for admins and one for everyone else', () => {
     const d = describeAccountError(ms('oauth_app_config'));
-    assert.deepEqual(d.actions, ['admin']);
+    assert.deepEqual(d.actions, ['retry', 'admin']);
     assert.equal(d.adminBodyKey, 'accountErrors.appConfig.bodyAdmin');
     assert.equal(d.userBodyKey, 'accountErrors.appConfig.bodyUser');
     assert.equal(d.labelKey, 'accountErrors.label.cantConnect');

@@ -125,6 +125,9 @@ describe('isAuthFailureFor: the long backoff for an OAuth account whose refresh 
     expect(isAuthFailureFor(outlook, 'AUTHENTICATE failed.')).toBe(false);
     noteRefreshFailure(outlook.id, { code: 'oauth_reauth', detail: 'AADSTS70008' });
     expect(isAuthFailureFor(outlook, 'AUTHENTICATE failed.')).toBe(true);
+    // An app the provider rejects is the admin's to fix: it keeps the short retry.
+    noteRefreshFailure(outlook.id, { code: 'oauth_app_config', detail: 'AADSTS7000222: expired secret' });
+    expect(isAuthFailureFor(outlook, 'AUTHENTICATE failed.')).toBe(false);
     // A password account has no refresh: unchanged.
     expect(isAuthFailureFor({ id: outlook.id, oauth_provider: null }, 'AUTHENTICATE failed.')).toBe(false);
   });

@@ -45,7 +45,8 @@ const KINDS = {
     titleKey: 'accountErrors.signIn.title', titleGoogleKey: 'accountErrors.signIn.titleGoogle', bodyKey: 'accountErrors.signIn.body',
   },
   oauth_app_config: {
-    kind: 'appConfig', labelKey: 'accountErrors.label.cantConnect', actions: ['admin'],
+    // Try again for everyone: once an admin fixes the app, the account connects.
+    kind: 'appConfig', labelKey: 'accountErrors.label.cantConnect', actions: ['retry', 'admin'],
     titleKey: 'accountErrors.appConfig.title',
     // The fix differs for the person who can make it.
     adminBodyKey: 'accountErrors.appConfig.bodyAdmin', userBodyKey: 'accountErrors.appConfig.bodyUser',

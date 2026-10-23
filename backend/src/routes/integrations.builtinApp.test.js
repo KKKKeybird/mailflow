@@ -17,6 +17,8 @@ vi.mock('../services/db.js', () => ({
     if (/SELECT value FROM system_settings WHERE key/.test(sql)) {
       return { rows: db.settings.has(params[0]) ? [{ value: db.settings.get(params[0]) }] : [] };
     }
+    // Accounts reset after an app change (none here).
+    if (/FROM email_accounts WHERE oauth_provider/.test(sql)) return { rows: [] };
     throw new Error(`unexpected query: ${sql}`);
   }),
 }));

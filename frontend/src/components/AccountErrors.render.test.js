@@ -248,10 +248,11 @@ describe('Settings > Accounts: the callout on the account row', () => {
   test('an app problem: admins get Open Integrations, everyone else is told to ask', async () => {
     await openAccounts(account('oauth_app_config'));
     assert.ok(callout().textContent.includes('accountErrors.appConfig.bodyUser'));
-    assert.deepEqual(buttons(), []);
+    // Everyone can retry once the app is fixed; only admins get the settings link.
+    assert.deepEqual(buttons(), ['accountErrors.action.retry']);
     await openAccounts(account('oauth_app_config'), { isAdmin: true });
     assert.ok(callout().textContent.includes('accountErrors.appConfig.bodyAdmin'));
-    assert.deepEqual(buttons(), ['addAccount.openSettings']);
+    assert.deepEqual(buttons(), ['accountErrors.action.retry', 'addAccount.openSettings']);
     await click(byText('button', 'addAccount.openSettings'));
     assert.equal(useStore.getState().adminTab, 'mail-signin');
   });

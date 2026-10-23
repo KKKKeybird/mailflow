@@ -303,8 +303,12 @@ export function authCooldownMs(failures) {
 // An auth failure for backoff purposes: the server rejected the credentials, or this is an OAuth
 // account whose token refresh is known to have failed for good, so retrying the stale token
 // every tick cannot work. Signing in again clears both the backoff and the remembered failure.
+//
+// Only a dead grant counts (oauth_reauth). An app the provider rejects (oauth_app_config: an
+// expired or rotated secret, a disabled app) is the instance's problem, fixed by an admin, and
+// keeps the short retry so accounts recover as soon as the app is fixed.
 export function isAuthFailureFor(account, detail) {
-  return isAuthFailure(detail) || (!!account?.oauth_provider && !!refreshFailureFor(account.id));
+  return isAuthFailure(detail) || (!!account?.oauth_provider && refreshFailureFor(account.id)?.code === 'oauth_reauth');
 }
 
 export function isAuthFailure(detail) {
