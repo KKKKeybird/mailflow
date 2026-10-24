@@ -17,6 +17,8 @@ const pool = { query: (text, params) => query(text, params) };
 
 // How many rows share the message's Message-ID in its account, for the read and star toggles'
 // sibling fan-out.
+// Computed columns are allowed only as these exact named constants. checkColumns splits a list
+// on commas, so a constant must never contain one.
 export const SIBLING_COUNT = `CASE WHEN m.message_id IS NULL THEN 1
                 ELSE (SELECT COUNT(*) FROM messages s
                        WHERE s.account_id = m.account_id AND s.message_id = m.message_id)
@@ -27,7 +29,10 @@ export const CONTACT_READ_ONLY = "(ab.source = 'carddav') AS read_only";
 const COMPUTED = new Set([SIBLING_COUNT, CONTACT_READ_ONLY]);
 const KEYWORDS = new Set(['select', 'from', 'where', 'union', 'join', 'on', 'and', 'or', 'not', 'into',
   'insert', 'update', 'delete', 'drop', 'alter', 'create', 'grant', 'with', 'as', 'limit', 'offset',
-  'order', 'group', 'having', 'returning', 'case', 'when', 'then', 'else', 'end', 'null', 'true', 'false']);
+  'order', 'group', 'having', 'returning', 'case', 'when', 'then', 'else', 'end', 'null', 'true', 'false',
+  // Niladic functions read as bare names, so they would pass as columns and return server state.
+  'user', 'session_user', 'current_user', 'current_role', 'system_user', 'current_schema', 'current_catalog',
+  'current_date', 'current_time', 'current_timestamp', 'localtime', 'localtimestamp']);
 const NAME = '[a-z_][a-z0-9_]*';
 const PLAIN = new RegExp(`^(?:\\*|(${NAME})\\.\\*|(?:(${NAME})\\.)?(${NAME})(?:\\s+as\\s+(${NAME}))?)$`, 'i');
 

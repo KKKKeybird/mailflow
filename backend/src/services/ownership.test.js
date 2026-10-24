@@ -91,4 +91,10 @@ describe('the columns a lookup selects', () => {
     await expect(findOwnedAddressBook('u1', 'b1', { columns: 'id UNION SELECT 1' })).rejects.toThrow(TypeError);
     expect(query).not.toHaveBeenCalled();
   });
+
+  it('refuses niladic functions that read like bare column names', () => {
+    for (const bad of ['current_user', 'session_user', 'user', 'id, current_schema', 'a.id AS current_user', 'id, localtimestamp']) {
+      expect(() => checkColumns(bad), bad).toThrow(TypeError);
+    }
+  });
 });
