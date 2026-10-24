@@ -15,3 +15,25 @@ export function refreshListWindow({ scrollMode, currentPage = 1, pageSize, loade
   }
   return { limit: Math.min(Math.max(Number(loadedCount) || 0, size), MAX_LIMIT), offset: 0 };
 }
+
+// A background refresh that arrives while the list is loading cannot run then: it would race the
+// load, or a load-more's append. It used to be dropped, so mail whose new_messages event landed
+// during the first load of a new account, or during a load-more, stayed hidden until the next
+// event or a reload. The gate holds one back and hands it over when the load settles.
+export function createTrailingRefresh() {
+  let pending = false;
+  return {
+    // True when the refresh may run now; false when it was held back for settle().
+    request(loading) {
+      if (loading) { pending = true; return false; }
+      pending = false;
+      return true;
+    },
+    // True once per held-back refresh, when the load it waited for has finished.
+    settle() {
+      const held = pending;
+      pending = false;
+      return held;
+    },
+  };
+}

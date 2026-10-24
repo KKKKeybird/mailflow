@@ -40,7 +40,7 @@ import { PluginSlot } from '../plugins/PluginSlot.jsx';
 import SpamExplainModal from './SpamExplainModal.jsx';
 import { shortcutBus } from '../utils/shortcutBus.js';
 import { createLatestRequest } from '../utils/latestRequest.js';
-import { refreshListWindow } from '../utils/listRefresh.js';
+import { refreshListWindow, createTrailingRefresh } from '../utils/listRefresh.js';
 import { pendingMarkReadMap, completedMarkReadMap, setPending } from '../utils/pendingReads.js';
 import { applyDeleteGuard, clearDeleteGuard, clearPendingDelete, setCompletedDelete, setPendingDelete, threadDeleteGuardKey } from '../utils/pendingDeletes.js';
 import {
@@ -325,6 +325,8 @@ export default function MessageList() {
   const isSearching = useStore(s => s.isSearching);
   const refreshRequestRef = useRef(null);
   if (refreshRequestRef.current === null) refreshRequestRef.current = createLatestRequest();
+  const trailingRefreshRef = useRef(null);
+  if (trailingRefreshRef.current === null) trailingRefreshRef.current = createTrailingRefresh();
   // Bumped to force the search effect to re-run (e.g. after rules move messages) so an
   // active search snapshot drops messages that no longer match. See #223.
   const [searchReloadToken, setSearchReloadToken] = useState(0);
@@ -536,7 +538,8 @@ export default function MessageList() {
     };
 
     const handler = () => {
-      if (!useStore.getState().loadingMessages && !searchQuery.trim()) {
+      if (searchQuery.trim()) return;
+      if (trailingRefreshRef.current.request(useStore.getState().loadingMessages)) {
         const delayMs = Math.max(0, recentMessageOpenUntilRef.current - Date.now());
         clearTimeout(deferredRefreshTimerRef.current);
         if (delayMs > 0) {
@@ -552,6 +555,14 @@ export default function MessageList() {
       clearTimeout(deferredRefreshTimerRef.current);
     };
   }, [selectedAccountId, selectedFolder, unreadOnly, activeCategory, searchQuery, categorizationEnabled, selectedAccount?.categorization_enabled, applyReadGuard, setHasMoreMessages, setMessages, setMessagesOffset, setMessagesTotal]);
+
+  // Run the refresh held back while a load was in flight, once that load (and any append it
+  // made) has finished.
+  useEffect(() => {
+    if (!loadingMessages && trailingRefreshRef.current.settle()) {
+      window.dispatchEvent(new CustomEvent('mailflow:refresh'));
+    }
+  }, [loadingMessages]);
 
   // Search
   useEffect(() => {

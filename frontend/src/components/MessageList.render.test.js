@@ -850,3 +850,36 @@ describe('MessageList — a manual read or unread cancels the delayed read-on-op
     await finish();
   });
 });
+
+// A refresh that arrives while the list is loading (#682): it used to be dropped, so mail whose
+// new_messages event landed during the first load stayed hidden until the next event.
+describe('MessageList — a refresh during a load runs when the load finishes (#682)', () => {
+  test('the held refresh fetches again and shows the new mail', async () => {
+    const M2 = { ...MESSAGE, id: 'msg-new', uid: 2, message_id: '<new@example.com>', subject: 'Arrived during load' };
+    await mount({ rows: [MESSAGE], threadedView: false });
+    const realFetch = globalThis.fetch;
+    let release;
+    const held = new Promise(r => { release = r; });
+    let listCalls = 0;
+    globalThis.fetch = async (url, opts) => {
+      if (String(url).includes('/mail/messages?')) {
+        listCalls += 1;
+        // The first load is held; the refresh after it sees the mail that arrived meanwhile.
+        if (listCalls === 1) { await held; SERVED = [MESSAGE]; }
+        else SERVED = [M2, MESSAGE];
+      }
+      return realFetch(url, opts);
+    };
+    try {
+      // Reload the list as a change of folder does, and hold it.
+      await React.act(async () => { useStore.getState().setSelectedFolder?.('INBOX'); useStore.setState(s => ({ messagesRefreshToken: s.messagesRefreshToken + 1 })); });
+      assert.equal(useStore.getState().loadingMessages, true, 'the load is in flight');
+      await React.act(async () => { window.dispatchEvent(new dom.window.CustomEvent('mailflow:refresh')); });
+      await React.act(async () => { release(); await new Promise(r => setTimeout(r, 20)); });
+      assert.ok(listCalls >= 2, `the held refresh ran after the load (list fetches: ${listCalls})`);
+      assert.ok(container.querySelector('[data-msgid="msg-new"]'), 'the new mail is listed');
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+  });
+});
