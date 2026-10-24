@@ -40,6 +40,7 @@ import { PluginSlot } from '../plugins/PluginSlot.jsx';
 import SpamExplainModal from './SpamExplainModal.jsx';
 import { shortcutBus } from '../utils/shortcutBus.js';
 import { createLatestRequest } from '../utils/latestRequest.js';
+import { refreshListWindow } from '../utils/listRefresh.js';
 import { pendingMarkReadMap, completedMarkReadMap, setPending } from '../utils/pendingReads.js';
 import { applyDeleteGuard, clearDeleteGuard, clearPendingDelete, setCompletedDelete, setPendingDelete, threadDeleteGuardKey } from '../utils/pendingDeletes.js';
 import {
@@ -499,17 +500,13 @@ export default function MessageList() {
     const run = async () => {
       try {
         const state = useStore.getState();
-        const ps = state.pageSize;
         const sm = state.scrollMode;
-        let params;
-        if (sm === 'paginated') {
-          const pg = currentPageRef.current;
-          params = { limit: ps, offset: (pg - 1) * ps };
-        } else {
-          const currentOffset = state.messagesOffset;
-          // Backend caps limit at 500 — don't request more or the list silently shrinks
-          params = { limit: Math.min(currentOffset || ps, 500), offset: 0 };
-        }
+        const params = refreshListWindow({
+          scrollMode: sm,
+          currentPage: currentPageRef.current,
+          pageSize: state.pageSize,
+          loadedCount: state.messagesOffset,
+        });
         scopeListParams(params, selectedAccountId, selectedFolder);
         if (unreadOnly) params.unreadOnly = 'true';
         if (state.threadedView) params.threaded = 'true';
