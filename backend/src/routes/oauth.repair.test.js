@@ -29,6 +29,9 @@ const ACCOUNTS = {
   // Connected through the instance's own app on the common tenant.
   '55555555-5555-4555-8555-555555555555': { id: '55555555-5555-4555-8555-555555555555', user_id: 'user-1', email_address: 'maria@outlook.com', imap_host: 'outlook.office365.com', oauth_provider: 'microsoft', oauth_client_id: 'own-app-id', oauth_tenant_id: 'common' },
   '66666666-6666-4666-8666-666666666666': { id: '66666666-6666-4666-8666-666666666666', user_id: 'user-1', email_address: 'maria@contoso.example', imap_host: 'outlook.office365.com', oauth_provider: 'microsoft', oauth_client_id: 'own-app-id', oauth_tenant_id: 'contoso.example' },
+  // Another user's accounts, which a repair must never reach.
+  '77777777-7777-4777-8777-777777777777': { id: '77777777-7777-4777-8777-777777777777', user_id: 'user-2', email_address: 'maria.lopez@outlook.com', imap_host: 'outlook.office365.com', oauth_provider: 'microsoft', oauth_client_id: 'builtin-app-id' },
+  '88888888-8888-4888-8888-888888888888': { id: '88888888-8888-4888-8888-888888888888', user_id: 'user-2', email_address: 'maria@gmail.com', imap_host: 'imap.gmail.com', oauth_provider: 'google' },
 };
 
 let session;
@@ -311,6 +314,59 @@ describe('repairing an account by signing in again', () => {
         connection: 'failed', code: 'oauth_reauth', error: '[AUTHENTICATIONFAILED] Invalid credentials (Failure)',
       },
     });
+  });
+
+  it('refuses to start a repair of another user\'s account, as one that does not exist', async () => {
+    process.env.GOOGLE_CLIENT_ID = 'g-client';
+    process.env.GOOGLE_REDIRECT_URI = 'https://mail.example/oauth/google/callback';
+    process.env.MS_CLIENT_ID = 'own-app-id';
+    process.env.MS_TENANT_ID = 'common';
+    process.env.MS_REDIRECT_URI = 'https://mail.example/oauth/microsoft/callback';
+    const device = await startDevice({ accountId: '77777777-7777-4777-8777-777777777777' });
+    expect(device.status).toBe(404);
+    expect(await device.json()).toEqual({ error: 'Account not found' });
+    for (const url of [
+      `${base}/oauth/microsoft?accountId=77777777-7777-4777-8777-777777777777`,
+      `${base}/oauth/google?accountId=88888888-8888-4888-8888-888888888888`,
+    ]) {
+      const res = await realFetch(url, { redirect: 'manual' });
+      expect(res.status).toBe(404);
+      expect(await res.json()).toEqual({ error: 'Account not found' });
+    }
+    expect(session.oauthRepairAccountId).toBeUndefined();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+  });
+
+  it('refuses a repair whose account is no longer the user\'s by the time the sign-in ends', async () => {
+    await startDevice({ accountId: '11111111-1111-4111-8111-111111111111' });
+    const account = ACCOUNTS['11111111-1111-4111-8111-111111111111'];
+    account.user_id = 'user-2';
+    try {
+      expect(await poll()).toEqual({ status: 'error', error: 'Account not found' });
+    } finally {
+      account.user_id = 'user-1';
+    }
+    expect(writes()).toEqual([]);
+    expect(mocks.imapManager.connectAccount).not.toHaveBeenCalled();
+  });
+
+  it('refuses a Google repair whose account is no longer the user\'s by the callback', async () => {
+    process.env.GOOGLE_CLIENT_ID = 'g-client';
+    process.env.GOOGLE_CLIENT_SECRET = 'g-secret';
+    process.env.GOOGLE_REDIRECT_URI = 'https://mail.example/oauth/google/callback';
+    await realFetch(`${base}/oauth/google?accountId=22222222-2222-4222-8222-222222222222`, { redirect: 'manual' });
+    const account = ACCOUNTS['22222222-2222-4222-8222-222222222222'];
+    account.user_id = 'user-2';
+    let cb;
+    try {
+      cb = await realFetch(`${base}/oauth/google/callback?code=c&state=${session.oauthNonce}`, { redirect: 'manual' });
+    } finally {
+      account.user_id = 'user-1';
+    }
+    expect(cb.status).toBe(302);
+    expect(cb.headers.get('location')).toBe('/?oauth_error=Authentication+failed');
+    expect(writes()).toEqual([]);
+    expect(mocks.imapManager.connectAccount).not.toHaveBeenCalled();
   });
 
   it('carries a repair through the Microsoft redirect', async () => {
