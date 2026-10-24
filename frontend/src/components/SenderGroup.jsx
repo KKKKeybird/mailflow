@@ -24,16 +24,32 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
   const [cardHeight, setCardHeight] = useState(null);
   const performSwipe = async action => {
     if (actionPending || swipeDisabled) return;
+    if (action === 'archive') {
+      const card = cardRef.current;
+      const height = card?.getBoundingClientRect().height || 120;
+      const section = card?.parentElement;
+      if (section) {
+        // Establish a numeric start before React switches max-height to zero;
+        // `none` cannot transition. This layout read happens once on release,
+        // never during dragging, and does not depend on the network response.
+        section.style.maxHeight = `${height}px`;
+        section.getBoundingClientRect();
+      }
+      setCardHeight(height);
+      // Collapse when the dismissal finishes, not when a potentially slow group
+      // snapshot returns. Empty/failed lookups and Undo restore the card below.
+      setArchiveDismissed(true);
+    }
     try {
-      setCardHeight(cardRef.current?.getBoundingClientRect().height || 120);
       const scheduled = await useStore.getState().performSenderGroupAction(message.sender_group, params, action);
-      if (action === 'archive' && scheduled) setArchiveDismissed(true);
+      if (action === 'archive' && !scheduled) setArchiveDismissed(false);
     } catch (error) {
+      if (action === 'archive') setArchiveDismissed(false);
       useStore.getState().addNotification({ type: 'error', title: t('common.error'), body: error.message });
     }
   };
   const { contentRef, swipeBgLeftRef, swipeBgRightRef, tappedRef } = useSwipeRow({
-    isMobile: isMobile && !detail, message, rowIsButton: true, animateCommit: true, fadeOnSwipeLeft: true,
+    isMobile: isMobile && !detail, message, rowIsButton: true, animateCommit: 'left', fadeOnSwipeLeft: true,
     onSwipeLeft: actionPending || swipeDisabled ? undefined : () => performSwipe('archive'),
     onSwipeRight: actionPending || swipeDisabled || !Number(message.sender_unread_count) ? undefined : () => performSwipe('read'),
     onTap: onToggle,
@@ -149,6 +165,7 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
         background: hovered ? 'var(--bg-tertiary)' : (isMobile ? 'var(--bg-primary)' : 'transparent'),
         color: 'var(--text-primary)', border: 0, cursor: 'pointer', textAlign: 'left',
         position: 'relative', transition: 'background 0.1s',
+        willChange: isMobile ? 'transform' : undefined,
       }}>
         {hasUnread && <span aria-hidden="true" className="unread-dot" style={{
           position: 'absolute', left: 3, top: '50%', transform: 'translateY(-50%)',
