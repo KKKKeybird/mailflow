@@ -150,3 +150,21 @@ describe('encryptBytes / decryptBytes', () => {
     expect(() => decryptBytes(Buffer.alloc(29), { ...opts, aad: '' })).toThrow(TypeError);
   });
 });
+
+describe('decrypt', () => {
+  it('round-trips a value from encrypt(), whose tag is always 16 bytes', async () => {
+    const { encrypt, decrypt } = await loadWithKey(KEY);
+    const stored = encrypt('app-password');
+    expect(stored.split(':')[3]).toHaveLength(32);
+    expect(decrypt(stored)).toBe('app-password');
+  });
+
+  it('rejects a truncated tag, which GCM would otherwise check against only its first bytes', async () => {
+    const { encrypt, decrypt } = await loadWithKey(KEY);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const [ivHex, tagHex, ctHex] = encrypt('app-password').slice('enc:v1:'.length).split(':');
+    for (const bytes of [4, 8, 12, 15]) {
+      expect(decrypt(`enc:v1:${ivHex}:${tagHex.slice(0, bytes * 2)}:${ctHex}`)).toBeNull();
+    }
+  });
+});

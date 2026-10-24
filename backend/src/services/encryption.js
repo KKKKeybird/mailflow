@@ -132,7 +132,9 @@ export function decrypt(value) {
     const iv = Buffer.from(ivHex, 'hex');
     const tag = Buffer.from(tagHex, 'hex');
     const ciphertext = Buffer.from(ctHex, 'hex');
-    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    // encrypt() always writes a 16-byte tag. Without the length, GCM accepts a tag cut down to
+    // as little as 4 bytes and checks only those, which makes forging one far easier.
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv, { authTagLength: TAG_BYTES });
     decipher.setAuthTag(tag);
     return decipher.update(ciphertext) + decipher.final('utf8');
   } catch {
