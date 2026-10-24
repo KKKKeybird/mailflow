@@ -1,0 +1,70 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+
+// The ownership lookups' SQL contract, for runs without PostgreSQL (ownership.postgres.test.js
+// runs the same lookups against a real database): every lookup binds the user into its user_id
+// condition, and a miss comes back as null.
+vi.mock('./db.js', () => ({ query: vi.fn() }));
+
+import { query } from './db.js';
+import {
+  findOwnedAccount, findOwnedMessage, findOwnedMessages, findOwnedAlias, findOwnedContact, findOwnedAddressBook,
+} from './ownership.js';
+
+const flat = sql => sql.replace(/\s+/g, ' ').trim();
+
+beforeEach(() => {
+  query.mockReset().mockResolvedValue({ rows: [] });
+});
+
+describe('ownership lookups', () => {
+  it('scopes an account by id and user', async () => {
+    query.mockResolvedValue({ rows: [{ id: 'acc' }] });
+    expect(await findOwnedAccount('u1', 'acc')).toEqual({ id: 'acc' });
+    expect(query).toHaveBeenCalledWith('SELECT * FROM email_accounts WHERE id = $1 AND user_id = $2', ['acc', 'u1']);
+  });
+
+  it('adds the account filters it is asked for', async () => {
+    await findOwnedAccount('u1', 'acc', { columns: 'id', enabled: true, protocol: 'imap' });
+    expect(query).toHaveBeenCalledWith(
+      'SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2 AND enabled = true AND protocol = $3',
+      ['acc', 'u1', 'imap']
+    );
+  });
+
+  it('scopes a message through its account', async () => {
+    expect(await findOwnedMessage('u1', 'msg', { columns: 'm.id, a.user_id', live: true, enabledAccount: true })).toBeNull();
+    const [sql, params] = query.mock.calls[0];
+    expect(flat(sql)).toBe('SELECT m.id, a.user_id FROM messages m JOIN email_accounts a ON m.account_id = a.id WHERE m.id = $1 AND a.user_id = $2 AND a.enabled = true AND m.is_deleted = false');
+    expect(params).toEqual(['msg', 'u1']);
+  });
+
+  it('scopes a list of messages through their accounts', async () => {
+    query.mockResolvedValue({ rows: [{ id: 'm1' }] });
+    expect(await findOwnedMessages('u1', ['m1', 'm2'], { columns: 'm.id' })).toEqual([{ id: 'm1' }]);
+    const [sql, params] = query.mock.calls[0];
+    expect(flat(sql)).toBe('SELECT m.id FROM messages m JOIN email_accounts a ON m.account_id = a.id WHERE m.id = ANY($2::uuid[]) AND a.user_id = $1');
+    expect(params).toEqual(['u1', ['m1', 'm2']]);
+  });
+
+  it('scopes an alias by its account and the account owner', async () => {
+    await findOwnedAlias('u1', 'acc', 'alias');
+    const [sql, params] = query.mock.calls[0];
+    expect(flat(sql)).toContain('WHERE a.id = $1 AND e.user_id = $2 AND e.id = $3');
+    expect(params).toEqual(['alias', 'u1', 'acc']);
+  });
+
+  it('scopes contacts and address books by user', async () => {
+    await findOwnedContact('u1', 'c1', { columns: 'ab.source' });
+    await findOwnedAddressBook('u1', 'b1', { columns: 'id' });
+    expect(flat(query.mock.calls[0][0])).toBe('SELECT ab.source FROM contacts c JOIN address_books ab ON ab.id = c.address_book_id WHERE c.id = $1 AND c.user_id = $2');
+    expect(query.mock.calls[0][1]).toEqual(['c1', 'u1']);
+    expect(query.mock.calls[1]).toEqual(['SELECT id FROM address_books WHERE id = $1 AND user_id = $2', ['b1', 'u1']]);
+  });
+
+  it('runs on a transaction client instead of the pool when given one', async () => {
+    const client = { query: vi.fn().mockResolvedValue({ rows: [{ id: 'acc' }] }) };
+    expect(await findOwnedAccount('u1', 'acc', { columns: 'id', client })).toEqual({ id: 'acc' });
+    expect(client.query).toHaveBeenCalledWith('SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2', ['acc', 'u1']);
+    expect(query).not.toHaveBeenCalled();
+  });
+});
