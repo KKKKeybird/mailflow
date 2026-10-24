@@ -155,10 +155,13 @@ describe('buildMailOptions', () => {
 
   it('takes a Message-ID fixed before, in place of a random one', () => {
     expect(buildMailOptions(valid(), identity(), undefined, { messageId: '<abc.123@example.com>' }).messageId).toBe('<abc.123@example.com>');
+    const longest = `<${'a'.repeat(200)}@${'d'.repeat(255)}>`;
+    expect(buildMailOptions(valid(), identity(), undefined, { messageId: longest }).messageId).toBe(longest);
   });
 
   it('refuses a fixed Message-ID that is not <local@domain>', () => {
-    for (const messageId of ['abc@example.com', '<abc@example.com>\r\nBcc: x@evil.com', '<abc>', '<a b@example.com>', '<@example.com>', '', null]) {
+    for (const messageId of ['abc@example.com', '<abc@example.com>\r\nBcc: x@evil.com', '<abc>', '<a b@example.com>', '<@example.com>', '', null,
+      '<a\x00b@example.com>', '<ab@exa\x7fmple.com>', '<a\tb@example.com>', `<${'a'.repeat(201)}@example.com>`, `<a@${'d'.repeat(256)}>`]) {
       expect(() => buildMailOptions(valid(), identity(), undefined, { messageId })).toThrow(TypeError);
     }
   });
@@ -225,6 +228,18 @@ describe('prepareDelivery', () => {
   it('throws a SendError for an SMTP configuration the account cannot send with', async () => {
     createAccountSmtpTransport.mockResolvedValue({ status: 400, error: 'Plain-text SMTP is not allowed' });
     await expect(prepareDelivery(valid(), identity())).rejects.toMatchObject({ name: 'SendError', status: 400, message: 'Plain-text SMTP is not allowed' });
+  });
+
+  it('checks a fixed Message-ID and Date before it connects or refreshes anything', async () => {
+    await expect(prepareDelivery(valid(), identity(), undefined, { messageId: '<bad\r\n@example.com>' })).rejects.toThrow(TypeError);
+    await expect(prepareDelivery(valid(), identity(), undefined, { date: new Date('nope') })).rejects.toThrow(TypeError);
+    expect(createAccountSmtpTransport).not.toHaveBeenCalled();
+  });
+
+  it('hands its smtp options to the account transport', async () => {
+    createAccountSmtpTransport.mockResolvedValue({ account, transport: { sendMail: vi.fn() } });
+    await prepareDelivery(valid(), identity(), undefined, { smtp: { trackStage: true } });
+    expect(createAccountSmtpTransport).toHaveBeenCalledWith(account, { trackStage: true });
   });
 
   it('passes a fixed Message-ID on to the message and its Sent copy', async () => {

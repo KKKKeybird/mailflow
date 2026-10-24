@@ -442,8 +442,10 @@ export function buildMailOptions(input, identity, forwarded = { attachments: [],
   return mailOptions;
 }
 
-// A Message-ID given to buildMailOptions: <local@domain>, nothing that could end the header.
-const MESSAGE_ID_RE = /^<[^<>@\s]+@[^<>@\s]+>$/;
+// A Message-ID given to buildMailOptions: <local@domain> of a bounded length, with no space,
+// no control character and nothing else that could end the header or open another address.
+// eslint-disable-next-line no-control-regex
+const MESSAGE_ID_RE = /^<[^<>@\s\x00-\x1f\x7f]{1,200}@[^<>@\s\x00-\x1f\x7f]{1,255}>$/;
 
 function checkedMessageId(messageId) {
   if (typeof messageId !== 'string' || !MESSAGE_ID_RE.test(messageId)) {
@@ -503,9 +505,12 @@ export async function renderRawMessage(mailOptions) {
 // refresh the account's OAuth token, hence the account it returns), the message, whether the
 // server saves the Sent copy itself and, if not, the raw copy to APPEND. Throws SendError for an
 // SMTP configuration the account cannot send with; any other error is an SMTP-side failure.
-// `options` goes to buildMailOptions.
-export async function prepareDelivery(input, identity, forwarded, options) {
-  const smtp = await createAccountSmtpTransport(identity.account);
+// `options` goes to buildMailOptions, whose fixed messageId and date are checked before anything
+// connects, and `options.smtp` to createAccountSmtpTransport.
+export async function prepareDelivery(input, identity, forwarded, options = {}) {
+  if (options.messageId !== undefined) checkedMessageId(options.messageId);
+  if (options.date !== undefined) checkedDate(options.date);
+  const smtp = await createAccountSmtpTransport(identity.account, options.smtp);
   if (smtp.error) throw new SendError(smtp.status, smtp.error);
   const account = smtp.account;
   const mailOptions = buildMailOptions(input, identity, forwarded, options);
