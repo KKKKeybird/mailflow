@@ -78,6 +78,8 @@ afterEach(() => React.act(async () => root.unmount()));
 beforeEach(() => {
   saved = [];
   switched = [];
+  api.mcp.listTokens = async () => ({ tokens: [] });
+  api.mcp.events = async () => ({ events: [] });
   api.setMsBuiltinApp = async (enabled) => { switched.push(enabled); status = { ...status, builtinApp: enabled, personalVia: enabled ? status.personalVia || 'shared' : (status.personalVia === 'own' ? 'own' : null) }; return { ok: true }; };
   api.todoist.status = async () => ({ connected: false });
   api.getIntegrations = async () => ({});
@@ -102,6 +104,7 @@ describe('who sees what', () => {
     assert.ok(!text().includes(PREFIX + 'setupTitle'));
     assert.ok(!text().includes('mailSignIn.'));
     assert.ok(text().includes('admin.integrations.todoist.title'));
+    assert.ok(text().includes('mcp.title'), 'MCP apps stay available beside the moved provider settings');
   });
 
   test('even asked for directly, Email providers renders nothing for a non-admin', async () => {
