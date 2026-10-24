@@ -311,15 +311,16 @@ httpServer.listen(PORT, () => {
 function exitAfterClose(code) {
   // A send held for its undo window lives only in this process: deliver it now rather than
   // lose it with the restart (services/sendHold.js). The scheduled sender stops claiming and
-  // its sends in flight finish in the same wait. Bounded to leave room for the rest.
-  const sendsFlushed = flushSendsForShutdown(8000);
+  // its sends in flight finish in the same wait. Bounded to leave room for the rest, inside the
+  // 30 s stop_grace_period the compose files give the backend.
+  const sendsFlushed = flushSendsForShutdown(25_000);
   httpServer.close(async () => {
     await sendsFlushed;
     try { await redisClient.quit(); } catch { /* ignore */ }
     process.exit(code);
   });
-  // Force exit if graceful shutdown takes more than 10 s
-  setTimeout(() => process.exit(code || 1), 10_000).unref();
+  // Force exit if graceful shutdown takes more than 28 s
+  setTimeout(() => process.exit(code || 1), 28_000).unref();
 }
 
 process.on('SIGTERM', () => {
