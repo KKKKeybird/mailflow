@@ -327,7 +327,7 @@ router.post('/send', async (req, res) => {
 
   // Each forwarded message is attached as its raw RFC 822 source, every original header intact,
   // which is what an inline forward loses and abuse desks such as SpamCop need (#466). message/*
-  // goes out 8bit (RFC 2046 rules out base64 for it) and nodemailer would mark it inline, so the
+  // goes out 7bit or 8bit (RFC 2046 rules out base64 for it) and nodemailer would mark it inline, so the
   // disposition is set explicitly. Its size is known only once fetched, so the 25 MB total is
   // checked as each one arrives.
   let resolvedFwdMessages = [];
