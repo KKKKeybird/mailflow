@@ -205,9 +205,11 @@ export async function createAccountSmtpTransport(inputAccount, { trackStage = fa
   }
 
   const policy = await getConnectionPolicy();
+  // A refusal here is the connection policy's (a private or reserved address), which no retry
+  // changes, so it is marked for the scheduled sender to tell from a passing failure.
   const resolved = await resolveForConnection(account.smtp_host, {
     allowPrivate: policy.allowPrivateHosts,
-  });
+  }).catch(err => { throw Object.assign(err, { hostRefused: true }); });
   const plain = account.smtp_tls !== 'STARTTLS' && account.smtp_tls !== 'SSL';
   if (!policy.allowInsecureTls && plain) {
     return {
