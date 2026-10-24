@@ -60,8 +60,8 @@ describe('POST /api/mail/send — forwardedMessages', () => {
     expect(res.status).toBe(200);
     expect(imapManager.fetchRawMessage).toHaveBeenCalledWith(account, 9, 'Junk');
     const [lookupSql, lookupParams] = query.mock.calls.find(([sql]) => sql.includes('FROM messages m') && sql.includes('m.id = ANY'));
-    expect(lookupSql).toMatch(/a\.user_id = \$2/); // only the signed-in user's own messages
-    expect(lookupParams).toEqual([[SPAM_ID], 'u1']);
+    expect(lookupSql).toMatch(/a\.user_id = \$1/); // only the signed-in user's own messages
+    expect(lookupParams).toEqual(['u1', [SPAM_ID]]);
     const [att] = sendMail.mock.calls[0][0].attachments;
     expect(att.contentType).toBe('message/rfc822');
     expect(att.contentDisposition).toBe('attachment');
