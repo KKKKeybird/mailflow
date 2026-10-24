@@ -3,7 +3,9 @@
 // Run weekly by .github/workflows/sponsors.yml with SPONSORS_TOKEN set.
 //
 // sponsors.json stays an array of { login, avatarUrl, url, ... } so older
-// consumers keep working; newer fields describe the tier and group.
+// consumers keep working; newer fields describe the sponsor and its group.
+// Amounts and tier names are read only to decide the group and are never
+// written out, and groups are ordered by start date so order reveals nothing.
 
 import { readFileSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
@@ -23,7 +25,7 @@ export const QUERY = `
           isActive
           isOneTimePayment
           privacyLevel
-          tier { monthlyPriceInDollars isOneTime name }
+          tier { monthlyPriceInDollars isOneTime }
           sponsorEntity {
             __typename
             ... on User { ${ENTITY_FIELDS} }
@@ -86,9 +88,6 @@ export function buildSponsors(nodes, now = Date.now()) {
       type: e.__typename === 'Organization' ? 'Organization' : 'User',
       active,
       business,
-      tier: tier || n.isOneTimePayment != null
-        ? { name: tier?.name ?? null, monthlyPriceInDollars: monthly, isOneTime }
-        : null,
       since: Number.isFinite(created) ? new Date(created).toISOString() : null,
     };
 
@@ -100,8 +99,7 @@ export function buildSponsors(nodes, now = Date.now()) {
 
   const list = [...byLogin.values()];
   const bySince = (a, b) => String(a.since).localeCompare(String(b.since));
-  const business = list.filter(s => s.business).sort((a, b) =>
-    (b.tier.monthlyPriceInDollars - a.tier.monthlyPriceInDollars) || bySince(a, b));
+  const business = list.filter(s => s.business).sort(bySince);
   const regular = list.filter(s => s.active && !s.business).sort(bySince);
   const past = list.filter(s => !s.active).sort(bySince);
   // `since` only drives ordering and dedup; it is not published.
@@ -109,7 +107,7 @@ export function buildSponsors(nodes, now = Date.now()) {
 }
 
 function rank(s) {
-  if (s.business) return 3 + (s.tier?.monthlyPriceInDollars ?? 0) / 1e6;
+  if (s.business) return 3;
   if (s.active) return 2;
   return 1;
 }
