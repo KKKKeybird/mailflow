@@ -163,12 +163,33 @@ describe('buildMailOptions', () => {
     }
   });
 
+  it('takes a Date decided by the caller, and refuses one that is not a valid Date', () => {
+    const date = new Date('2026-10-25T07:00:00Z');
+    expect(buildMailOptions(valid(), identity(), undefined, { date }).date).toBe(date);
+    for (const bad of ['2026-10-25', new Date('nope'), 0, null]) {
+      expect(() => buildMailOptions(valid(), identity(), undefined, { date: bad })).toThrow(TypeError);
+    }
+  });
+
   it('sends no HTML part for a plain-text user', () => {
     expect(buildMailOptions(valid(), identity({ plaintextEmail: true })).html).toBeUndefined();
   });
 
   it('gives every call its own Message-ID', () => {
     expect(buildMailOptions(valid(), identity()).messageId).not.toBe(buildMailOptions(valid(), identity()).messageId);
+  });
+
+  it('dates the message when it is built, so every render of it carries the same Date', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    try {
+      vi.setSystemTime(new Date('2026-10-24T10:00:00Z'));
+      const opts = buildMailOptions(valid(), identity());
+      expect(opts.date).toEqual(new Date('2026-10-24T10:00:00Z'));
+      vi.setSystemTime(new Date('2026-10-24T10:00:30Z'));
+      expect((await renderRawMessage(opts)).toString()).toContain('\r\nDate: Sat, 24 Oct 2026 10:00:00 +0000\r\n');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('orders attachments: inline images, uploads, forwarded parts, forwarded messages', () => {
@@ -211,6 +232,14 @@ describe('prepareDelivery', () => {
     const delivery = await prepareDelivery(valid(), identity(), undefined, { messageId: '<fixed@example.com>' });
     expect(delivery.mailOptions.messageId).toBe('<fixed@example.com>');
     expect(delivery.rawMessage.toString()).toContain('\r\nMessage-ID: <fixed@example.com>\r\n');
+  });
+
+  it('passes a fixed Date on to the message and its Sent copy', async () => {
+    createAccountSmtpTransport.mockResolvedValue({ account, transport: { sendMail: vi.fn() } });
+    const date = new Date('2026-10-25T07:00:00Z');
+    const delivery = await prepareDelivery(valid(), identity(), undefined, { date });
+    expect(delivery.mailOptions.date).toBe(date);
+    expect(delivery.rawMessage.toString()).toContain('\r\nDate: Sun, 25 Oct 2026 07:00:00 +0000\r\n');
   });
 
   it('uses the account the transport returns and renders the Sent copy only when needed', async () => {

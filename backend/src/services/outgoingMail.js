@@ -376,9 +376,10 @@ function asSendError(err, fallback) {
 }
 
 // The nodemailer message for a validated input, its identity and its forwarded content. Every
-// call gets a new random Message-ID, so the SMTP copy and the Sent APPEND, both rendered from
-// the same object, reference the same message. `options.messageId` replaces the random one, for
-// a message whose Message-ID was fixed before (scheduled send reuses one on every attempt).
+// call gets a new random Message-ID and its own Date, both fixed here, so the SMTP copy and the
+// Sent APPEND, two renders of the same object, carry the same ones. `options.messageId` replaces
+// the random one, for a message whose Message-ID was fixed before (scheduled send reuses one on
+// every attempt), and `options.date` the current time.
 export function buildMailOptions(input, identity, forwarded = { attachments: [], messages: [] }, options = {}) {
   const { body, bodyIsHtml, quotedBody, quotedBodyHtml, inReplyTo, references, attachments, priority } = input;
   const { fromName, fromEmail, replyTo, signature, plaintextEmail } = identity;
@@ -391,6 +392,9 @@ export function buildMailOptions(input, identity, forwarded = { attachments: [],
   const mailOptions = {
     xMailer: MAILER_ID,
     messageId,
+    // Set explicitly: left out, nodemailer dates each render on its own, and the Sent copy,
+    // rendered before the SMTP round trip, was dated earlier than the copy recipients got.
+    date: options.date === undefined ? new Date() : checkedDate(options.date),
     from: `${fromName} <${fromEmail}>`,
     ...(replyTo ? { replyTo } : {}),
     to: input.to.join(', '),
@@ -446,6 +450,11 @@ function checkedMessageId(messageId) {
     throw new TypeError('messageId must look like <local@domain>');
   }
   return messageId;
+}
+
+function checkedDate(date) {
+  if (!(date instanceof Date) || Number.isNaN(date.getTime())) throw new TypeError('date must be a valid Date');
+  return date;
 }
 
 // OAuth providers (Gmail, Microsoft) save sent mail to IMAP automatically via their
@@ -621,7 +630,7 @@ export async function deliverAndRecord(
     // response.
     const allRecipients = [...input.to, ...input.cc, ...input.bcc];
     if (allRecipients.length) {
-      learning = learnRecipients(userId, allRecipients, new Date());
+      learning = learnRecipients(userId, allRecipients, mailOptions.date);
     }
 
     // Get the Sent folder path (manual mapping takes priority over special_use auto-detect,
@@ -644,7 +653,7 @@ export async function deliverAndRecord(
       // Bcc to show for a message you sent (#585).
       bcc: mapRecipientList(input.bcc),
       snippet: buildSentSnippet(input.body, input.bodyIsHtml),
-      date: new Date(),
+      date: mailOptions.date,
       // Carried so the Sent row threads into its conversation via the References chain
       // rather than orphaning at its own Message-ID (#378).
       inReplyTo: mailOptions.inReplyTo || null,
