@@ -557,7 +557,7 @@ router.get('/:id/folders', async (req, res) => {
 router.post('/:id/reindex', async (req, res) => {
   try {
     const result = await query(
-      "SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2 AND enabled = true AND protocol = 'imap'",
+      "SELECT * FROM email_accounts WHERE id = $1 AND user_id = $2 AND enabled = true AND protocol = 'imap'",
       [req.params.id, req.session.userId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Account not found' });

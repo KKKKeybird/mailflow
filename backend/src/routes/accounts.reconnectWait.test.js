@@ -5,6 +5,7 @@ const row = vi.hoisted(() => ({ sync_error: null, sync_error_code: null }));
 const engine = vi.hoisted(() => ({
   clearConnectCooldown: vi.fn(), connectAccount: vi.fn(), isConnected: vi.fn(() => false),
   forgetAccountError: vi.fn(async () => { row.sync_error = null; row.sync_error_code = null; }),
+  backfillAllRunning: new Set(), backfillAllFolders: vi.fn(async () => {}),
 }));
 vi.mock('../services/db.js', () => ({ query: vi.fn() }));
 vi.mock('../middleware/auth.js', () => ({ requireAuth: (req, _res, next) => { req.session = { userId: 'u1' }; next(); } }));
@@ -43,6 +44,15 @@ describe('POST /api/accounts/:id/reconnect', () => {
   });
 
   const reconnect = async (qs = '') => (await fetch(`${base}/api/accounts/${ID}/reconnect${qs}`, { method: 'POST' })).json();
+
+  it('passes the full account including proxy configuration to a manual reindex', async () => {
+    const response = await fetch(`${base}/api/accounts/${ID}/reindex`, { method: 'POST' });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ok: true, alreadyRunning: false });
+    expect(engine.backfillAllFolders).toHaveBeenCalledWith(expect.objectContaining({
+      imap_host: 'imap.example.com', proxy_type: 'socks5', proxy_host: 'proxy.example.com',
+    }));
+  });
 
   it('answers at once without wait', async () => {
     engine.connectAccount.mockReturnValue(new Promise(() => {}));
