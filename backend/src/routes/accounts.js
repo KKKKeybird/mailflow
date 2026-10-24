@@ -13,6 +13,7 @@ import { createKeyedSerializer } from '../utils/keyedSerializer.js';
 import { uuidParam } from '../utils/uuid.js';
 import { normalizeAddressList } from '../utils/addressList.js';
 import { reportConnect } from '../services/connectReport.js';
+import { findOwnedAccount, findOwnedAlias } from '../services/ownership.js';
 
 // Serialize an account's reconnect triggers so a rapid settings change (e.g. a
 // gtd_enabled double-toggle) can't fire two overlapping disconnect→connect chains —
@@ -209,9 +210,9 @@ router.put('/:id', async (req, res) => {
   const updates = { ...req.body };
 
   // Verify ownership.
-  const check = await query('SELECT id, oauth_provider FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
-  if (!check.rows.length) return res.status(404).json({ error: 'Account not found' });
-  if (check.rows[0].oauth_provider) {
+  const owned = await findOwnedAccount(req.session.userId, id, { columns: 'id, oauth_provider' });
+  if (!owned) return res.status(404).json({ error: 'Account not found' });
+  if (owned.oauth_provider) {
     for (const field of OAUTH_OWNED_FIELDS) delete updates[field];
     // An empty mailbox is not a login: ignored, the stored one stays.
     if ('auth_user' in updates && !String(updates.auth_user ?? '').trim()) delete updates.auth_user;
@@ -393,8 +394,7 @@ router.put('/:id', async (req, res) => {
 router.delete('/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const check = await query('SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
-    if (!check.rows.length) return res.status(404).json({ error: 'Account not found' });
+    if (!(await findOwnedAccount(req.session.userId, id, { columns: 'id' }))) return res.status(404).json({ error: 'Account not found' });
 
     // Delete from DB first (cascades to messages and folders immediately).
     // Disconnect IMAP afterward — fire-and-forget so a slow server logout
@@ -412,8 +412,8 @@ router.delete('/:id', async (req, res) => {
 
 router.post('/:id/reconnect', async (req, res) => {
   const { id } = req.params;
-  const result = await query('SELECT * FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
-  if (!result.rows.length) return res.status(404).json({ error: 'Account not found' });
+  const account = await findOwnedAccount(req.session.userId, id);
+  if (!account) return res.status(404).json({ error: 'Account not found' });
 
   // An explicit Reconnect is a human saying "try now", so drop any backoff first. Auth
   // failures back off for up to six hours, and without this the button would answer
@@ -424,7 +424,7 @@ router.post('/:id/reconnect', async (req, res) => {
   // error is forgotten first: connectAccount returns false at once when another connect is
   // already running, and that must read as "still connecting", not as the previous failure.
   if (req.query.wait) await imapManager.forgetAccountError?.(id, req.session.userId);
-  const connecting = imapManager.connectAccount(result.rows[0]).catch((err) => { console.error(err); return false; });
+  const connecting = imapManager.connectAccount(account).catch((err) => { console.error(err); return false; });
   if (req.query.wait) {
     return res.json({ ok: true, ...(await reportConnect(connecting, id, { isConnected: () => !!imapManager.isConnected?.(id) })) });
   }
@@ -435,8 +435,7 @@ router.post('/:id/reconnect', async (req, res) => {
 
 router.get('/:id/aliases', async (req, res) => {
   const { id } = req.params;
-  const check = await query('SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
-  if (!check.rows.length) return res.status(404).json({ error: 'Account not found' });
+  if (!(await findOwnedAccount(req.session.userId, id, { columns: 'id' }))) return res.status(404).json({ error: 'Account not found' });
 
   const result = await query(
     'SELECT id, account_id, name, email, reply_to, signature, created_at FROM account_aliases WHERE account_id = $1 ORDER BY created_at',
@@ -456,8 +455,7 @@ router.post('/:id/aliases', async (req, res) => {
     return res.status(400).json({ error: 'Fields cannot contain control characters' });
   }
 
-  const check = await query('SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
-  if (!check.rows.length) return res.status(404).json({ error: 'Account not found' });
+  if (!(await findOwnedAccount(req.session.userId, id, { columns: 'id' }))) return res.status(404).json({ error: 'Account not found' });
 
   const result = await query(
     'INSERT INTO account_aliases (account_id, name, email, reply_to, signature) VALUES ($1, $2, $3, $4, $5) RETURNING *',
@@ -475,42 +473,31 @@ router.put('/:id/aliases/:aliasId', async (req, res) => {
     return res.status(400).json({ error: 'Fields cannot contain control characters' });
   }
 
-  const check = await query(
-    `SELECT a.id, a.account_id FROM account_aliases a
-     JOIN email_accounts e ON a.account_id = e.id
-     WHERE a.id = $1 AND e.user_id = $2 AND e.id = $3`,
-    [aliasId, req.session.userId, id]
-  );
-  if (!check.rows.length) return res.status(404).json({ error: 'Alias not found' });
+  const alias = await findOwnedAlias(req.session.userId, id, aliasId);
+  if (!alias) return res.status(404).json({ error: 'Alias not found' });
 
   const result = await query(
     'UPDATE account_aliases SET name = $1, email = $2, reply_to = $3, signature = $4 WHERE id = $5 RETURNING *',
     [name, email, reply_to || null, sanitizeSignature(signature) || null, aliasId]
   );
-  pluginRegistry.runHook('onAccountIdentityChanged', { accountId: check.rows[0].account_id }).catch(err => console.warn('onAccountIdentityChanged hook failed:', err.message));
+  pluginRegistry.runHook('onAccountIdentityChanged', { accountId: alias.account_id }).catch(err => console.warn('onAccountIdentityChanged hook failed:', err.message));
   res.json(result.rows[0]);
 });
 
 router.delete('/:id/aliases/:aliasId', async (req, res) => {
   const { id, aliasId } = req.params;
 
-  const check = await query(
-    `SELECT a.id, a.account_id FROM account_aliases a
-     JOIN email_accounts e ON a.account_id = e.id
-     WHERE a.id = $1 AND e.user_id = $2 AND e.id = $3`,
-    [aliasId, req.session.userId, id]
-  );
-  if (!check.rows.length) return res.status(404).json({ error: 'Alias not found' });
+  const alias = await findOwnedAlias(req.session.userId, id, aliasId);
+  if (!alias) return res.status(404).json({ error: 'Alias not found' });
 
   await query('DELETE FROM account_aliases WHERE id = $1', [aliasId]);
-  pluginRegistry.runHook('onAccountIdentityChanged', { accountId: check.rows[0].account_id }).catch(err => console.warn('onAccountIdentityChanged hook failed:', err.message));
+  pluginRegistry.runHook('onAccountIdentityChanged', { accountId: alias.account_id }).catch(err => console.warn('onAccountIdentityChanged hook failed:', err.message));
   res.json({ ok: true });
 });
 
 router.get('/:id/folders', async (req, res) => {
   const { id } = req.params;
-  const check = await query('SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
-  if (!check.rows.length) return res.status(404).json({ error: 'Account not found' });
+  if (!(await findOwnedAccount(req.session.userId, id, { columns: 'id' }))) return res.status(404).json({ error: 'Account not found' });
 
   const result = await query(
     'SELECT * FROM folders WHERE account_id = $1 ORDER BY path',
@@ -523,13 +510,8 @@ router.get('/:id/folders', async (req, res) => {
 
 router.post('/:id/reindex', async (req, res) => {
   try {
-    const result = await query(
-      "SELECT * FROM email_accounts WHERE id = $1 AND user_id = $2 AND enabled = true AND protocol = 'imap'",
-      [req.params.id, req.session.userId]
-    );
-    if (!result.rows.length) return res.status(404).json({ error: 'Account not found' });
-
-    const account = result.rows[0];
+    const account = await findOwnedAccount(req.session.userId, req.params.id, { enabled: true, protocol: 'imap' });
+    if (!account) return res.status(404).json({ error: 'Account not found' });
     const alreadyRunning = imapManager.backfillAllRunning.has(account.id);
     if (!alreadyRunning) {
       imapManager.backfillAllFolders(account).catch(err =>
