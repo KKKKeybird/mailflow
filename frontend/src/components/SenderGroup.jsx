@@ -25,7 +25,17 @@ export default function SenderGroup({ message, cacheKey, params, expanded, onTog
   const performSwipe = async action => {
     if (actionPending || swipeDisabled) return;
     if (action === 'archive') {
-      setCardHeight(cardRef.current?.getBoundingClientRect().height || 120);
+      const card = cardRef.current;
+      const height = card?.getBoundingClientRect().height || 120;
+      const section = card?.parentElement;
+      if (section) {
+        // Establish a numeric start before React switches max-height to zero;
+        // `none` cannot transition. This layout read happens once on release,
+        // never during dragging, and does not depend on the network response.
+        section.style.maxHeight = `${height}px`;
+        section.getBoundingClientRect();
+      }
+      setCardHeight(height);
       // Collapse when the dismissal finishes, not when a potentially slow group
       // snapshot returns. Empty/failed lookups and Undo restore the card below.
       setArchiveDismissed(true);
