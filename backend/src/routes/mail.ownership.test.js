@@ -19,6 +19,16 @@ vi.mock('../middleware/auth.js', () => ({
   requireAuth: (req, _res, next) => { req.session = { userId: session.userId }; next(); },
 }));
 vi.mock('../index.js', () => ({ imapManager: imap.manager }));
+// The real lookups, watched, so each route's columns and filters can be pinned.
+vi.mock('../services/ownership.js', async (importOriginal) => {
+  const real = await importOriginal();
+  return {
+    ...real,
+    findOwnedAccount: vi.fn(real.findOwnedAccount),
+    findOwnedMessage: vi.fn(real.findOwnedMessage),
+    findOwnedMessages: vi.fn(real.findOwnedMessages),
+  };
+});
 vi.mock('../services/imageProxy.js', async (importOriginal) => ({
   ...(await importOriginal()),
   fetchProxiedImage: vi.fn(() => Promise.reject(Object.assign(new Error('no network'), { status: 502 }))),
@@ -28,6 +38,7 @@ import express from 'express';
 import mailRoutes from './mail.js';
 import { query } from '../services/db.js';
 import { fetchProxiedImage } from '../services/imageProxy.js';
+import * as ownership from '../services/ownership.js';
 
 const OWNER = 'owner';
 const STRANGER = 'stranger';
@@ -44,7 +55,7 @@ const message = () => ({
 });
 
 const flat = sql => sql.replace(/\s+/g, ' ').trim();
-let writes;
+let writes, junkFolder, messageOverrides;
 function fakeQuery(rawSql, params = []) {
   const sql = flat(rawSql);
   const result = rows => Promise.resolve({ rows, rowCount: rows.length });
@@ -53,12 +64,13 @@ function fakeQuery(rawSql, params = []) {
     return result(params[0] === ACCOUNT_ID && params[1] === OWNER ? [account()] : []);
   }
   if (/FROM messages m JOIN email_accounts a ON (m\.account_id = a\.id|a\.id = m\.account_id) WHERE m\.id = \$1 AND a\.user_id = \$2/.test(sql)) {
-    return result(params[0] === MESSAGE_ID && params[1] === OWNER ? [message()] : []);
+    return result(params[0] === MESSAGE_ID && params[1] === OWNER ? [{ ...message(), ...messageOverrides }] : []);
   }
   if (sql.includes('FROM messages m JOIN email_accounts a ON m.account_id = a.id WHERE m.id = ANY($2::uuid[]) AND a.user_id = $1')) {
     return result(params[0] === OWNER && params[1].includes(MESSAGE_ID) ? [message()] : []);
   }
   if (sql.startsWith('SELECT * FROM email_accounts WHERE id = $1')) return result([account()]);
+  if (junkFolder && sql.startsWith('SELECT path FROM folders') && sql.includes("special_use = '\\Junk'")) return result([{ path: 'Junk' }]);
   if (sql.includes('count(*)')) return result([{ inbox_total: 0, bulk_total: 0 }]);
   return result([]);
 }
@@ -75,6 +87,9 @@ afterAll(() => new Promise(r => server.close(r)));
 
 beforeEach(() => {
   writes = [];
+  junkFolder = false;
+  messageOverrides = {};
+  for (const fn of [ownership.findOwnedAccount, ownership.findOwnedMessage, ownership.findOwnedMessages]) fn.mockClear();
   query.mockReset().mockImplementation(fakeQuery);
   fetchProxiedImage.mockClear();
   for (const key of Object.keys(imap.fns)) delete imap.fns[key];
@@ -149,6 +164,55 @@ const cases = [
   ['POST /messages/:id/unsubscribe', { method: 'POST', path: `/messages/${MESSAGE_ID}/unsubscribe` }, messageNotFound, { status: 400, json: { error: 'No unsubscribe header' } }],
 ];
 
+// The lookup each route makes for the owner: which helper, on which id, with exactly which
+// columns and filters. Columns are compared with whitespace collapsed.
+const MESSAGE_VIEW = `m.id, m.uid, m.folder, m.message_id, m.subject, m.from_name, m.from_email, m.to_addresses, m.cc_addresses,
+  m.reply_to, m.in_reply_to, m.thread_references, m.date, m.snippet, m.is_read, m.is_starred,
+  m.has_attachments, m.account_id, m.category, m.list_unsubscribe, m.list_unsubscribe_post, m.unsubscribed_at, m.delivery_addresses,
+  m.spam_verdict, m.spam_user_override, m.spam_score_ml, a.name AS account_name, a.email_address AS account_email, a.color AS account_color`;
+const WITH_SIBLINGS = `m.*, a.user_id, CASE WHEN m.message_id IS NULL THEN 1 ELSE (SELECT COUNT(*) FROM messages s
+  WHERE s.account_id = m.account_id AND s.message_id = m.message_id) END AS sibling_count`;
+const account_ = (opts) => ['findOwnedAccount', ACCOUNT_ID, opts];
+const message_ = (opts) => ['findOwnedMessage', MESSAGE_ID, opts];
+const messages_ = (columns) => ['findOwnedMessages', [MESSAGE_ID], { columns }];
+const LOOKUPS = {
+  'POST /sync': account_({ columns: 'id' }),
+  'POST /sync-folders': account_({ columns: 'id' }),
+  'POST /sync-folder': account_(),
+  'POST /mark-all-read': account_(),
+  'POST /folders': account_(),
+  'POST /folders/delete': account_(),
+  'POST /folders/rename': account_(),
+  'POST /folders/empty': account_(),
+  'GET /mailbox-usage': account_({ columns: 'id, folder_mappings' }),
+  'GET /cleanup-preview': account_({ columns: 'id' }),
+  'GET /messages/:id': message_({ columns: MESSAGE_VIEW, live: true }),
+  'GET /messages/:id/headers': message_({ columns: 'm.*, a.user_id' }),
+  'GET /messages/:id/bcc': message_({ columns: 'm.account_id, m.uid, m.folder, m.message_id, m.bcc_addresses' }),
+  'GET /messages/:id/attachments.zip': message_({ columns: 'm.*, a.user_id' }),
+  'GET /messages/:id/attachments/:part': message_({ columns: 'm.*, a.user_id' }),
+  'GET /messages/:id/image': message_({ columns: 'm.body_html' }),
+  'GET /messages/:id/raw.eml': message_({ columns: 'm.id, m.uid, m.folder, m.subject, m.account_id, a.user_id' }),
+  'PATCH /messages/:id/read': message_({ columns: WITH_SIBLINGS }),
+  'PATCH /messages/:id/star': message_({ columns: WITH_SIBLINGS }),
+  'POST /messages/bulk-read': messages_('m.id, m.uid, m.folder, m.is_read, m.account_id, m.message_id'),
+  'POST /messages/bulk-star': messages_('m.id, m.uid, m.folder, m.is_starred, m.account_id, m.message_id'),
+  'POST /messages/bulk-delete': messages_('m.*, a.user_id, a.folder_mappings'),
+  'POST /messages/bulk-move': messages_('m.*, a.user_id'),
+  'POST /messages/bulk-archive': messages_('m.*, a.user_id, a.folder_mappings'),
+  'POST /messages/:id/copy': message_({ columns: 'm.id, m.account_id, m.uid, m.folder, a.folder_mappings', enabledAccount: true, live: true }),
+  'POST /messages/:id/snooze': message_({ columns: 'm.*, a.user_id' }),
+  'PATCH /messages/:id/snooze': message_({ columns: 'm.*, a.user_id' }),
+  'POST /messages/:id/unsnooze': message_({ columns: 'm.*, a.user_id' }),
+  'DELETE /messages/:id': message_({ columns: 'm.*, a.user_id' }),
+  'POST /messages/:id/spam': message_({ columns: 'm.account_id, a.folder_mappings' }),
+  'POST /messages/:id/ham': message_({ columns: 'm.account_id, m.folder, a.folder_mappings' }),
+  'POST /messages/:id/unsubscribe': message_({ columns: 'm.list_unsubscribe, m.list_unsubscribe_post', live: true }),
+};
+const normalize = opts => (opts?.columns ? { ...opts, columns: flat(opts.columns) } : opts);
+const lookupsMade = () => ['findOwnedAccount', 'findOwnedMessage', 'findOwnedMessages']
+  .flatMap(name => ownership[name].mock.calls.map(([userId, id, opts]) => [name, userId, id, normalize(opts)]));
+
 describe('mail routes refuse another user\'s account or message', () => {
   it.each(cases)('%s', async (_name, request, refusal) => {
     const res = await call(STRANGER, request);
@@ -170,5 +234,50 @@ describe('mail routes still serve the owner', () => {
     if (owner.json) expect(res.json).toEqual(owner.json);
     for (const name of owner.calls || []) expect(imapCalls()).toContain(name);
     if (owner.fetchesImage) expect(fetchProxiedImage).toHaveBeenCalledWith(IMAGE_URL);
+  });
+});
+
+describe('each mail route looks up with its own columns and filters', () => {
+  it('has a lookup pinned for every route', () => {
+    expect(Object.keys(LOOKUPS).sort()).toEqual(cases.map(([name]) => name).sort());
+  });
+
+  it.each(cases)('%s', async (name, request) => {
+    // The image route remembers a message's image references per reader; a reference it has not
+    // seen yet makes it read the message again.
+    await call(OWNER, name === 'GET /messages/:id/image'
+      ? { path: `/messages/${MESSAGE_ID}/image?u=${encodeURIComponent(`${IMAGE_URL}?unseen`)}` }
+      : request);
+    const [fn, id, opts] = LOOKUPS[name];
+    expect(lookupsMade()).toContainEqual([fn, OWNER, id, normalize(opts)]);
+  });
+});
+
+// The spam and ham moves look the message up again (moveForSpamLabel) before moving it.
+describe('marking the owner\'s message as spam or not spam', () => {
+  const moverLookup = ['findOwnedMessage', OWNER, MESSAGE_ID, { columns: 'm.*, a.user_id, a.folder_mappings' }];
+
+  it('moves it to the spam folder', async () => {
+    junkFolder = true;
+    const res = await call(OWNER, { method: 'POST', path: `/messages/${MESSAGE_ID}/spam` });
+    expect(res).toMatchObject({ status: 200, json: { ok: true, folder: 'Junk' } });
+    expect(imap.fns.moveMessage).toHaveBeenCalledWith(expect.objectContaining({ id: ACCOUNT_ID }), 7, 'INBOX', 'Junk');
+    expect(lookupsMade()).toContainEqual(moverLookup);
+  });
+
+  it('moves it back to the inbox', async () => {
+    junkFolder = true;
+    messageOverrides = { folder: 'Junk' };
+    const res = await call(OWNER, { method: 'POST', path: `/messages/${MESSAGE_ID}/ham` });
+    expect(res).toMatchObject({ status: 200, json: { ok: true, folder: 'INBOX' } });
+    expect(imap.fns.moveMessage).toHaveBeenCalledWith(expect.objectContaining({ id: ACCOUNT_ID }), 7, 'Junk', 'INBOX');
+    expect(lookupsMade()).toContainEqual(moverLookup);
+  });
+
+  it('refuses another user\'s message before moving anything', async () => {
+    junkFolder = true;
+    const res = await call(STRANGER, { method: 'POST', path: `/messages/${MESSAGE_ID}/spam` });
+    expect(res).toMatchObject(messageNotFound);
+    expect(imapCalls()).toEqual([]);
   });
 });

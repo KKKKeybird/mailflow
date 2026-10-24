@@ -27,6 +27,12 @@ vi.mock('../services/categorizer.js', () => ({
   aiClassifyMessage: vi.fn(async () => 'newsletter'), BUILTIN_SETS: {},
 }));
 vi.mock('../services/spamAuthservIds.js', () => ({ detectAuthservIds: vi.fn(async () => ({ analyzed: 0, detected: [] })) }));
+// The real lookups, watched, so each route's columns and filters can be pinned.
+vi.mock('../services/ownership.js', async (importOriginal) => {
+  const real = await importOriginal();
+  const watched = ['findOwnedAccount', 'findOwnedMessage', 'findOwnedMessages', 'findOwnedAlias', 'findOwnedContact', 'findOwnedAddressBook'];
+  return { ...real, ...Object.fromEntries(watched.map(name => [name, vi.fn(real[name])])) };
+});
 
 import express from 'express';
 import accountRoutes from './accounts.js';
@@ -36,6 +42,7 @@ import draftRoutes from './draft.js';
 import categoriesRoutes from './categories.js';
 import contactsRoutes from './contacts.js';
 import { query } from '../services/db.js';
+import * as ownership from '../services/ownership.js';
 
 const OWNER = 'owner';
 const STRANGER = 'stranger';
@@ -100,6 +107,10 @@ afterAll(() => new Promise(r => server.close(r)));
 
 beforeEach(() => {
   writes = [];
+  vi.mocked(ownership.findOwnedAccount).mockClear();
+  vi.mocked(ownership.findOwnedMessage).mockClear();
+  vi.mocked(ownership.findOwnedAlias).mockClear();
+  vi.mocked(ownership.findOwnedContact).mockClear();
   query.mockReset().mockImplementation(fakeQuery);
   for (const key of Object.keys(imap.fns)) delete imap.fns[key];
   Object.assign(imap.fns, {
@@ -199,5 +210,55 @@ describe('replacing a draft saved in another account', () => {
       ACCOUNTS[SECOND_ACCOUNT_ID].user_id = OWNER;
     }
     expect(imap.fns.permanentDeleteMessage).not.toHaveBeenCalled();
+  });
+});
+
+// The lookup each route makes for the owner: which helper, with which arguments, exactly.
+// Columns are compared with whitespace collapsed.
+const CONTACT_VIEW = `c.id, c.uid, c.display_name, c.first_name, c.last_name, c.primary_email, c.emails, c.phones, c.organization,
+  c.notes, c.photo_data, c.is_auto, c.send_count, c.last_sent, c.etag, c.vcard, c.created_at, c.updated_at,
+  (ab.source = 'carddav') AS read_only`;
+const LOOKUPS = {
+  'PUT /accounts/:id': ['findOwnedAccount', ACCOUNT_ID, { columns: 'id, oauth_provider' }],
+  'DELETE /accounts/:id': ['findOwnedAccount', ACCOUNT_ID, { columns: 'id' }],
+  'POST /accounts/:id/reconnect': ['findOwnedAccount', ACCOUNT_ID],
+  'GET /accounts/:id/aliases': ['findOwnedAccount', ACCOUNT_ID, { columns: 'id' }],
+  'POST /accounts/:id/aliases': ['findOwnedAccount', ACCOUNT_ID, { columns: 'id' }],
+  'PUT /accounts/:id/aliases/:aliasId': ['findOwnedAlias', ACCOUNT_ID, ALIAS_ID],
+  'DELETE /accounts/:id/aliases/:aliasId': ['findOwnedAlias', ACCOUNT_ID, ALIAS_ID],
+  'GET /accounts/:id/folders': ['findOwnedAccount', ACCOUNT_ID, { columns: 'id' }],
+  'POST /accounts/:id/reindex': ['findOwnedAccount', ACCOUNT_ID, { enabled: true, protocol: 'imap' }],
+  'POST /accounts/:id/spam/reset-training': ['findOwnedAccount', ACCOUNT_ID, { columns: 'id' }],
+  'GET /spam/authserv-ids': ['findOwnedAccount', ACCOUNT_ID, { columns: 'id, trusted_authserv_id' }],
+  'GET /spam/explain': ['findOwnedMessage', MESSAGE_ID, { columns: 'm.*, a.user_id AS owner_id, a.folder_mappings' }],
+  'POST /rules/run': ['findOwnedAccount', ACCOUNT_ID, { columns: 'id' }],
+  'POST /rules': ['findOwnedAccount', ACCOUNT_ID, { columns: 'id' }],
+  'PUT /rules/:id': ['findOwnedAccount', ACCOUNT_ID, { columns: 'id' }],
+  'POST /rules/sender-category': ['findOwnedMessage', MESSAGE_ID, { columns: 'm.from_email' }],
+  'POST /mail/draft': ['findOwnedAccount', ACCOUNT_ID, { columns: 'id' }],
+  'DELETE /mail/draft/:uid': ['findOwnedAccount', ACCOUNT_ID],
+  'POST /categories/ai-classify/:messageId': ['findOwnedMessage', MESSAGE_ID, { columns: 'm.subject, m.from_email, m.snippet', live: true }],
+  'GET /contacts/:id': ['findOwnedContact', CONTACT_ID, { columns: CONTACT_VIEW }],
+  'PATCH /contacts/:id': ['findOwnedContact', CONTACT_ID, { columns: 'c.*, ab.source AS book_source' }],
+  'DELETE /contacts/:id': ['findOwnedContact', CONTACT_ID, { columns: 'ab.source' }],
+};
+const normalize = arg => (arg?.columns ? { ...arg, columns: flat(arg.columns) } : arg);
+const lookupsMade = () => ['findOwnedAccount', 'findOwnedMessage', 'findOwnedAlias', 'findOwnedContact']
+  .flatMap(name => vi.mocked(ownership[name]).mock.calls.map(args => [name, ...args.map(normalize)]));
+
+describe('each route looks up with its own columns and filters', () => {
+  it('has a lookup pinned for every route', () => {
+    expect(Object.keys(LOOKUPS).sort()).toEqual(cases.map(([name]) => name).sort());
+  });
+
+  it.each(cases)('%s', async (name, request) => {
+    await call(OWNER, request);
+    const [fn, ...args] = LOOKUPS[name];
+    expect(lookupsMade()).toContainEqual([fn, OWNER, ...args.map(normalize)]);
+  });
+
+  it('looks up the account a replaced draft was saved in, in full', async () => {
+    await call(OWNER, { method: 'POST', path: '/mail/draft', body: { ...draft, existingUid: 9, existingFolder: 'Drafts', existingAccountId: SECOND_ACCOUNT_ID } });
+    expect(lookupsMade()).toContainEqual(['findOwnedAccount', OWNER, SECOND_ACCOUNT_ID]);
   });
 });

@@ -369,6 +369,29 @@ describe('repairing an account by signing in again', () => {
     expect(mocks.imapManager.connectAccount).not.toHaveBeenCalled();
   });
 
+  // The re-check runs on the sign-in's transaction client, under its advisory lock, not on the pool.
+  const txOwnershipCheck = (id) => statements.filter(([sql, params]) =>
+    /FROM email_accounts WHERE id = \$1 AND user_id = \$2/.test(sql) && params[0] === id && params[1] === 'user-1');
+
+  it('re-checks a Google repair\'s account inside the sign-in transaction', async () => {
+    process.env.GOOGLE_CLIENT_ID = 'g-client';
+    process.env.GOOGLE_CLIENT_SECRET = 'g-secret';
+    process.env.GOOGLE_REDIRECT_URI = 'https://mail.example/oauth/google/callback';
+    await realFetch(`${base}/oauth/google?accountId=22222222-2222-4222-8222-222222222222`, { redirect: 'manual' });
+    signedInAs = 'maria@gmail.com';
+    const cb = await realFetch(`${base}/oauth/google/callback?code=c&state=${session.oauthNonce}`, { redirect: 'manual' });
+    expect(cb.headers.get('location')).toBe('/?oauth_success=google&oauth_result=1');
+    const [[sql]] = txOwnershipCheck('22222222-2222-4222-8222-222222222222');
+    expect(sql).toBe('SELECT id, email_address FROM email_accounts WHERE id = $1 AND user_id = $2');
+  });
+
+  it('re-checks a Microsoft repair\'s account inside the sign-in transaction', async () => {
+    await startDevice({ accountId: '11111111-1111-4111-8111-111111111111' });
+    expect((await poll()).status).toBe('checking');
+    const [[sql]] = txOwnershipCheck('11111111-1111-4111-8111-111111111111');
+    expect(sql).toBe('SELECT id, imap_host, oauth_provider, email_address FROM email_accounts WHERE id = $1 AND user_id = $2');
+  });
+
   it('carries a repair through the Microsoft redirect', async () => {
     process.env.MS_CLIENT_ID = 'own-app-id';
     process.env.MS_CLIENT_SECRET = 'secret';

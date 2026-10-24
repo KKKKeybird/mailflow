@@ -19,12 +19,17 @@ vi.mock('../index.js', () => ({
 }));
 vi.mock('../services/smtpTransport.js', () => ({ createAccountSmtpTransport: vi.fn() }));
 vi.mock('../utils/mailUtils.js', () => ({ resolveSentFolder: vi.fn(async () => 'Sent') }));
+vi.mock('../services/ownership.js', async (importOriginal) => {
+  const real = await importOriginal();
+  return { ...real, findOwnedAccount: vi.fn(real.findOwnedAccount), findOwnedMessages: vi.fn(real.findOwnedMessages) };
+});
 
 import express from 'express';
 import routes from './send.js';
 import { query } from '../services/db.js';
 import { imapManager } from '../index.js';
 import { createAccountSmtpTransport } from '../services/smtpTransport.js';
+import { findOwnedAccount, findOwnedMessages } from '../services/ownership.js';
 
 const OWNER = 'owner';
 const STRANGER = 'stranger';
@@ -32,9 +37,11 @@ const ACCOUNT_ID = 'a1a1a1a1-1111-4111-8111-a1a1a1a1a1a1';
 const MESSAGE_ID = 'b2b2b2b2-2222-4222-8222-b2b2b2b2b2b2';
 const account = { id: ACCOUNT_ID, user_id: OWNER, email_address: 'me@example.com', name: 'Me', oauth_provider: null };
 const STRANGERS_MESSAGE_ID = 'c3c3c3c3-3333-4333-8333-c3c3c3c3c3c3';
+const DELETED_MESSAGE_ID = 'e5e5e5e5-5555-4555-8555-e5e5e5e5e5e5';
 const message = { id: MESSAGE_ID, account_id: ACCOUNT_ID, uid: 9, folder: 'INBOX', subject: 'Original', attachments: [{ part: '2', size: 4, filename: 'a.txt', type: 'text/plain' }] };
 const MESSAGES = {
   [MESSAGE_ID]: { owner: OWNER, row: message },
+  [DELETED_MESSAGE_ID]: { owner: OWNER, deleted: true, row: { ...message, id: DELETED_MESSAGE_ID } },
   [STRANGERS_MESSAGE_ID]: { owner: STRANGER, row: { ...message, id: STRANGERS_MESSAGE_ID, account_id: 'd4d4d4d4-4444-4444-8444-d4d4d4d4d4d4' } },
 };
 const sendMail = vi.fn(async () => ({}));
@@ -49,7 +56,8 @@ function fakeQuery(rawSql, params = []) {
   const bulk = sql.match(/FROM messages m JOIN email_accounts a ON m\.account_id = a\.id WHERE m\.id = ANY\(\$(\d)::uuid\[\]\) AND a\.user_id = \$(\d)/);
   if (bulk) {
     const [ids, userId] = [params[bulk[1] - 1], params[bulk[2] - 1]];
-    return { rows: ids.filter(id => MESSAGES[id]?.owner === userId).map(id => MESSAGES[id].row) };
+    const live = sql.includes('m.is_deleted = false');
+    return { rows: ids.filter(id => MESSAGES[id]?.owner === userId && !(live && MESSAGES[id].deleted)).map(id => MESSAGES[id].row) };
   }
   if (sql.startsWith('SELECT * FROM email_accounts WHERE id = ANY')) return { rows: [account] };
   return { rows: [{ preferences: {}, id: 'book1' }] };
@@ -68,6 +76,8 @@ beforeEach(() => {
   sendMail.mockClear();
   imapManager.fetchRawMessage.mockClear();
   imapManager.fetchAttachment.mockClear();
+  findOwnedAccount.mockClear();
+  findOwnedMessages.mockClear();
   createAccountSmtpTransport.mockReset().mockResolvedValue({ account, transport: { sendMail } });
   query.mockReset().mockImplementation(async (sql, params) => fakeQuery(sql, params));
 });
@@ -111,5 +121,15 @@ describe('POST /api/mail/send ownership', () => {
     expect(imapManager.fetchAttachment).toHaveBeenCalledWith(account, 9, 'INBOX', '2');
     expect(imapManager.fetchRawMessage).toHaveBeenCalledWith(account, 9, 'INBOX');
     expect(sendMail).toHaveBeenCalledTimes(1);
+    expect(findOwnedAccount).toHaveBeenCalledWith(OWNER, ACCOUNT_ID);
+    expect(findOwnedMessages).toHaveBeenCalledWith(OWNER, [MESSAGE_ID], { columns: 'm.id, m.uid, m.folder, m.attachments, m.account_id' });
+    expect(findOwnedMessages).toHaveBeenCalledWith(OWNER, [MESSAGE_ID], { columns: 'm.id, m.uid, m.folder, m.subject, m.account_id', live: true });
+  });
+
+  it('refuses to forward a deleted message, but still forwards a deleted message\'s attachment', async () => {
+    expect(await send(OWNER, { forwardedMessages: [DELETED_MESSAGE_ID] }))
+      .toEqual({ status: 404, json: { error: 'Forwarded message not found' } });
+    nothingFetchedOrSent();
+    expect((await send(OWNER, { forwardedAttachments: [{ messageId: DELETED_MESSAGE_ID, part: '2' }] })).status).toBe(200);
   });
 });
