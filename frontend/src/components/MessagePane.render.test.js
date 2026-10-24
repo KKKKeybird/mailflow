@@ -1142,6 +1142,19 @@ describe('the toolbar read toggle (#683)', () => {
     assert.ok(toolbarButton('contextMenu.markUnread'), 'and back again');
   });
 
+  test('toolbar Mark as read cancels a delayed read the list scheduled on open', async (t) => {
+    // The list registers its read-on-open delay by message id; without the cancel the delay
+    // ran out after the manual read and marked the message read a second time.
+    const { scheduleMarkReadTimer } = await import('../utils/markRead.js');
+    const { msg, bulkRead } = await openRead(t, { is_read: false, unread_count: 1 });
+    let delayedRan = 0;
+    scheduleMarkReadTimer(msg.id, () => { delayedRan += 1; }, 30);
+    await React.act(async () => { click(toolbarButton('contextMenu.markRead')); });
+    await React.act(async () => { await new Promise(r => setTimeout(r, 60)); });
+    assert.equal(delayedRan, 0, 'the pending delayed read was cancelled');
+    assert.deepEqual(bulkRead.mock.calls.map(c => c.arguments[1]), [true]);
+  });
+
   test("the row's context menu offers Mark as read once the pane marked it unread", async (t) => {
     await openRead(t);
     await React.act(async () => { click(toolbarButton('contextMenu.markUnread')); });

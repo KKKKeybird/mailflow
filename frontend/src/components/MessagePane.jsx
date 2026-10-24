@@ -752,15 +752,20 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   // The toolbar's read toggle. It used to render only for a read message, so it vanished the
   // moment "Mark as unread" worked and the message could not be marked read again from here
   // (#683). Explicit "mark read" ignores markReadBehavior, as the context menu's does.
-  const handleToggleRead = useCallback(() => {
-    if (!message) return;
-    if (message.is_read) { handleMarkUnread(); return; }
+  const handleMarkRead = useCallback(() => {
+    if (!message || message.is_read) return;
     // A delayed auto-read still pending would mark it read a second time and count it twice.
     cancelScheduledMarkRead(autoMarkReadTimerRef.current);
     autoMarkReadTimerRef.current = null;
     cancelScheduledMarkReadFor(message.id);
     applyMarkRead(message);
-  }, [message, handleMarkUnread]);
+  }, [message]);
+
+  const handleToggleRead = useCallback(() => {
+    if (!message) return;
+    if (message.is_read) handleMarkUnread();
+    else handleMarkRead();
+  }, [message, handleMarkUnread, handleMarkRead]);
 
   const handleEmailClick = useCallback((ev) => {
     const anchor = ev.target.closest('a[href]');
@@ -1086,7 +1091,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
         break;
       case 'markRead':
         // Explicit "mark read" ignores markReadBehavior: the user just asked for it.
-        applyMarkRead(message);
+        handleMarkRead();
         break;
       case 'markUnread':
         handleMarkUnread();

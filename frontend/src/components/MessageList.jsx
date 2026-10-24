@@ -25,7 +25,7 @@ import { SNOOZED_FOLDER, unsnooze, changeSnooze, refreshCounts } from '../utils/
 import { advanceSelectionAfterRemoval, registerRowOpener } from '../utils/listSelection.js';
 import { openReplyFromMessage, openForwardFromMessage, openForwardAsAttachmentFromMessage } from '../utils/composeFromMessage.js';
 import { selectedMessage, markMessageUnread } from '../utils/messageHotkeys.js';
-import { cancelScheduledMarkReadFor } from '../utils/markRead.js';
+import { cancelScheduledMarkRead, cancelScheduledMarkReadFor, scheduleMarkReadTimer } from '../utils/markRead.js';
 import { saveSenderCategory } from '../utils/senderCategory.js';
 import SenderAvatarImage from './SenderAvatarImage.jsx';
 import FolderPathLabel from './FolderPathLabel.jsx';
@@ -852,6 +852,8 @@ export default function MessageList() {
   }, [threadMessages, setThreadMessages, isUnified]);
 
   const setMessagesReadState = useCallback(async (message, read) => {
+    // An explicit read or unread wins over a delayed automatic read still pending for the row.
+    cancelScheduledMarkReadFor(message.id);
     const isThreadRow = isThreadListRow(message);
     const unreadCount = Number.parseInt(message.unread_count, 10);
     // Use the row's own unread_count as the immediate estimate.
@@ -900,6 +902,8 @@ export default function MessageList() {
       else if (!read && estimatedDelta > 0) { decrementUnread(message.account_id, estimatedDelta); adjustCategoryCount(message.category, -estimatedDelta); }
       return;
     }
+
+    actionMessages.forEach(msg => cancelScheduledMarkReadFor(msg.id));
 
     // Compute exact delta from sub-message states (before mutating the cache).
     const actualDelta = read
@@ -1881,6 +1885,7 @@ export default function MessageList() {
   ]);
 
   const handleBulkMarkRead = useCallback(async (ids, msgs) => {
+    ids.forEach(id => cancelScheduledMarkReadFor(id));
     const markAsRead = msgs.some(m => !m.is_read);
     // Compute per-account and per-category unread deltas before mutating state
     const deltaByAccount = {};
@@ -1933,7 +1938,7 @@ export default function MessageList() {
   }, [updateMessage]);
 
   const autoMarkReadTimerRef = useRef(null);
-  useEffect(() => () => clearTimeout(autoMarkReadTimerRef.current), []);
+  useEffect(() => () => cancelScheduledMarkRead(autoMarkReadTimerRef.current), []);
 
   // Keep refs to bulk handlers so the shortcut effect (registered once) is never stale
   const contextActionRef = useRef(null);
@@ -1956,7 +1961,7 @@ export default function MessageList() {
       if (msg.is_read) return;
       const { updateMessage, decrementUnread, incrementUnread, adjustCategoryCount, markReadBehavior, markReadDelay } = getState();
       if (markReadBehavior === 'manual') return;
-      clearTimeout(autoMarkReadTimerRef.current);
+      cancelScheduledMarkRead(autoMarkReadTimerRef.current);
       autoMarkReadTimerRef.current = null;
       const doMarkRead = () => {
         updateMessage(msg.id, { is_read: true });
@@ -1978,7 +1983,7 @@ export default function MessageList() {
           });
       };
       if (markReadBehavior === 'delay') {
-        autoMarkReadTimerRef.current = setTimeout(doMarkRead, (markReadDelay || 1) * 1000);
+        autoMarkReadTimerRef.current = scheduleMarkReadTimer(msg.id, doMarkRead, (markReadDelay || 1) * 1000);
       } else {
         doMarkRead();
       }
@@ -2070,6 +2075,7 @@ export default function MessageList() {
       if (!selectedMessageId) return;
       const msg = messages.find(m => m.id === selectedMessageId);
       if (!msg) return;
+      cancelScheduledMarkReadFor(msg.id);
       const newRead = !msg.is_read;
       updateMessage(selectedMessageId, { is_read: newRead });
       if (newRead) {
@@ -2105,7 +2111,7 @@ export default function MessageList() {
             pendingMarkReadMap.delete(message.id);
             completedMarkReadMap.delete(message.id);
           }
-          clearTimeout(autoMarkReadTimerRef.current);
+          cancelScheduledMarkRead(autoMarkReadTimerRef.current);
           autoMarkReadTimerRef.current = null;
         },
         update: (id, fields) => {
@@ -2612,7 +2618,7 @@ export default function MessageList() {
   // Shared by the main-pane selection (handleSelect) and the detached-window open
   // path (#219) so both routes behave identically.
   const markMessageReadOnOpen = (message) => {
-    clearTimeout(autoMarkReadTimerRef.current);
+    cancelScheduledMarkRead(autoMarkReadTimerRef.current);
     autoMarkReadTimerRef.current = null;
     if (message.is_read || markReadBehavior === 'manual') return;
     const prevUnread = message.unread_count;
@@ -2637,7 +2643,7 @@ export default function MessageList() {
         });
     };
     if (markReadBehavior === 'delay') {
-      autoMarkReadTimerRef.current = setTimeout(doMarkRead, markReadDelay * 1000);
+      autoMarkReadTimerRef.current = scheduleMarkReadTimer(message.id, doMarkRead, markReadDelay * 1000);
     } else {
       doMarkRead();
     }
