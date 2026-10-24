@@ -14,6 +14,7 @@ import { validateMailProxy, validateMailServerHost, PROXY_FIELDS } from '../serv
 import { normalizeAddressList } from '../utils/addressList.js';
 import { testProxyConnectivity } from '../services/proxyConnectivity.js';
 import { consume } from '../services/rateLimiter.js';
+import { reportConnect } from '../services/connectReport.js';
 
 // Serialize an account's reconnect triggers so a rapid settings change (e.g. a
 // gtd_enabled double-toggle) can't fire two overlapping disconnect→connect chains —
@@ -75,9 +76,9 @@ export const SAFE_FIELDS = [
   'imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify',
   'smtp_host', 'smtp_port', 'smtp_tls',
   'proxy_type', 'proxy_host', 'proxy_port', 'proxy_username',
-  'auth_user', 'smtp_auth_user', 'oauth_provider', 'enabled',
+  'auth_user', 'smtp_auth_user', 'oauth_provider', 'oauth_public_client', 'enabled',
   'include_in_unified_inbox',
-  'last_sync', 'sync_error', 'sort_order', 'folder_mappings',
+  'last_sync', 'sync_error', 'sync_error_code', 'sort_order', 'folder_mappings',
   'signature', 'signature_enabled', 'created_at', 'categorization_enabled', 'antispam_enabled',
   'trusted_authserv_id', 'auto_cc_addresses', 'auto_bcc_addresses',
 ];
@@ -152,9 +153,11 @@ router.post('/', async (req, res) => {
     imap_host, imap_port = 993, imap_skip_tls_verify = false,
     smtp_host, smtp_port = 587, smtp_tls = 'STARTTLS',
     auth_user, auth_pass, smtp_auth_user = null, smtp_auth_pass = null,
-    oauth_provider, oauth_access_token, oauth_refresh_token,
     signature = null, signature_enabled = true
   } = req.body;
+  // OAuth fields (provider, tokens, client) are never taken from this body: Microsoft and
+  // Google accounts are created only by the sign-in flows in routes/oauth.js, which check the
+  // provider's identity token. A crafted request here makes a plain password account.
 
   if (!name || !email_address) return res.status(400).json({ error: 'Name and email required' });
   const { value: iconValue, error: iconError } = normalizeAccountIcon(icon);
@@ -188,15 +191,14 @@ router.post('/', async (req, res) => {
       INSERT INTO email_accounts (
         user_id, name, sender_name, email_address, color, protocol,
         imap_host, imap_port, imap_tls, imap_skip_tls_verify, smtp_host, smtp_port, smtp_tls,
-        auth_user, auth_pass, smtp_auth_user, smtp_auth_pass, oauth_provider, oauth_access_token, oauth_refresh_token,
+        auth_user, auth_pass, smtp_auth_user, smtp_auth_pass,
         signature, signature_enabled, icon, proxy_type, proxy_host, proxy_port, proxy_username, proxy_password
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28)
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25)
       RETURNING *
     `, [
       req.session.userId, name, sender_name || null, email_address, color, protocol,
       imap_host, imap_port, Number(imap_port) % 1000 === 993, !!imap_skip_tls_verify, smtp_host, smtp_port, smtp_tls,
       auth_user, encrypt(auth_pass), smtp_auth_user || null, encrypt(smtp_auth_pass) || null,
-      oauth_provider, encrypt(oauth_access_token), encrypt(oauth_refresh_token),
       sanitizeSignature(signature) || null, signature_enabled !== false, iconValue,
       proxy.proxy_type, proxy.proxy_host, proxy.proxy_port, proxy.proxy_username, encrypt(proxy.proxy_password) || null
     ]);
@@ -215,13 +217,28 @@ router.post('/', async (req, res) => {
   }
 });
 
+// The fields an OAuth sign-in owns: the server it was set up with and the passwords it does
+// not use. The settings form does not show them for such an account, and they are ignored here
+// too, so no request can point a Microsoft or Google sign-in at another server. auth_user stays
+// editable: XOAUTH2 logs in as auth_user (or the address), which is how a shared or delegated
+// Microsoft 365 mailbox is opened with one's own sign-in.
+export const OAUTH_OWNED_FIELDS = [
+  'imap_host', 'imap_port', 'imap_tls', 'imap_skip_tls_verify', 'smtp_host', 'smtp_port', 'smtp_tls',
+  'auth_pass', 'smtp_auth_user', 'smtp_auth_pass',
+];
+
 router.put('/:id', async (req, res) => {
   const { id } = req.params;
-  const updates = req.body;
+  const updates = { ...req.body };
 
   // Verify ownership.
   const check = await query('SELECT * FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
   if (!check.rows.length) return res.status(404).json({ error: 'Account not found' });
+  if (check.rows[0].oauth_provider) {
+    for (const field of OAUTH_OWNED_FIELDS) delete updates[field];
+    // An empty mailbox is not a login: ignored, the stored one stays.
+    if ('auth_user' in updates && !String(updates.auth_user ?? '').trim()) delete updates.auth_user;
+  }
 
   if ('name' in updates && hasHeaderInjectionChars(updates.name)) {
     return res.status(400).json({ error: 'Name cannot contain control characters' });
@@ -428,14 +445,22 @@ router.delete('/:id', async (req, res) => {
 
 router.post('/:id/reconnect', async (req, res) => {
   const { id } = req.params;
-  const result = await query('SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
+  const result = await query('SELECT * FROM email_accounts WHERE id = $1 AND user_id = $2', [id, req.session.userId]);
   if (!result.rows.length) return res.status(404).json({ error: 'Account not found' });
 
   // An explicit Reconnect is a human saying "try now", so drop any backoff first. Auth
   // failures back off for up to six hours, and without this the button would answer
   // { ok: true } while connectAccount early-returned on the cooldown: a silent no-op.
   imapManager.clearConnectCooldown(id);
-  imapManager.connectAccount(result.rows[0]).catch(console.error);
+  // ?wait=1 answers with how the attempt went (bounded), for a "Try again" that has to say
+  // whether it worked; without it the reconnect runs in the background as before. The old
+  // error is forgotten first: connectAccount returns false at once when another connect is
+  // already running, and that must read as "still connecting", not as the previous failure.
+  if (req.query.wait) await imapManager.forgetAccountError?.(id, req.session.userId);
+  const connecting = imapManager.connectAccount(result.rows[0]).catch((err) => { console.error(err); return false; });
+  if (req.query.wait) {
+    return res.json({ ok: true, ...(await reportConnect(connecting, id, { isConnected: () => !!imapManager.isConnected?.(id) })) });
+  }
   res.json({ ok: true });
 });
 
@@ -532,7 +557,7 @@ router.get('/:id/folders', async (req, res) => {
 router.post('/:id/reindex', async (req, res) => {
   try {
     const result = await query(
-      "SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2 AND enabled = true AND protocol = 'imap'",
+      "SELECT * FROM email_accounts WHERE id = $1 AND user_id = $2 AND enabled = true AND protocol = 'imap'",
       [req.params.id, req.session.userId]
     );
     if (!result.rows.length) return res.status(404).json({ error: 'Account not found' });

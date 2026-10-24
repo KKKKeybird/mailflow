@@ -155,6 +155,24 @@ describe('account form: automatic Cc and Bcc (#491)', () => {
     assert.equal(field('compose.bccPh').value, 'me');
   });
 
+  test('signed-in accounts can change their proxy without changing OAuth-owned servers', async () => {
+    Object.assign(ACCOUNT, { oauth_provider: 'google', proxy_type: 'socks5', proxy_host: 'proxy.example.invalid', proxy_port: 1080, proxy_password_set: true });
+    reply = updates => ({ ...ACCOUNT, ...updates });
+    try {
+      await openEdit();
+      assert.ok(document.querySelector('[data-signed-in-with="google"]'));
+      assert.equal(document.querySelector('input[placeholder="admin.accounts.imapHostPh"]'), null);
+      await type(document.querySelector('input[aria-label="admin.accounts.proxy.port"]'), '1081');
+      await save();
+      assert.equal(sent[0].updates.proxy_port, 1081);
+      for (const key of ['imap_host', 'smtp_host', 'auth_pass', 'smtp_auth_pass', 'proxy_password']) {
+        assert.equal(key in sent[0].updates, false, `${key} is preserved`);
+      }
+    } finally {
+      for (const key of ['oauth_provider', 'proxy_type', 'proxy_host', 'proxy_port', 'proxy_password_set']) delete ACCOUNT[key];
+    }
+  });
+
   test('proxy credentials stay private on edit and clearing is explicit', async () => {
     ACCOUNT.proxy_type = 'socks5'; ACCOUNT.proxy_host = 'proxy.example.invalid';
     ACCOUNT.proxy_port = 1080; ACCOUNT.proxy_username = 'saved-user'; ACCOUNT.proxy_password_set = true;
