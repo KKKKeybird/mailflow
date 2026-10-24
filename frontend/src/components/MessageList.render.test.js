@@ -1062,7 +1062,7 @@ describe('MessageList — mobile sender card swipes', () => {
   test('right swipe reads the whole group without opening it or acting on its preview', async () => {
     await mobileScenario(async (card, actions) => {
       await React.act(async () => { touch(card, 'touchstart', 20); touch(card, 'touchmove', 140); touch(card, 'touchend', 140); card.click(); });
-      assert.equal(card.style.transform, 'translateX(160px)');
+      assert.equal(card.style.transform, 'translateX(0)');
       assert.equal(card.style.opacity, '1');
       await React.act(async () => { await new Promise(r => setTimeout(r, 220)); });
       assert.deepEqual(actions, [[sender, { accountId: ACCOUNT.id, folder: 'INBOX' }, 'read']]);
@@ -1082,6 +1082,54 @@ describe('MessageList — mobile sender card swipes', () => {
         await React.act(async () => { touch(ordinary, 'touchcancel', endX); touch(card, 'touchcancel', endX); });
       }
     }, [MESSAGE, head]);
+  });
+  test('mark-read springs back while a slow group snapshot is still pending', async () => {
+    await mobileScenario(async (card, actions) => {
+      let finish;
+      const waiting = new Promise(resolve => { finish = resolve; });
+      await React.act(async () => useStore.setState({ performSenderGroupAction: async (...args) => {
+        actions.push(args);
+        useStore.setState({ senderGroupActionPending: { [sender]: true } });
+        return waiting;
+      } }));
+      try {
+        await React.act(async () => {
+          touch(card, 'touchstart', 20); touch(card, 'touchmove', 140); touch(card, 'touchend', 140);
+          await new Promise(r => setTimeout(r, 300));
+        });
+        assert.equal(actions.length, 1);
+        assert.equal(card.style.transform, 'translateX(0)');
+        assert.equal(card.style.opacity, '1');
+        assert.equal(container.querySelector('[data-sender-group]').getAttribute('aria-hidden'), null);
+      } finally { await React.act(async () => { finish({}); await waiting; }); }
+    });
+  });
+  test('archive collapses before a slow lookup finishes, and restores on empty or failed lookup', async () => {
+    for (const fails of [false, true]) await mobileScenario(async card => {
+      let finish;
+      const waiting = new Promise(resolve => { finish = resolve; });
+      await React.act(async () => useStore.setState({ performSenderGroupAction: async () => {
+        useStore.setState({ senderGroupActionPending: { [sender]: true } });
+        try {
+          await waiting;
+          if (fails) throw new Error('late lookup failure');
+        } finally { useStore.setState({ senderGroupActionPending: { [sender]: false } }); }
+      } }));
+      try {
+        await React.act(async () => {
+          touch(card, 'touchstart', 200); touch(card, 'touchmove', 60); touch(card, 'touchend', 60);
+          await new Promise(r => setTimeout(r, 220));
+        });
+        const group = container.querySelector('[data-sender-group]');
+        assert.equal(group.style.maxHeight, '0px', 'collapse does not wait for target enumeration');
+        assert.equal(group.getAttribute('aria-hidden'), 'true');
+        await React.act(async () => { finish(); await waiting; });
+        assert.equal(group.getAttribute('aria-hidden'), null);
+        assert.equal(card.style.opacity, '1');
+        assert.equal(card.disabled, false);
+        if (fails) assert.ok(useStore.getState().notifications.some(n => n.body === 'late lookup failure'));
+      } finally { finish(); }
+    });
   });
   test('both drag directions and completion use the ordinary mail 160px stop', async () => {
     await mobileScenario(async (card, actions) => {

@@ -154,11 +154,14 @@ export function useSwipeRow({ isMobile, message, onSwipeLeft, onSwipeRight, onLo
       }
       const x = s.x;
       resetSwipeState();
-      // Group cards opt into the completion animation; ordinary mail keeps its
-      // existing gesture behavior. Capture this action so rerenders cannot retarget it.
+      // A dismissal can opt into completion on one side ('left'/'right') or
+      // both (true). Other actions spring back immediately, without waiting
+      // for their asynchronous work. Capture the action before any rerender.
       const action = x < -SWIPE_THRESHOLD ? latestRef.current.onSwipeLeft
         : x > SWIPE_THRESHOLD ? latestRef.current.onSwipeRight : null;
-      if (action && latestRef.current.animateCommit) {
+      const completion = latestRef.current.animateCommit;
+      const animateAction = completion === true || completion === (x < 0 ? 'left' : 'right');
+      if (action && animateAction) {
         suppressNextClick();
         committingRef.current = true;
         const message = latestRef.current.message;
