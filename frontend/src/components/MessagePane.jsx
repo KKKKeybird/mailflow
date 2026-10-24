@@ -744,7 +744,12 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
         pendingMarkReadMap.delete(message.id);
         completedMarkReadMap.delete(message.id);
       },
-      update: updateMessage, incrementUnread, decrementUnread, adjustCategoryCount,
+      // The GTD rail shows its own copy of the thread, as the u hotkey keeps it in step.
+      update: (id, fields) => {
+        updateMessage(id, fields);
+        useStore.getState().markGtdThreadRead(message.message_id || message.id, fields.is_read);
+      },
+      incrementUnread, decrementUnread, adjustCategoryCount,
       patch: api.bulkRead,
     }) && isMobile) setSelectedMessage(null);
   }, [message, updateMessage, incrementUnread, decrementUnread, adjustCategoryCount, isMobile, setSelectedMessage]);
@@ -759,6 +764,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
     autoMarkReadTimerRef.current = null;
     cancelScheduledMarkReadFor(message.id);
     applyMarkRead(message);
+    useStore.getState().markGtdThreadRead(message.message_id || message.id, true);
   }, [message]);
 
   const handleToggleRead = useCallback(() => {

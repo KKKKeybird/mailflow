@@ -1155,6 +1155,20 @@ describe('the toolbar read toggle (#683)', () => {
     assert.deepEqual(bulkRead.mock.calls.map(c => c.arguments[1]), [true]);
   });
 
+  test('the toolbar toggle keeps the GTD rail copy of the thread in step', async (t) => {
+    const { msg } = await openRead(t, { message_id: '<gtd-683@example.com>' });
+    const rail = { ...msg, id: 'rail-683', is_read: true };
+    await React.act(async () => { useStore.setState({ gtdSections: { reference: { threads: [rail] } } }); });
+    try {
+      await React.act(async () => { click(toolbarButton('contextMenu.markUnread')); });
+      assert.equal(useStore.getState().gtdSections.reference.threads[0].is_read, false);
+      await React.act(async () => { click(toolbarButton('contextMenu.markRead')); });
+      assert.equal(useStore.getState().gtdSections.reference.threads[0].is_read, true);
+    } finally {
+      await React.act(async () => { useStore.setState({ gtdSections: null }); });
+    }
+  });
+
   test("the row's context menu offers Mark as read once the pane marked it unread", async (t) => {
     await openRead(t);
     await React.act(async () => { click(toolbarButton('contextMenu.markUnread')); });
