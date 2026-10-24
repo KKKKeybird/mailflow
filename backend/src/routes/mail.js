@@ -26,7 +26,7 @@ import { safeFetch } from '../services/safeFetch.js';
 import { safeFilename, attachmentDisposition, truncateFilename } from '../utils/contentDisposition.js';
 import { tokenize, extractFlagFeatures } from '../services/spamTokenizer.js';
 import { updateIncrementalForUser } from '../services/spamModelStore.js';
-import { findOwnedAccount, findOwnedMessage, findOwnedMessages } from '../services/ownership.js';
+import { findOwnedAccount, findOwnedMessage, findOwnedMessages, SIBLING_COUNT } from '../services/ownership.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -979,13 +979,7 @@ router.get('/messages/:id/raw.eml', async (req, res) => {
   }
 });
 
-// The message row plus how many rows share its Message-ID in the account, for the read and star
-// toggles' sibling fan-out.
-const WITH_SIBLING_COUNT = `m.*, a.user_id,
-           CASE WHEN m.message_id IS NULL THEN 1
-                ELSE (SELECT COUNT(*) FROM messages s
-                       WHERE s.account_id = m.account_id AND s.message_id = m.message_id)
-           END AS sibling_count`;
+const WITH_SIBLING_COUNT = `m.*, a.user_id, ${SIBLING_COUNT}`;
 
 // Mark read/unread
 router.patch('/messages/:id/read', async (req, res) => {

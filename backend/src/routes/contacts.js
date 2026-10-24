@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { query } from '../services/db.js';
-import { findOwnedContact } from '../services/ownership.js';
+import { findOwnedContact, CONTACT_READ_ONLY } from '../services/ownership.js';
 import { requireAuth } from '../middleware/auth.js';
 import { generateVCard, photoContentType } from '../utils/vcard.js';
 import { safeFetch } from '../services/safeFetch.js';
@@ -222,8 +222,7 @@ router.get('/:id', async (req, res) => {
       columns: `c.id, c.uid, c.display_name, c.first_name, c.last_name,
               c.primary_email, c.emails, c.phones, c.organization,
               c.notes, c.photo_data, c.is_auto, c.send_count, c.last_sent,
-              c.etag, c.vcard, c.created_at, c.updated_at,
-              (ab.source = 'carddav') AS read_only`,
+              c.etag, c.vcard, c.created_at, c.updated_at, ${CONTACT_READ_ONLY}`,
     });
     if (!contact) return res.status(404).json({ error: 'Contact not found' });
     res.json(contact);

@@ -8,6 +8,7 @@ vi.mock('./db.js', () => ({ query: vi.fn() }));
 import { query } from './db.js';
 import {
   findOwnedAccount, findOwnedMessage, findOwnedMessages, findOwnedAlias, findOwnedContact, findOwnedAddressBook,
+  checkColumns, SIBLING_COUNT, CONTACT_READ_ONLY,
 } from './ownership.js';
 
 const flat = sql => sql.replace(/\s+/g, ' ').trim();
@@ -65,6 +66,29 @@ describe('ownership lookups', () => {
     const client = { query: vi.fn().mockResolvedValue({ rows: [{ id: 'acc' }] }) };
     expect(await findOwnedAccount('u1', 'acc', { columns: 'id', client })).toEqual({ id: 'acc' });
     expect(client.query).toHaveBeenCalledWith('SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2', ['acc', 'u1']);
+    expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe('the columns a lookup selects', () => {
+  it('takes plain column lists and the named computed columns', () => {
+    for (const ok of ['*', 'id', 'm.*', 'id, folder_mappings', 'm.*, a.user_id AS owner_id, a.folder_mappings',
+      `m.id,\n       m.uid, a.name AS account_name`, `m.*, a.user_id, ${SIBLING_COUNT}`, `c.id, c.uid, ${CONTACT_READ_ONLY}`]) {
+      expect(checkColumns(ok)).toBe(ok);
+    }
+  });
+
+  it('refuses anything that is not a column list, before any query', async () => {
+    for (const bad of ['', ' ', 'id; DROP TABLE users', 'id FROM users --', '(SELECT password_hash FROM users)',
+      'id, (SELECT 1)', '1', "id || 'x'", 'id AS from', 'a.id AS x y', 'id /* */', 'a.b.c', 'CASE WHEN 1 THEN 2 END AS x',
+      `${SIBLING_COUNT} OR 1=1`, 'select', null, ['id']]) {
+      expect(() => checkColumns(bad), JSON.stringify(bad)).toThrow(TypeError);
+    }
+    await expect(findOwnedAccount('u1', 'acc', { columns: 'id FROM users WHERE 1=1 --' })).rejects.toThrow(TypeError);
+    await expect(findOwnedMessage('u1', 'm1', { columns: '(SELECT password_hash FROM users LIMIT 1) AS x' })).rejects.toThrow(TypeError);
+    await expect(findOwnedMessages('u1', ['m1'], { columns: 'm.id; DELETE FROM messages' })).rejects.toThrow(TypeError);
+    await expect(findOwnedContact('u1', 'c1', { columns: 'c.*, (SELECT 1) AS y' })).rejects.toThrow(TypeError);
+    await expect(findOwnedAddressBook('u1', 'b1', { columns: 'id UNION SELECT 1' })).rejects.toThrow(TypeError);
     expect(query).not.toHaveBeenCalled();
   });
 });
