@@ -559,29 +559,44 @@ const undoAad = row => `scheduled:${row.id}:${row.user_id}:undo:${row.version}`;
 
 // The values the Undo puts back are read under a lock in the same transaction as the change, so
 // they are exactly what it replaced.
+//
+// A message open for editing (design 2.4, as built in step 7) is sent from its composer with the
+// hold's editToken: in the same UPDATE, so there is no moment in which it is released and due,
+// for the sender to claim it without an Undo. What the Undo puts back is then the message as it
+// was before the hold (status_before and its time), and the confirmation rules follow that
+// status. Any token that is not the current hold's is 409 hold_lost.
 router.post('/scheduled/:id/send-now', validId, async (req, res) => {
   const userId = req.session.userId;
   const confirm = req.body?.confirm === true;
+  const given = req.body?.editToken;
+  if (given !== undefined && given !== null && (typeof given !== 'string' || !UUID_RE.test(given))) {
+    return fail(res, 400, 'editToken must be a UUID');
+  }
   const done = await withTransaction(async client => {
     const row = await findOwnedScheduledMessage(userId, req.params.id, {
       client, forUpdate: true,
-      columns: 'id, user_id, status, pause_reason, version, send_at, due_at, attempts, failure_code',
+      columns: 'id, user_id, status, status_before, edit_token, pause_reason, version, send_at, due_at, attempts, failure_code',
     });
     if (!row) return { missing: true };
-    if (!MOVABLE.includes(row.status)) return { state: row.status };
-    const ask = needsConfirm(row, confirm);
+    const editing = row.status === 'editing';
+    if (given && !(editing && row.edit_token === given)) return { lost: true };
+    if (editing && !given) return { state: row.status };
+    const previousStatus = editing ? (row.status_before || 'scheduled') : row.status;
+    if (!MOVABLE.includes(previousStatus)) return { state: row.status };
+    const ask = confirmFor(previousStatus, row.pause_reason, confirm);
     if (ask) return { ask };
     const { rows: [updated] } = await client.query(
       // To the millisecond, so the Undo token, which carries it as JSON, names it exactly.
       `UPDATE scheduled_messages
           SET status = 'scheduled', send_at = date_trunc('milliseconds', NOW() + $3::interval),
               due_at = date_trunc('milliseconds', NOW() + $3::interval), attempts = 0, failure_code = NULL,
-              pause_reason = NULL, updated_at = NOW()
+              pause_reason = NULL, status_before = NULL, edit_token = NULL, edit_lease_until = NULL, updated_at = NOW()
         WHERE id = $1 AND user_id = $2 RETURNING *`,
       [row.id, userId, `${SEND_NOW_DELAY_MS} milliseconds`],
     );
-    return { row, updated };
+    return { row: { ...row, status: previousStatus }, updated };
   });
+  if (done.lost) return lostHold(res, userId, req.params.id);
   if (done.missing) return fail(res, 404, 'Scheduled message not found');
   if (done.state) return fail(res, 409, stateMessage(done.state), { status: done.state });
   if (done.ask) return fail(res, 409, done.ask.error, { code: done.ask.code });

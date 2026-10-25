@@ -508,6 +508,56 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
       expect((await call('POST', `/${id}/send-now/undo`, { undoToken: now.body.undoToken })).status).toBe(409);
     });
 
+    it('sends a message open for editing with its hold token, and Undo puts back the message as before the hold', async () => {
+      const id = await create();
+      await set(id, { status: 'failed', failure_code: 'smtp_rejected', attempts: 2 });
+      const before = await rowOf(id);
+      const { body: { editToken } } = await call('POST', `/${id}/hold`, {});
+      // Without the token, or with another, nothing happens.
+      expect(await call('POST', `/${id}/send-now`, {})).toMatchObject({ status: 409, body: { status: 'editing' } });
+      expect(await call('POST', `/${id}/send-now`, { editToken: randomUUID() })).toMatchObject({ status: 409, body: { code: 'hold_lost' } });
+      expect((await call('POST', `/${id}/send-now`, { editToken }, stranger.id)).status).toBe(404);
+      expect((await rowOf(id)).status).toBe('editing');
+      imapManager.broadcast.mockClear();
+      const now = await call('POST', `/${id}/send-now`, { editToken });
+      expect(now.status).toBe(200);
+      const row = await rowOf(id);
+      expect(row).toMatchObject({ status: 'scheduled', attempts: 0, failure_code: null, status_before: null, edit_token: null, edit_lease_until: null });
+      expect(row.send_at.getTime() - Date.now()).toBeGreaterThan(5000);
+      expect(row.send_at.getTime() - Date.now()).toBeLessThan(11_000);
+      expect(row.due_at).toEqual(row.send_at);
+      expect(broadcasts()).toEqual([{ type: 'scheduled_changed', id, status: 'scheduled' }]);
+      // The hold is spent: its token sends nothing again.
+      expect((await call('POST', `/${id}/send-now`, { editToken })).body.code).toBe('hold_lost');
+      expect((await call('POST', `/${id}/send-now/undo`, { undoToken: now.body.undoToken })).status).toBe(200);
+      expect(await rowOf(id)).toMatchObject({
+        status: 'failed', failure_code: 'smtp_rejected', attempts: 2, send_at: before.send_at, due_at: before.due_at, version: before.version,
+      });
+    });
+
+    it('a held message keeps its confirmations, and its Undo puts back a pause the user chose', async () => {
+      const uncertain = await create();
+      await set(uncertain, { status: 'uncertain', smtp_started_at: new Date() });
+      let { body: { editToken } } = await call('POST', `/${uncertain}/hold`, {});
+      expect((await call('POST', `/${uncertain}/send-now`, { editToken })).body.code).toBe('confirm_uncertain');
+      expect((await rowOf(uncertain)).status).toBe('editing');
+      expect((await call('POST', `/${uncertain}/send-now`, { editToken, confirm: true })).status).toBe(200);
+
+      const restored = await create();
+      await set(restored, { status: 'paused', pause_reason: 'restored' });
+      ({ body: { editToken } } = await call('POST', `/${restored}/hold`, {}));
+      expect((await call('POST', `/${restored}/send-now`, { editToken })).body.code).toBe('confirm_restored');
+
+      const paused = await create();
+      await set(paused, { status: 'paused', pause_reason: 'user' });
+      const before = await rowOf(paused);
+      ({ body: { editToken } } = await call('POST', `/${paused}/hold`, {}));
+      const now = await call('POST', `/${paused}/send-now`, { editToken });
+      expect(now.status).toBe(200);
+      expect((await call('POST', `/${paused}/send-now/undo`, { undoToken: now.body.undoToken })).status).toBe(200);
+      expect(await rowOf(paused)).toMatchObject({ status: 'paused', pause_reason: 'user', send_at: before.send_at, due_at: before.due_at, edit_token: null });
+    });
+
     it('cannot undo Send now once it is claimed or its 10 s are over, or with a forged token', async () => {
       const id = await create();
       const now = await call('POST', `/${id}/send-now`, {});

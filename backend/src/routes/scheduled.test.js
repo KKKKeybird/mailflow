@@ -164,6 +164,42 @@ describe('hold takeover', () => {
   });
 });
 
+describe('send now with an edit hold', () => {
+  const token = '66666666-6666-4666-8666-666666666666';
+  beforeEach(() => { withTransaction.mockImplementation(fn => fn({ query })); });
+  const owned = row => findOwnedScheduledMessage.mockResolvedValue({ id: ID, user_id: 'u1', version: 1, ...row });
+
+  it('a token that is not the hold is 409 hold_lost, and nothing is changed', async () => {
+    owned({ status: 'editing', edit_token: randomUUID(), status_before: 'scheduled' });
+    expect(await call('POST', `/${ID}/send-now`, { editToken: token })).toMatchObject({ status: 409, body: { code: 'hold_lost' } });
+    owned({ status: 'scheduled', edit_token: null });
+    expect((await call('POST', `/${ID}/send-now`, { editToken: token })).body.code).toBe('hold_lost');
+    expect((await call('POST', `/${ID}/send-now`, { editToken: 'x' })).status).toBe(400);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('asks as the status before the hold would', async () => {
+    owned({ status: 'editing', edit_token: token, status_before: 'uncertain' });
+    expect((await call('POST', `/${ID}/send-now`, { editToken: token })).body.code).toBe('confirm_uncertain');
+    owned({ status: 'editing', edit_token: token, status_before: 'paused', pause_reason: 'restored' });
+    expect((await call('POST', `/${ID}/send-now`, { editToken: token })).body.code).toBe('confirm_restored');
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('with the token, one UPDATE sends it and ends the hold', async () => {
+    vi.stubEnv('ENCRYPTION_KEY', '6e'.repeat(32));
+    try {
+      owned({ status: 'editing', edit_token: token, status_before: 'scheduled', send_at: new Date(), due_at: new Date(), attempts: 0 });
+      query.mockResolvedValue({ rows: [{ id: ID, user_id: 'u1', version: 1, send_at: new Date(Date.now() + 10_000) }] });
+      expect(await call('POST', `/${ID}/send-now`, { editToken: token })).toMatchObject({ status: 200, body: { status: 'scheduled', undoToken: expect.any(String) } });
+      expect(query).toHaveBeenCalledTimes(1);
+      expect(query.mock.calls[0][0]).toMatch(/edit_token = NULL, edit_lease_until = NULL/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+});
+
 describe('release', () => {
   beforeEach(() => { query.mockResolvedValue({ rows: [{ id: ID, status: 'paused' }] }); });
 
