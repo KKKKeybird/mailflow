@@ -201,6 +201,54 @@
     "recipientMenu": {
       "copy": "Copy address",
       "copyAll": "Copy all in this field"
+    },
+    "scheduleSend": {
+      "title": "Send later",
+      "tooltip": "Send later (Ctrl+Shift+Enter)",
+      "tomorrowMorning": "Tomorrow morning",
+      "tomorrowAfternoon": "Tomorrow afternoon",
+      "mondayMorning": "Monday morning",
+      "pick": "Pick date and time",
+      "dateLabel": "Date",
+      "timeLabel": "Time",
+      "dateTimeLabel": "Date and time",
+      "sendsAt": "Sends {{when}}",
+      "timeZone": "Time zone: {{zone}}",
+      "schedule": "Schedule send",
+      "scheduledFor": "Scheduled for {{when}}",
+      "change": "Change",
+      "changeTime": "Change time",
+      "errors": {
+        "invalid": "Enter a date and a time.",
+        "past": "That time has already passed.",
+        "tooSoon": "Pick a time at least a minute from now.",
+        "tooFar": "Pick a time within the next 366 days.",
+        "clockBehind": "This device's clock is {{minutes}} min behind the server's, which says it is {{time}}.",
+        "clockAhead": "This device's clock is {{minutes}} min ahead of the server's, which says it is {{time}}.",
+        "holdLost": "This message is no longer open for editing here, so your changes were not saved. It may be open in another window. Close it and open it again from Scheduled.",
+        "versionConflict": "This message was changed somewhere else. Close it and open it again from Scheduled to see the latest version.",
+        "notHeld": "This message is not open for editing here. Close it and open it again from Scheduled.",
+        "pickNewTime": "Its scheduled time has passed. Pick a new time.",
+        "failed": "The message could not be scheduled."
+      },
+      "edit": {
+        "update": "Update",
+        "updating": "Saving…",
+        "options": "Scheduling options",
+        "unschedule": "Unschedule (save as draft)",
+        "unscheduleTitle": "Move this message to Drafts?",
+        "unscheduleGo": "Save as draft",
+        "unscheduled": "Moved to Drafts",
+        "unscheduleKept": "Saved to Drafts, but the scheduled message is still scheduled: this window no longer held it. Delete it from Scheduled if it should not go out.",
+        "closeTitle": "Save changes to this scheduled message?",
+        "saveChanges": "Save changes",
+        "discardChanges": "Discard changes",
+        "switchBlocked": "Update or close the scheduled message you are editing first."
+      },
+      "confirm": {
+        "title": "Schedule it again?",
+        "go": "Schedule anyway"
+      }
     }
   },
   "message": {

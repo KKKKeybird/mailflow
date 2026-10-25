@@ -201,6 +201,54 @@
     "recipientMenu": {
       "copy": "Copiar dirección",
       "copyAll": "Copiar todas en este campo"
+    },
+    "scheduleSend": {
+      "title": "Enviar más tarde",
+      "tooltip": "Enviar más tarde (Ctrl+Mayús+Intro)",
+      "tomorrowMorning": "Mañana por la mañana",
+      "tomorrowAfternoon": "Mañana por la tarde",
+      "mondayMorning": "El lunes por la mañana",
+      "pick": "Elegir fecha y hora",
+      "dateLabel": "Fecha",
+      "timeLabel": "Hora",
+      "dateTimeLabel": "Fecha y hora",
+      "sendsAt": "Se envía el {{when}}",
+      "timeZone": "Zona horaria: {{zone}}",
+      "schedule": "Programar envío",
+      "scheduledFor": "Programado para el {{when}}",
+      "change": "Cambiar",
+      "changeTime": "Cambiar la hora",
+      "errors": {
+        "invalid": "Introduce una fecha y una hora.",
+        "past": "Ese momento ya pasó.",
+        "tooSoon": "Elige un momento al menos un minuto a partir de ahora.",
+        "tooFar": "Elige un momento dentro de los próximos 366 días.",
+        "clockBehind": "El reloj de este dispositivo va {{minutes}} min por detrás del del servidor, que dice que son las {{time}}.",
+        "clockAhead": "El reloj de este dispositivo va {{minutes}} min por delante del del servidor, que dice que son las {{time}}.",
+        "holdLost": "Este mensaje ya no está abierto para editarlo aquí, así que tus cambios no se guardaron. Puede que esté abierto en otra ventana. Ciérralo y vuelve a abrirlo desde Programados.",
+        "versionConflict": "Este mensaje se cambió en otro lugar. Ciérralo y vuelve a abrirlo desde Programados para ver la última versión.",
+        "notHeld": "Este mensaje no está abierto para editarlo aquí. Ciérralo y vuelve a abrirlo desde Programados.",
+        "pickNewTime": "Su hora programada ya pasó. Elige una nueva.",
+        "failed": "No se pudo programar el mensaje."
+      },
+      "edit": {
+        "update": "Actualizar",
+        "updating": "Guardando…",
+        "options": "Opciones de programación",
+        "unschedule": "Desprogramar (guardar como borrador)",
+        "unscheduleTitle": "¿Mover este mensaje a Borradores?",
+        "unscheduleGo": "Guardar como borrador",
+        "unscheduled": "Movido a Borradores",
+        "unscheduleKept": "Guardado en Borradores, pero el mensaje programado sigue programado: esta ventana ya no lo tenía. Elimínalo desde Programados si no debe enviarse.",
+        "closeTitle": "¿Guardar los cambios de este mensaje programado?",
+        "saveChanges": "Guardar cambios",
+        "discardChanges": "Descartar cambios",
+        "switchBlocked": "Primero actualiza o cierra el mensaje programado que estás editando."
+      },
+      "confirm": {
+        "title": "¿Programarlo de nuevo?",
+        "go": "Programar de todos modos"
+      }
     }
   },
   "message": {

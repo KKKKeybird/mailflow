@@ -201,6 +201,54 @@
     "recipientMenu": {
       "copy": "Copia indirizzo",
       "copyAll": "Copia tutti in questo campo"
+    },
+    "scheduleSend": {
+      "title": "Invia più tardi",
+      "tooltip": "Invia più tardi (Ctrl+Maiusc+Invio)",
+      "tomorrowMorning": "Domani mattina",
+      "tomorrowAfternoon": "Domani pomeriggio",
+      "mondayMorning": "Lunedì mattina",
+      "pick": "Scegli data e ora",
+      "dateLabel": "Data",
+      "timeLabel": "Ora",
+      "dateTimeLabel": "Data e ora",
+      "sendsAt": "Invio: {{when}}",
+      "timeZone": "Fuso orario: {{zone}}",
+      "schedule": "Programma invio",
+      "scheduledFor": "Programmato per {{when}}",
+      "change": "Cambia",
+      "changeTime": "Cambia orario",
+      "errors": {
+        "invalid": "Inserisci una data e un'ora.",
+        "past": "Quel momento è già passato.",
+        "tooSoon": "Scegli un momento ad almeno un minuto da adesso.",
+        "tooFar": "Scegli un momento entro i prossimi 366 giorni.",
+        "clockBehind": "L'orologio di questo dispositivo è indietro di {{minutes}} min rispetto a quello del server, secondo cui sono le {{time}}.",
+        "clockAhead": "L'orologio di questo dispositivo è avanti di {{minutes}} min rispetto a quello del server, secondo cui sono le {{time}}.",
+        "holdLost": "Questo messaggio non è più aperto per la modifica qui, quindi le modifiche non sono state salvate. Potrebbe essere aperto in un'altra finestra. Chiudilo e riaprilo da Programmati.",
+        "versionConflict": "Questo messaggio è stato modificato altrove. Chiudilo e riaprilo da Programmati per vedere la versione più recente.",
+        "notHeld": "Questo messaggio non è aperto per la modifica qui. Chiudilo e riaprilo da Programmati.",
+        "pickNewTime": "L'orario programmato è passato. Scegline uno nuovo.",
+        "failed": "Impossibile programmare il messaggio."
+      },
+      "edit": {
+        "update": "Aggiorna",
+        "updating": "Salvataggio…",
+        "options": "Opzioni di programmazione",
+        "unschedule": "Annulla programmazione (salva come bozza)",
+        "unscheduleTitle": "Spostare questo messaggio nelle bozze?",
+        "unscheduleGo": "Salva come bozza",
+        "unscheduled": "Spostato nelle bozze",
+        "unscheduleKept": "Salvato nelle bozze, ma il messaggio programmato è ancora programmato: questa finestra non lo teneva più. Eliminalo da Programmati se non deve partire.",
+        "closeTitle": "Salvare le modifiche a questo messaggio programmato?",
+        "saveChanges": "Salva modifiche",
+        "discardChanges": "Scarta modifiche",
+        "switchBlocked": "Prima aggiorna o chiudi il messaggio programmato che stai modificando."
+      },
+      "confirm": {
+        "title": "Programmarlo di nuovo?",
+        "go": "Programma comunque"
+      }
     }
   },
   "message": {

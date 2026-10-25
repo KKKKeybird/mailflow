@@ -201,6 +201,54 @@
     "recipientMenu": {
       "copy": "Adresse kopieren",
       "copyAll": "Alle in diesem Feld kopieren"
+    },
+    "scheduleSend": {
+      "title": "Später senden",
+      "tooltip": "Später senden (Strg+Umschalt+Eingabe)",
+      "tomorrowMorning": "Morgen früh",
+      "tomorrowAfternoon": "Morgen Nachmittag",
+      "mondayMorning": "Montag früh",
+      "pick": "Datum und Uhrzeit wählen",
+      "dateLabel": "Datum",
+      "timeLabel": "Uhrzeit",
+      "dateTimeLabel": "Datum und Uhrzeit",
+      "sendsAt": "Wird gesendet: {{when}}",
+      "timeZone": "Zeitzone: {{zone}}",
+      "schedule": "Senden planen",
+      "scheduledFor": "Geplant für {{when}}",
+      "change": "Ändern",
+      "changeTime": "Zeit ändern",
+      "errors": {
+        "invalid": "Gib ein Datum und eine Uhrzeit ein.",
+        "past": "Dieser Zeitpunkt ist schon vorbei.",
+        "tooSoon": "Wähle einen Zeitpunkt mindestens eine Minute ab jetzt.",
+        "tooFar": "Wähle einen Zeitpunkt innerhalb der nächsten 366 Tage.",
+        "clockBehind": "Die Uhr dieses Geräts geht {{minutes}} Min. nach gegenüber dem Server, laut dem es {{time}} ist.",
+        "clockAhead": "Die Uhr dieses Geräts geht {{minutes}} Min. vor gegenüber dem Server, laut dem es {{time}} ist.",
+        "holdLost": "Diese Nachricht ist hier nicht mehr zum Bearbeiten geöffnet, deine Änderungen wurden nicht gespeichert. Vielleicht ist sie in einem anderen Fenster offen. Schließe sie und öffne sie erneut unter Geplant.",
+        "versionConflict": "Diese Nachricht wurde an anderer Stelle geändert. Schließe sie und öffne sie erneut unter Geplant, um die neueste Fassung zu sehen.",
+        "notHeld": "Diese Nachricht ist hier nicht zum Bearbeiten geöffnet. Schließe sie und öffne sie erneut unter Geplant.",
+        "pickNewTime": "Der geplante Zeitpunkt ist vorbei. Wähle einen neuen.",
+        "failed": "Die Nachricht konnte nicht geplant werden."
+      },
+      "edit": {
+        "update": "Aktualisieren",
+        "updating": "Wird gespeichert…",
+        "options": "Planungsoptionen",
+        "unschedule": "Planung aufheben (als Entwurf speichern)",
+        "unscheduleTitle": "Diese Nachricht in die Entwürfe verschieben?",
+        "unscheduleGo": "Als Entwurf speichern",
+        "unscheduled": "In die Entwürfe verschoben",
+        "unscheduleKept": "In den Entwürfen gespeichert, aber die geplante Nachricht ist weiter geplant: Dieses Fenster hatte sie nicht mehr. Lösche sie unter Geplant, wenn sie nicht gesendet werden soll.",
+        "closeTitle": "Änderungen an dieser geplanten Nachricht speichern?",
+        "saveChanges": "Änderungen speichern",
+        "discardChanges": "Änderungen verwerfen",
+        "switchBlocked": "Aktualisiere oder schließe zuerst die geplante Nachricht, die du bearbeitest."
+      },
+      "confirm": {
+        "title": "Erneut planen?",
+        "go": "Trotzdem planen"
+      }
     }
   },
   "message": {

@@ -24,7 +24,7 @@ import { PasteWithoutPageColors } from '../utils/editorPaste.js';
 import { pasteWithoutPageColors } from '../utils/contentEditablePaste.js';
 import { copyToClipboard } from '../utils/clipboard.js';
 import { resolveInitialFrom } from '../utils/defaultSender.js';
-import { initialComposeFocus, isComposeSendShortcut } from '../utils/composeFromMessage.js';
+import { initialComposeFocus, isComposeSendShortcut, isSendLaterShortcut } from '../utils/composeFromMessage.js';
 import { unproxyImages } from '../utils/imageProxy.js';
 import { autoListsOf, openAutoRecipients, replyTypeFields, swapAccountFields } from '../utils/autoRecipients.js';
 import { resolveSignatureEnabled } from '../utils/composeSignature.js';
@@ -34,6 +34,11 @@ import { frameGeometry } from '../utils/frameGeometry.js';
 import { AI_MESSAGE_MAX_CHARS } from '../aiActions.js';
 import { stripTags } from '../utils/stripTags.js';
 import { aiTextToHtml } from '../utils/aiText.js';
+import { browserTimeZone, checkSendAt, formatSendAt } from '../utils/scheduleTimes.js';
+import {
+  createEditHold, isScheduledEdit, needsConfirmation, newClientKey, openScheduledView, scheduleErrorText,
+} from '../utils/scheduledCompose.js';
+import { ComposeQuestion, ScheduledStrip, SendLaterIcon, SendLaterMenu, SendLaterSheet } from './SendLater.jsx';
 
 // Resize an image blob/file to max maxW pixels wide, preserving aspect ratio.
 // Returns a Promise<string> of a base64 data URL.
@@ -211,6 +216,9 @@ export default function ComposeModal() {
 
   const isReply = !!(composeData?.isReply || composeData?.isReplyAll);
   const isForward = !!composeData?.isForward;
+  // A scheduled message opened to change it (#543, utils/scheduledCompose.js): held while it is
+  // open, saved with Update, and never autosaved to Drafts.
+  const scheduledEdit = isScheduledEdit(composeData) ? composeData.scheduled : null;
 
   // Precedence lives in resolveInitialFrom, which is unit tested. The rung that matters
   // here is the configured default sender: in the unified inbox there is no selected
@@ -241,7 +249,7 @@ export default function ComposeModal() {
     const account = accounts.find(a => a.id === resolveFrom(fromValue).accountId);
     const opened = openAutoRecipients(
       { to: parseChips(composeData?.to), cc: parseChips(composeData?.cc), bcc: parseChips(composeData?.bcc) },
-      autoListsOf(composeData?.draftUid != null || composeData?.restored ? null : account),
+      autoListsOf(composeData?.draftUid != null || composeData?.restored || scheduledEdit ? null : account),
     );
     return { ...opened, auto: { ...opened.auto, accountId: account?.id ?? null } };
   });
@@ -274,6 +282,23 @@ export default function ComposeModal() {
   // Given back with a message reopened after undo send; drafts do not carry attachments.
   const [attachments, setAttachments] = useState(() => composeData?.attachments || []);
   const [fwdAttachments, setFwdAttachments] = useState(() => composeData?.forwardedAttachments || []);
+  // Send later (#543). A scheduled message keeps the stored attachments still listed here
+  // (metadata only: the bytes stay on the server) and goes at scheduledAt unless changed.
+  const [scheduledAttachments, setScheduledAttachments] = useState(() => scheduledEdit?.attachments || []);
+  const [scheduledAt] = useState(() => scheduledEdit?.sendAt || null);
+  const [sendLaterOpen, setSendLaterOpen] = useState(false);
+  // What scheduling asks: { kind: 'confirm', text, retry }, 'unscheduleAttachments' or 'closeEdit'.
+  const [scheduleQuestion, setScheduleQuestion] = useState(null);
+  // Whether this composer holds the scheduled message it edits; Update and Unschedule need it.
+  const [holdReady, setHoldReady] = useState(false);
+  const sendLaterBtnRef = useRef(null);
+  const holdRef = useRef(null);
+  // One create key per composer (the server dedupes on it), so a double click or a retry after
+  // a lost response never schedules the message twice.
+  const clientKeyRef = useRef(null);
+  // Send, Send later and Update all pass the empty-subject and forgotten-attachment warnings; the
+  // warning's "Send anyway" carries on with whichever raised it.
+  const warnContinueRef = useRef(null);
 
   // Baseline values captured at open time — updated after each successful keep-open save
   // so isDirty() reflects changes since the last save, not since the modal opened.
@@ -793,6 +818,10 @@ export default function ComposeModal() {
       e.preventDefault();
       e.stopPropagation();
       handleSend();
+    } else if (isSendLaterShortcut(e)) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (!sending) setSendLaterOpen(true);
     }
   };
 
@@ -866,29 +895,33 @@ export default function ComposeModal() {
     setAiPanel(null);
   };
 
-  const handleSend = async ({ skipSubjectWarn = false, skipAttachWarn = false } = {}) => {
-    if (useStore.getState().user?.id !== composeOwner) return;
-    if (sending || sendingRef.current || sendWaitingRef.current) return;
+  // The checks Send, Send later and Update share, in this order. Resolves the sender, or null when
+  // the message cannot go yet. `resume(opts)` carries on later: once a draft save in progress is
+  // done, or from a warning's "Send anyway".
+  const readyToSubmit = async ({ skipSubjectWarn = false, skipAttachWarn = false } = {}, resume) => {
+    if (useStore.getState().user?.id !== composeOwner) return null;
+    if (sending || sendingRef.current || sendWaitingRef.current) return null;
     if (composeSwitchRef.current?.isSaving()) {
       sendWaitingRef.current = true;
       try { await composeSwitchRef.current.waitForIdle(); }
       finally { sendWaitingRef.current = false; }
       const active = useStore.getState();
-      if (!active.composing || active.composeSession !== composeSession) return;
-      return sendRef.current({ skipSubjectWarn, skipAttachWarn });
+      if (active.composing && active.composeSession === composeSession) resume({ skipSubjectWarn, skipAttachWarn });
+      return null;
     }
-    if (unsupportedSenderRef.current) { setError(t('compose.unsupportedDraftFrom', { defaultValue: 'Choose a configured sender before saving or sending this draft.' })); return false; }
+    if (unsupportedSenderRef.current) { setError(t('compose.unsupportedDraftFrom', { defaultValue: 'Choose a configured sender before saving or sending this draft.' })); return null; }
     if (composeData?.unresolvedExternalAttachments) {
       setError(t('compose.draftHasAttachments'));
-      return;
+      return null;
     }
     const { accountId, aliasId } = resolveFrom(fromValue);
     const toFinal = [...toChips, ...(toInput.trim() ? [toInput.trim()] : [])];
-    if (!toFinal.length || !accountId) return;
+    if (!toFinal.length || !accountId) return null;
 
     if (!skipSubjectWarn && subject.trim() === '') {
+      warnContinueRef.current = resume;
       setShowEmptySubjectWarn(true);
-      return;
+      return null;
     }
 
     if (!skipAttachWarn) {
@@ -898,22 +931,22 @@ export default function ComposeModal() {
       const keywords = t('compose.attachmentKeywords').split('|');
       const lower = composedText.toLowerCase();
       const hasAttachmentWord = keywords.some(kw => lower.includes(kw.toLowerCase()));
-      const hasNoAttachment = attachments.length === 0 && fwdAttachments.length === 0;
+      const hasNoAttachment = attachments.length === 0 && fwdAttachments.length === 0 && scheduledAttachments.length === 0;
       if (hasAttachmentWord && hasNoAttachment) {
+        warnContinueRef.current = resume;
         setShowForgottenAttachWarn(true);
-        return;
+        return null;
       }
     }
+    return { accountId, aliasId };
+  };
+  const continueAfterWarning = (opts) => (warnContinueRef.current || sendRef.current)(opts);
 
-    localStorage.setItem('mailflow_last_from_account', accountId);
-    sendingRef.current = true;
-    setSending(true);
-    setError('');
+  // The message as Send, Send later and Update send it (design 5.1): the request body without
+  // the undo window and the draft pointer, and what the composer needs to put it back.
+  const buildSendPayload = (accountId, aliasId) => {
+    const toFinal = [...toChips, ...(toInput.trim() ? [toInput.trim()] : [])];
     const bodyToSend = plaintextEmail ? body : (htmlMode ? htmlSource : (editor?.getHTML() ?? ''));
-    // crypto.randomUUID needs a secure context; fall back for plain-HTTP LAN deployments.
-    if (!idempotencyKeyRef.current) {
-      idempotencyKeyRef.current = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
-    }
     const ccFinal = [...ccChips, ...(ccInput.trim() ? [ccInput.trim()] : [])];
     const bccFinal = [...bccChips, ...(bccInput.trim() ? [bccInput.trim()] : [])];
     // Taken with the recipients it describes: From stays usable while the request is out.
@@ -923,42 +956,64 @@ export default function ComposeModal() {
       : null;
     const savedDraft = draftPointerRef.current;
     const hasDraft = savedDraft.uid != null && savedDraft.folder != null && savedDraft.accountId;
+    const payload = {
+      accountId,
+      ...(aliasId ? { aliasId } : {}),
+      to: toFinal,
+      cc: ccFinal,
+      bcc: bccFinal,
+      subject,
+      // Images shown through MailFlow's proxy go out as the email's own references.
+      body: plaintextEmail ? bodyToSend : unproxyImages(bodyToSend),
+      bodyIsHtml: !plaintextEmail,
+      ...(quotedBody ? { quotedBody } : {}),
+      ...(sentQuotedHtml != null ? { quotedBodyHtml: unproxyImages(sentQuotedHtml) } : {}),
+      // Off sends an empty override, or the server would add the account's signature.
+      ...(!signatureEnabled || signatureContentRef.current || fromSignature != null || composeData?.signature !== undefined
+        ? { editedSignature: !signatureEnabled ? '' : plaintextEmail ? plainSig : unproxyImages(signatureContentRef.current) }
+        : {}),
+      inReplyTo: composeData?.inReplyTo,
+      references: composeData?.references || undefined,
+      ...(priority !== 'normal' ? { priority } : {}),
+      ...(attachments.length ? {
+        attachments: attachments.map(a => ({
+          filename: a.name,
+          content: a.data,
+          encoding: 'base64',
+          contentType: a.type || 'application/octet-stream',
+        })),
+      } : {}),
+      // Attachments of forwarded messages go by part; whole messages forwarded as attachments
+      // (#466) go by id, and the server attaches each one's raw source as an .eml.
+      ...(fwdAttachments.some(a => !a.asMessage) ? {
+        forwardedAttachments: fwdAttachments.filter(a => !a.asMessage).map(a => ({ messageId: a.messageId, part: a.part })),
+      } : {}),
+      ...(fwdAttachments.some(a => a.asMessage) ? {
+        forwardedMessages: fwdAttachments.filter(a => a.asMessage).map(a => a.messageId),
+      } : {}),
+    };
+    return { toFinal, ccFinal, bccFinal, bodyToSend, sentQuotedHtml, autoAtSend, savedDraft, hasDraft, payload };
+  };
+
+  const handleSend = async (opts = {}) => {
+    // A scheduled message being edited is saved, not sent (Ctrl+Enter is Update there).
+    if (scheduledEdit) return updateRef.current(opts);
+    const from = await readyToSubmit(opts, o => sendRef.current(o));
+    if (!from) return;
+    const { accountId, aliasId } = from;
+
+    localStorage.setItem('mailflow_last_from_account', accountId);
+    sendingRef.current = true;
+    setSending(true);
+    setError('');
+    // crypto.randomUUID needs a secure context; fall back for plain-HTTP LAN deployments.
+    if (!idempotencyKeyRef.current) {
+      idempotencyKeyRef.current = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+    }
+    const { toFinal, ccFinal, bccFinal, bodyToSend, sentQuotedHtml, autoAtSend, savedDraft, hasDraft, payload } = buildSendPayload(accountId, aliasId);
     try {
       const sendResult = await api.post('/mail/send', {
-        accountId,
-        ...(aliasId ? { aliasId } : {}),
-        to: toFinal,
-        cc: ccFinal,
-        bcc: bccFinal,
-        subject,
-        // Images shown through MailFlow's proxy go out as the email's own references.
-        body: plaintextEmail ? bodyToSend : unproxyImages(bodyToSend),
-        bodyIsHtml: !plaintextEmail,
-        ...(quotedBody ? { quotedBody } : {}),
-        ...(sentQuotedHtml != null ? { quotedBodyHtml: unproxyImages(sentQuotedHtml) } : {}),
-        // Off sends an empty override, or the server would add the account's signature.
-        ...(!signatureEnabled || signatureContentRef.current || fromSignature != null || composeData?.signature !== undefined
-          ? { editedSignature: !signatureEnabled ? '' : plaintextEmail ? plainSig : unproxyImages(signatureContentRef.current) }
-          : {}),
-        inReplyTo: composeData?.inReplyTo,
-        references: composeData?.references || undefined,
-        ...(priority !== 'normal' ? { priority } : {}),
-        ...(attachments.length ? {
-          attachments: attachments.map(a => ({
-            filename: a.name,
-            content: a.data,
-            encoding: 'base64',
-            contentType: a.type || 'application/octet-stream',
-          })),
-        } : {}),
-        // Attachments of forwarded messages go by part; whole messages forwarded as attachments
-        // (#466) go by id, and the server attaches each one's raw source as an .eml.
-        ...(fwdAttachments.some(a => !a.asMessage) ? {
-          forwardedAttachments: fwdAttachments.filter(a => !a.asMessage).map(a => ({ messageId: a.messageId, part: a.part })),
-        } : {}),
-        ...(fwdAttachments.some(a => a.asMessage) ? {
-          forwardedMessages: fwdAttachments.filter(a => a.asMessage).map(a => a.messageId),
-        } : {}),
+        ...payload,
         // The server holds the message this long so it can still be undone, and deletes the
         // draft only once the message is delivered.
         undoSeconds: UNDO_SEND_SECONDS,
@@ -1092,6 +1147,185 @@ export default function ComposeModal() {
   const sendRef = useRef(null);
   sendRef.current = handleSend;
 
+  // What the composer was, kept with a scheduled message (the spec's `compose`), so the Scheduled
+  // view can open it the same way again.
+  const composeContext = () => ({
+    ...(isReply ? { isReply: true, isReplyAll: replyAll } : {}),
+    ...(isForward ? { isForward: true } : {}),
+    ...(composeData?.threadId ? { threadId: composeData.threadId } : {}),
+    ...(composeData?.originalFrom ? { originalFrom: composeData.originalFrom } : {}),
+    ...(composeData?.allRecipients ? { allRecipients: composeData.allRecipients } : {}),
+  });
+
+  // After Send later or Update the composer closes as after Send, and a toast says when it goes.
+  const reportScheduled = (sendAt) => {
+    addNotification({
+      title: t('compose.scheduleSend.scheduledFor', { when: formatSendAt(sendAt) }),
+      body: subject || t('common.noSubject'),
+      onAction: () => openScheduledView(useStore),
+    });
+  };
+  const closeIfStillOpen = () => {
+    const active = useStore.getState();
+    if (active.user?.id !== composeOwner) return false;
+    if (active.composing && active.composeSession === composeSession) closeCompose();
+    return true;
+  };
+
+  // Send later (design 2.2): the server stores the message and, once that committed, deletes the
+  // draft it was written in. The create key makes a retry find the message the first try made.
+  const handleSchedule = async (sendAt, opts = {}) => {
+    if (scheduledEdit) return updateRef.current({ ...opts, sendAt });
+    const from = await readyToSubmit(opts, o => scheduleRef.current(sendAt, o));
+    if (!from) return;
+    const { accountId, aliasId } = from;
+
+    localStorage.setItem('mailflow_last_from_account', accountId);
+    sendingRef.current = true;
+    setSending(true);
+    setError('');
+    if (!clientKeyRef.current) clientKeyRef.current = newClientKey();
+    const { savedDraft, hasDraft, payload } = buildSendPayload(accountId, aliasId);
+    const timeZone = browserTimeZone();
+    try {
+      const result = await api.scheduled.create({
+        ...payload,
+        sendAt: sendAt.toISOString(),
+        ...(timeZone ? { timeZone } : {}),
+        clientKey: clientKeyRef.current,
+        compose: composeContext(),
+        ...(hasDraft ? { draft: { uid: savedDraft.uid, folder: savedDraft.folder, accountId: savedDraft.accountId } } : {}),
+      });
+      if (!closeIfStillOpen()) return;
+      if (hasDraft) useStore.getState().invalidateReplyDrafts();
+      reportScheduled(result?.sendAt || sendAt);
+    } catch (err) {
+      setError(scheduleErrorText(err, t));
+      sendingRef.current = false;
+      setSending(false);
+    }
+  };
+  const scheduleRef = useRef(null);
+  scheduleRef.current = handleSchedule;
+
+  // Update (design 2.3): saves the edit under the version this composer opened, to go at `sendAt`
+  // (a new time from the menu) or at the time it had. `confirm` is the user's yes to the server's
+  // question about a message that may already have gone out, or one a restored backup paused.
+  const handleUpdate = async ({ sendAt: chosen, confirm = false, skipSubjectWarn = false, skipAttachWarn = false } = {}) => {
+    const hold = holdRef.current;
+    if (!hold?.isHeld()) { setError(t('compose.scheduleSend.errors.notHeld')); return; }
+    const at = chosen instanceof Date ? chosen : new Date(scheduledAt);
+    if (checkSendAt(at)) {
+      setError(t('compose.scheduleSend.errors.pickNewTime'));
+      setSendLaterOpen(true);
+      return;
+    }
+    const from = await readyToSubmit({ skipSubjectWarn, skipAttachWarn }, o => updateRef.current({ ...o, sendAt: chosen, confirm }));
+    if (!from) return;
+    const { accountId, aliasId } = from;
+
+    sendingRef.current = true;
+    setSending(true);
+    setError('');
+    const { payload } = buildSendPayload(accountId, aliasId);
+    const timeZone = browserTimeZone();
+    try {
+      const result = await api.scheduled.update(scheduledEdit.id, {
+        ...payload,
+        sendAt: at.toISOString(),
+        ...(timeZone ? { timeZone } : {}),
+        editToken: hold.token(),
+        version: scheduledEdit.version,
+        keepAttachments: scheduledAttachments.map(a => a.index),
+        compose: composeContext(),
+        ...(confirm ? { confirm: true } : {}),
+      });
+      hold.settle();
+      if (!closeIfStillOpen()) return;
+      reportScheduled(result?.sendAt || at);
+    } catch (err) {
+      sendingRef.current = false;
+      setSending(false);
+      if (needsConfirmation(err)) {
+        setScheduleQuestion({ kind: 'confirm', text: err.message, retry: () => updateRef.current({ sendAt: at, confirm: true, skipSubjectWarn: true, skipAttachWarn: true }) });
+        return;
+      }
+      if (err.code === 'hold_lost') { hold.markLost(); setHoldReady(false); }
+      setError(scheduleErrorText(err, t));
+    }
+  };
+  const updateRef = useRef(null);
+  updateRef.current = handleUpdate;
+
+  // Unschedule (design 2.4): back to Drafts as an ordinary draft. The server deletes the scheduled
+  // copy only once the draft is stored, so there is always one. Drafts carry no attachments, so a
+  // message with any asks first.
+  const handleUnschedule = async ({ skipAttachWarn = false } = {}) => {
+    const hold = holdRef.current;
+    if (!hold?.isHeld()) { setError(t('compose.scheduleSend.errors.notHeld')); return; }
+    if (sending || sendingRef.current) return;
+    if (!skipAttachWarn && (attachments.length || fwdAttachments.length || scheduledAttachments.length)) {
+      setScheduleQuestion({ kind: 'unscheduleAttachments' });
+      return;
+    }
+    const { accountId, aliasId } = resolveFrom(fromValue);
+    if (!accountId) { setError(t('compose.selectAccount')); return; }
+    sendingRef.current = true;
+    setSending(true);
+    setError('');
+    try {
+      const result = await api.saveDraft({
+        accountId,
+        ...(aliasId ? { aliasId } : {}),
+        ...draftFields(snapshotRef.current()),
+        fromScheduled: { id: scheduledEdit.id, editToken: hold.token() },
+      });
+      hold.settle();
+      if (!closeIfStillOpen()) return;
+      useStore.getState().invalidateReplyDrafts();
+      if (result?.scheduledRemoved === false) {
+        addNotification({ type: 'error', title: subject || t('common.noSubject'), body: t('compose.scheduleSend.edit.unscheduleKept'), allowWrap: true, persistent: true });
+      } else {
+        addNotification({ title: t('compose.scheduleSend.edit.unscheduled'), body: subject || t('common.noSubject') });
+      }
+    } catch (err) {
+      setError(err.message);
+      sendingRef.current = false;
+      setSending(false);
+    }
+  };
+
+  // Edit mode: take the hold, keep it while the composer is open, and hand the message back when
+  // it closes without saving (unmount) or the page goes away. Started after the commit, so a mount
+  // React throws away at once (StrictMode) never sends a request.
+  useEffect(() => {
+    if (!scheduledEdit) return undefined;
+    let live = true;
+    const hold = createEditHold(scheduledEdit, {
+      api: api.scheduled,
+      onLost: (err) => { if (!live) return; setHoldReady(false); setError(scheduleErrorText(err, t)); },
+    });
+    holdRef.current = hold;
+    const starting = setTimeout(async () => {
+      const r = await hold.start();
+      if (!live) return;
+      if (r.ok) {
+        setHoldReady(true);
+        if (r.stale) setError(t('compose.scheduleSend.errors.versionConflict'));
+      } else if (!r.closed) {
+        setError(scheduleErrorText(r.error, t));
+      }
+    }, 0);
+    const onPageHide = () => hold.release({ unloading: true });
+    window.addEventListener('pagehide', onPageHide);
+    return () => {
+      live = false;
+      clearTimeout(starting);
+      window.removeEventListener('pagehide', onPageHide);
+      hold.release();
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps -- one hold per mounted composer
+
   const snapshotRef = useRef(null);
   const saveRef = useRef(null);
   const unsupportedRef = useRef(null);
@@ -1125,13 +1359,29 @@ export default function ComposeModal() {
     editedSignature: !signatureEnabled ? '' : plaintextEmail ? plainSig : signatureContentRef.current,
     attachments: attachments.map(a => a.name),
     forwardedAttachments: fwdAttachments.map(a => `${a.messageId}:${a.part}`),
+    scheduledAttachments: scheduledAttachments.map(a => a.index),
   });
   unsupportedRef.current = () => sendingRef.current || attachments.length > 0 || fwdAttachments.length > 0
     || Boolean(composeData?.unresolvedExternalAttachments);
   switchBlockRef.current = () => attachments.length > 0
     || (fwdAttachments.length > 0 && !composeData?.externalAttachments?.length);
+  // A snapshot's fields as /draft takes them.
+  const draftFields = value => ({
+    to: value.to, cc: value.cc, bcc: value.bcc, subject: value.subject,
+    // Images shown through MailFlow's proxy are saved as the email's own references.
+    body: value.bodyIsHtml ? unproxyImages(value.body) : value.body, bodyIsHtml: value.bodyIsHtml,
+    ...(composeData?.inReplyTo ? { inReplyTo: composeData.inReplyTo } : {}),
+    ...(composeData?.references ? { references: composeData.references } : {}),
+    ...(value.quotedBody ? { quotedBody: value.quotedBody } : {}),
+    ...(value.bodyIsHtml && value.quotedBodyHtml ? { quotedBodyHtml: unproxyImages(value.quotedBodyHtml) } : {}),
+    ...(value.editedSignature || fromSignature != null || composeData?.signature !== undefined
+      ? { editedSignature: value.bodyIsHtml ? unproxyImages(value.editedSignature) : value.editedSignature } : {}),
+  });
   saveRef.current = async value => {
     if (useStore.getState().user?.id !== composeOwner) return false;
+    // A scheduled message being edited is never copied to Drafts (design 2.3); Unschedule is the
+    // one way there.
+    if (scheduledEdit) return false;
     if (discardedRef.current) return false;
     const { accountId, aliasId } = resolveFrom(value.fromValue || fromValue);
     if (unsupportedSenderRef.current) { setError(t("compose.unsupportedDraftFrom", { defaultValue: "Choose a configured sender before saving or sending this draft.", email: composeData?.unsupportedFrom })); return false; }
@@ -1144,15 +1394,7 @@ export default function ComposeModal() {
         accountId,
         includeIdentity: true,
         ...(aliasId ? { aliasId } : {}),
-        to: value.to, cc: value.cc, bcc: value.bcc, subject: value.subject,
-        // Images shown through MailFlow's proxy are saved as the email's own references.
-        body: value.bodyIsHtml ? unproxyImages(value.body) : value.body, bodyIsHtml: value.bodyIsHtml,
-        ...(composeData?.inReplyTo ? { inReplyTo: composeData.inReplyTo } : {}),
-        ...(composeData?.references ? { references: composeData.references } : {}),
-        ...(value.quotedBody ? { quotedBody: value.quotedBody } : {}),
-        ...(value.bodyIsHtml && value.quotedBodyHtml ? { quotedBodyHtml: unproxyImages(value.quotedBodyHtml) } : {}),
-        ...(value.editedSignature || fromSignature != null || composeData?.signature !== undefined
-          ? { editedSignature: value.bodyIsHtml ? unproxyImages(value.editedSignature) : value.editedSignature } : {}),
+        ...draftFields(value),
         ...(pointer.uid != null && pointer.folder != null ? { existingUid: pointer.uid, existingFolder: pointer.folder, existingAccountId: pointer.accountId } : {}),
       });
       if (useStore.getState().user?.id !== composeOwner) return false;
@@ -1183,6 +1425,10 @@ export default function ComposeModal() {
     composeSwitchRef.current.markSaved(initialSavedSnapshotRef.current);
     const prepare = async ({ onDraftSaved } = {}) => {
       if (sendingRef.current || sendWaitingRef.current) return false;
+      if (scheduledEdit && composeSwitchRef.current.isDirty()) {
+        setError(t('compose.scheduleSend.edit.switchBlocked'));
+        return false;
+      }
       // Uploaded files and ordinary forwarded files live only in this composer, even
       // after a text-only draft save. An external saved draft can be left untouched.
       if (switchBlockRef.current()) {
@@ -1233,6 +1479,7 @@ export default function ComposeModal() {
   }, [editor, plaintextEmail]);
 
   const doSaveDraft = async ({ closeAfter = false, silent = false } = {}) => {
+    if (scheduledEdit) return false;
     if (unsupportedSenderRef.current) { if (!silent) setError(t('compose.unsupportedDraftFrom', { defaultValue: 'Choose a configured sender before saving or sending this draft.' })); return false; }
     if (composeData?.unresolvedExternalAttachments
       || (composeData?.externalAttachments?.length && fwdAttachments.length)) {
@@ -1364,6 +1611,12 @@ export default function ComposeModal() {
   };
 
   const handleClose = () => {
+    // A scheduled message: closing releases it (the hold effect), after asking about changes.
+    if (scheduledEdit) {
+      if (isDirty()) setScheduleQuestion({ kind: 'closeEdit' });
+      else closeCompose();
+      return;
+    }
     setCloseDialogMode('close');
     if (isDirty() || switchBlockRef.current()) {
       setShowCloseDialog(true);
@@ -1499,6 +1752,72 @@ export default function ComposeModal() {
     </svg>
   );
 
+  // Send later and Update: what can go now, and what scheduling shows over the composer.
+  const noRecipients = toChips.length === 0 && !toInput.trim();
+  const sendDisabled = sending || noRecipients || Boolean(scheduledEdit && !holdReady);
+  const sendLabel = scheduledEdit ? t('compose.scheduleSend.edit.update') : t('compose.send');
+  const closeQuestion = () => setScheduleQuestion(null);
+  const scheduleOverlays = (
+    <>
+      {isMobile && sendLaterOpen && (
+        <SendLaterSheet
+          onClose={() => setSendLaterOpen(false)}
+          onPick={at => handleSchedule(at)}
+          editing={Boolean(scheduledEdit)}
+          onUnschedule={() => handleUnschedule()}
+          returnFocusRef={sendLaterBtnRef}
+          busy={sending}
+        />
+      )}
+      {scheduleQuestion?.kind === 'confirm' && (
+        <ComposeQuestion
+          mobile={isMobile}
+          title={t('compose.scheduleSend.confirm.title')}
+          body={scheduleQuestion.text}
+          onCancel={closeQuestion}
+          actions={[
+            { label: t('compose.scheduleSend.confirm.go'), kind: 'primary', onClick: () => { const { retry } = scheduleQuestion; closeQuestion(); retry(); } },
+            { label: t('common.cancel'), kind: 'plain', onClick: closeQuestion },
+          ]}
+        />
+      )}
+      {scheduleQuestion?.kind === 'unscheduleAttachments' && (
+        <ComposeQuestion
+          mobile={isMobile}
+          title={t('compose.scheduleSend.edit.unscheduleTitle')}
+          body={t('compose.draftHasAttachments')}
+          onCancel={closeQuestion}
+          actions={[
+            { label: t('compose.scheduleSend.edit.unscheduleGo'), kind: 'primary', onClick: () => { closeQuestion(); handleUnschedule({ skipAttachWarn: true }); } },
+            { label: t('compose.closeDraft.keepEditing'), kind: 'plain', onClick: closeQuestion },
+          ]}
+        />
+      )}
+      {scheduleQuestion?.kind === 'closeEdit' && (
+        <ComposeQuestion
+          mobile={isMobile}
+          title={t('compose.scheduleSend.edit.closeTitle')}
+          onCancel={closeQuestion}
+          actions={[
+            { label: t('compose.scheduleSend.edit.saveChanges'), kind: 'primary', onClick: () => { closeQuestion(); handleUpdate(); } },
+            { label: t('compose.scheduleSend.edit.discardChanges'), kind: 'danger', onClick: () => { closeQuestion(); closeCompose(); } },
+            { label: t('compose.closeDraft.keepEditing'), kind: 'plain', onClick: closeQuestion },
+          ]}
+        />
+      )}
+    </>
+  );
+  const scheduledStrip = scheduledEdit && scheduledAt ? (
+    <ScheduledStrip sendAt={scheduledAt} mobile={isMobile} onChange={() => setSendLaterOpen(true)} />
+  ) : null;
+  const scheduledChips = scheduledAttachments.length > 0 ? (
+    <AttachmentChips
+      attachments={scheduledAttachments.map(a => ({ name: a.filename, size: a.size }))}
+      onRemove={i => setScheduledAttachments(prev => prev.filter((_, j) => j !== i))}
+      mobile={isMobile}
+    />
+  ) : null;
+
   // ── Mobile full-screen compose ──────────────────────────────────────────────
   if (isMobile) {
     const switchToReply = () => {
@@ -1565,6 +1884,7 @@ export default function ComposeModal() {
         }}>
           <button
             onClick={() => {
+              if (scheduledEdit) { handleClose(); return; }
               if (isDirty() || switchBlockRef.current() || (draftUid != null && draftWasPreExisting.current)) {
                 setCloseDialogMode('close');
                 setShowDiscardSheet(true);
@@ -1588,6 +1908,7 @@ export default function ComposeModal() {
             {modeLabel}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 60, justifyContent: 'flex-end' }}>
+            {!scheduledEdit && (
             <button
               onClick={() => requestDiscard(true)}
               disabled={discarding}
@@ -1602,6 +1923,7 @@ export default function ComposeModal() {
             >
               {trashIcon}
             </button>
+            )}
             <button
               onClick={() => setShowPrioritySheet(true)}
               style={{
@@ -1617,22 +1939,43 @@ export default function ComposeModal() {
               </svg>
             </button>
             <button
-              onClick={handleSend}
-              disabled={sending || (toChips.length === 0 && !toInput.trim())}
+              ref={sendLaterBtnRef}
+              type="button"
+              onClick={() => setSendLaterOpen(true)}
+              disabled={sendDisabled}
+              aria-label={scheduledEdit ? t('compose.scheduleSend.edit.options') : t('compose.scheduleSend.title')}
+              aria-haspopup="dialog"
+              aria-expanded={sendLaterOpen}
+              data-send-later=""
+              style={{
+                background: 'none', border: 'none', padding: 0, width: 44, height: 44,
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                color: sendDisabled ? 'var(--text-tertiary)' : 'var(--accent)',
+                cursor: sendDisabled ? 'default' : 'pointer',
+                WebkitTapHighlightColor: 'transparent',
+              }}
+            >
+              <SendLaterIcon size={20} />
+            </button>
+            <button
+              onClick={() => handleSend()}
+              disabled={sendDisabled}
               style={{
                 background: 'none', border: 'none',
-                color: sending || (toChips.length === 0 && !toInput.trim()) ? 'var(--text-tertiary)' : 'var(--accent)',
+                color: sendDisabled ? 'var(--text-tertiary)' : 'var(--accent)',
                 fontSize: 16, fontWeight: 600,
-                cursor: sending || (toChips.length === 0 && !toInput.trim()) ? 'default' : 'pointer',
-                padding: '4px 0',
+                cursor: sendDisabled ? 'default' : 'pointer',
+                padding: '4px 0', minHeight: 44,
                 WebkitTapHighlightColor: 'transparent',
                 transition: 'color 0.15s',
               }}
             >
-              {sending ? sendSpinner : t('compose.send')}
+              {sending ? sendSpinner : sendLabel}
             </button>
           </div>
         </div>
+
+        {scheduledStrip}
 
         {/* Reply/Reply All toggle */}
         {isReply && (
@@ -1923,6 +2266,7 @@ export default function ComposeModal() {
           {attachments.length > 0 && (
             <AttachmentChips attachments={attachments} onRemove={i => setAttachments(prev => prev.filter((_, j) => j !== i))} mobile />
           )}
+          {scheduledChips}
 
           {/* Error */}
           {error && (
@@ -2061,7 +2405,7 @@ export default function ComposeModal() {
               {t('compose.emptySubject.title')}
             </div>
             <button
-              onClick={() => { setShowEmptySubjectWarn(false); handleSend({ skipSubjectWarn: true }); }}
+              onClick={() => { setShowEmptySubjectWarn(false); continueAfterWarning({ skipSubjectWarn: true }); }}
               style={{ width: '100%', padding: '16px 20px', textAlign: 'left', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 16, fontWeight: 500, cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', WebkitTapHighlightColor: 'transparent' }}
             >
               {t('compose.emptySubject.sendAnyway')}
@@ -2098,7 +2442,7 @@ export default function ComposeModal() {
               {t('compose.forgottenAttachment.body')}
             </div>
             <button
-              onClick={() => { setShowForgottenAttachWarn(false); handleSend({ skipSubjectWarn: true, skipAttachWarn: true }); }}
+              onClick={() => { setShowForgottenAttachWarn(false); continueAfterWarning({ skipSubjectWarn: true, skipAttachWarn: true }); }}
               style={{ width: '100%', padding: '16px 20px', textAlign: 'left', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 16, fontWeight: 500, cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', WebkitTapHighlightColor: 'transparent' }}
             >
               {t('compose.forgottenAttachment.sendAnyway')}
@@ -2141,6 +2485,7 @@ export default function ComposeModal() {
           </div>
         </>
       )}
+      {scheduleOverlays}
       </>
     );
   }
@@ -2329,6 +2674,8 @@ export default function ComposeModal() {
         </div>
       </div>
 
+      {scheduledStrip}
+
       {/* Fields — fixed height, not scrollable so toolbar dropdowns aren't clipped */}
       <div style={{ flexShrink: 0 }}>
         {/* From */}
@@ -2483,6 +2830,7 @@ export default function ComposeModal() {
       {attachments.length > 0 && (
         <AttachmentChips attachments={attachments} onRemove={i => setAttachments(prev => prev.filter((_, j) => j !== i))} />
       )}
+      {scheduledChips}
 
       {/* Scrollable body area */}
       <div style={{ flex: 1, overflow: 'auto', minHeight: 0 }}>
@@ -2575,23 +2923,59 @@ export default function ComposeModal() {
         padding: '10px 14px', borderTop: '1px solid var(--border-subtle)',
         display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
       }}>
-        <button
-          onClick={handleSend}
-          disabled={sending || (toChips.length === 0 && !toInput.trim())}
-          title={sending ? undefined : t('compose.sendTooltip')}
-          style={{
-            padding: '8px 20px', background: 'var(--accent)',
-            border: 'none', borderRadius: 7, color: 'var(--accent-text)',
-            fontSize: 13, fontWeight: 500,
-            cursor: sending || (toChips.length === 0 && !toInput.trim()) ? 'not-allowed' : 'pointer',
-            opacity: sending || (toChips.length === 0 && !toInput.trim()) ? 0.6 : 1,
-            display: 'flex', alignItems: 'center', gap: 6,
-            transition: 'opacity 0.15s',
-          }}
-        >
-          {sending ? sendSpinner : sendIcon}
-          {sending ? t('compose.sending') : t('compose.send')}
-        </button>
+        {/* Split Send button: the chevron opens Send later (design 5.1, 5.4). */}
+        <div style={{ position: 'relative', display: 'flex', flexShrink: 0 }}>
+          <button
+            onClick={() => handleSend()}
+            disabled={sendDisabled}
+            title={sending ? undefined : scheduledEdit ? undefined : t('compose.sendTooltip')}
+            style={{
+              padding: '8px 16px 8px 20px', background: 'var(--accent)',
+              border: 'none', borderRadius: '7px 0 0 7px', color: 'var(--accent-text)',
+              fontSize: 13, fontWeight: 500,
+              cursor: sendDisabled ? 'not-allowed' : 'pointer',
+              opacity: sendDisabled ? 0.6 : 1,
+              display: 'flex', alignItems: 'center', gap: 6,
+              transition: 'opacity 0.15s',
+            }}
+          >
+            {sending ? sendSpinner : sendIcon}
+            {sending ? (scheduledEdit ? t('compose.scheduleSend.edit.updating') : t('compose.sending')) : sendLabel}
+          </button>
+          <button
+            ref={sendLaterBtnRef}
+            type="button"
+            onClick={() => setSendLaterOpen(open => !open)}
+            disabled={sendDisabled}
+            aria-label={scheduledEdit ? t('compose.scheduleSend.edit.options') : t('compose.scheduleSend.title')}
+            title={scheduledEdit ? t('compose.scheduleSend.edit.options') : t('compose.scheduleSend.tooltip')}
+            aria-haspopup="menu"
+            aria-expanded={sendLaterOpen}
+            data-send-later=""
+            style={{
+              padding: '8px 8px', background: 'var(--accent)',
+              border: 'none', borderLeft: '1px solid rgba(255,255,255,0.28)', borderRadius: '0 7px 7px 0',
+              color: 'var(--accent-text)', display: 'flex', alignItems: 'center',
+              cursor: sendDisabled ? 'not-allowed' : 'pointer',
+              opacity: sendDisabled ? 0.6 : 1,
+              transition: 'opacity 0.15s',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true">
+              <polyline points="6 9 12 15 18 9"/>
+            </svg>
+          </button>
+          {sendLaterOpen && (
+            <SendLaterMenu
+              triggerRef={sendLaterBtnRef}
+              onClose={() => setSendLaterOpen(false)}
+              onPick={at => handleSchedule(at)}
+              editing={Boolean(scheduledEdit)}
+              onUnschedule={() => handleUnschedule()}
+              busy={sending}
+            />
+          )}
+        </div>
 
         {plaintextEmail && (
           <button
@@ -2629,22 +3013,26 @@ export default function ComposeModal() {
           <option value="low">{t('compose.priorityLow')}</option>
         </select>
 
-        <button
-          onClick={() => handleSaveDraft()}
-          disabled={savingDraft}
-          style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: savingDraft ? 'default' : 'pointer', fontSize: 12, padding: '4px 8px' }}
-        >
-          {savingDraft ? t('compose.savingDraft') : t('compose.saveDraft')}
-        </button>
-        <button
-          onClick={() => requestDiscard(false)}
-          disabled={discarding}
-          aria-label={t('compose.discard')}
-          title={t('compose.discard')}
-          style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: discarding ? 'default' : 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center' }}
-        >
-          {trashIcon}
-        </button>
+        {!scheduledEdit && (
+          <>
+            <button
+              onClick={() => handleSaveDraft()}
+              disabled={savingDraft}
+              style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: savingDraft ? 'default' : 'pointer', fontSize: 12, padding: '4px 8px' }}
+            >
+              {savingDraft ? t('compose.savingDraft') : t('compose.saveDraft')}
+            </button>
+            <button
+              onClick={() => requestDiscard(false)}
+              disabled={discarding}
+              aria-label={t('compose.discard')}
+              title={t('compose.discard')}
+              style={{ background: 'none', border: 'none', color: 'var(--text-tertiary)', cursor: discarding ? 'default' : 'pointer', padding: '4px 6px', display: 'flex', alignItems: 'center' }}
+            >
+              {trashIcon}
+            </button>
+          </>
+        )}
       </div>
 
       {!maximized && (
@@ -2687,7 +3075,7 @@ export default function ComposeModal() {
               {t('compose.emptySubject.cancel')}
             </button>
             <button
-              onClick={() => { setShowEmptySubjectWarn(false); handleSend({ skipSubjectWarn: true }); }}
+              onClick={() => { setShowEmptySubjectWarn(false); continueAfterWarning({ skipSubjectWarn: true }); }}
               style={{ padding: '7px 14px', background: 'var(--accent)', border: 'none', borderRadius: 6, color: 'var(--accent-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               {t('compose.emptySubject.sendAnyway')}
@@ -2724,7 +3112,7 @@ export default function ComposeModal() {
               {t('compose.forgottenAttachment.cancel')}
             </button>
             <button
-              onClick={() => { setShowForgottenAttachWarn(false); handleSend({ skipSubjectWarn: true, skipAttachWarn: true }); }}
+              onClick={() => { setShowForgottenAttachWarn(false); continueAfterWarning({ skipSubjectWarn: true, skipAttachWarn: true }); }}
               style={{ padding: '7px 14px', background: 'var(--accent)', border: 'none', borderRadius: 6, color: 'var(--accent-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
               {t('compose.forgottenAttachment.sendAnyway')}
@@ -2804,6 +3192,7 @@ export default function ComposeModal() {
         </div>
       </>
     )}
+    {scheduleOverlays}
     </>
   );
 }

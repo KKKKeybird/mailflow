@@ -201,6 +201,54 @@
     "recipientMenu": {
       "copy": "复制地址",
       "copyAll": "复制此栏全部"
+    },
+    "scheduleSend": {
+      "title": "稍后发送",
+      "tooltip": "稍后发送 (Ctrl+Shift+Enter)",
+      "tomorrowMorning": "明天上午",
+      "tomorrowAfternoon": "明天下午",
+      "mondayMorning": "周一上午",
+      "pick": "选择日期和时间",
+      "dateLabel": "日期",
+      "timeLabel": "时间",
+      "dateTimeLabel": "日期和时间",
+      "sendsAt": "将于 {{when}} 发送",
+      "timeZone": "时区：{{zone}}",
+      "schedule": "定时发送",
+      "scheduledFor": "已定时于 {{when}}",
+      "change": "更改",
+      "changeTime": "更改时间",
+      "errors": {
+        "invalid": "请输入日期和时间。",
+        "past": "该时间已过去。",
+        "tooSoon": "请选择至少一分钟之后的时间。",
+        "tooFar": "请选择未来 366 天内的时间。",
+        "clockBehind": "此设备的时钟比服务器慢 {{minutes}} 分钟，服务器时间为 {{time}}。",
+        "clockAhead": "此设备的时钟比服务器快 {{minutes}} 分钟，服务器时间为 {{time}}。",
+        "holdLost": "此邮件已不在此处编辑，因此你的更改未保存。它可能在另一个窗口中打开。请关闭后从“定时”中重新打开。",
+        "versionConflict": "此邮件已在其他地方更改。请关闭后从“定时”中重新打开以查看最新版本。",
+        "notHeld": "此邮件未在此处打开编辑。请关闭后从“定时”中重新打开。",
+        "pickNewTime": "定时时间已过。请选择新的时间。",
+        "failed": "无法定时发送此邮件。"
+      },
+      "edit": {
+        "update": "更新",
+        "updating": "正在保存…",
+        "options": "定时选项",
+        "unschedule": "取消定时（存为草稿）",
+        "unscheduleTitle": "将此邮件移到草稿箱？",
+        "unscheduleGo": "存为草稿",
+        "unscheduled": "已移到草稿箱",
+        "unscheduleKept": "已存到草稿箱，但定时邮件仍处于定时状态：此窗口已不再持有它。如果不应发送，请在“定时”中删除它。",
+        "closeTitle": "保存对此定时邮件的更改？",
+        "saveChanges": "保存更改",
+        "discardChanges": "放弃更改",
+        "switchBlocked": "请先更新或关闭你正在编辑的定时邮件。"
+      },
+      "confirm": {
+        "title": "再次定时？",
+        "go": "仍然定时"
+      }
     }
   },
   "message": {

@@ -201,6 +201,54 @@
     "recipientMenu": {
       "copy": "Copiar endereço",
       "copyAll": "Copiar todos deste campo"
+    },
+    "scheduleSend": {
+      "title": "Enviar mais tarde",
+      "tooltip": "Enviar mais tarde (Ctrl+Shift+Enter)",
+      "tomorrowMorning": "Amanhã de manhã",
+      "tomorrowAfternoon": "Amanhã à tarde",
+      "mondayMorning": "Segunda de manhã",
+      "pick": "Escolher data e hora",
+      "dateLabel": "Data",
+      "timeLabel": "Horário",
+      "dateTimeLabel": "Data e hora",
+      "sendsAt": "Envia em {{when}}",
+      "timeZone": "Fuso horário: {{zone}}",
+      "schedule": "Agendar envio",
+      "scheduledFor": "Agendado para {{when}}",
+      "change": "Alterar",
+      "changeTime": "Alterar horário",
+      "errors": {
+        "invalid": "Informe uma data e um horário.",
+        "past": "Esse horário já passou.",
+        "tooSoon": "Escolha um horário pelo menos um minuto a partir de agora.",
+        "tooFar": "Escolha um horário dentro dos próximos 366 dias.",
+        "clockBehind": "O relógio deste dispositivo está {{minutes}} min atrasado em relação ao do servidor, que diz que são {{time}}.",
+        "clockAhead": "O relógio deste dispositivo está {{minutes}} min adiantado em relação ao do servidor, que diz que são {{time}}.",
+        "holdLost": "Esta mensagem não está mais aberta para edição aqui, então suas alterações não foram salvas. Talvez ela esteja aberta em outra janela. Feche-a e abra de novo em Agendados.",
+        "versionConflict": "Esta mensagem foi alterada em outro lugar. Feche-a e abra de novo em Agendados para ver a versão mais recente.",
+        "notHeld": "Esta mensagem não está aberta para edição aqui. Feche-a e abra de novo em Agendados.",
+        "pickNewTime": "O horário agendado já passou. Escolha um novo.",
+        "failed": "Não foi possível agendar a mensagem."
+      },
+      "edit": {
+        "update": "Atualizar",
+        "updating": "Salvando…",
+        "options": "Opções de agendamento",
+        "unschedule": "Desagendar (salvar como rascunho)",
+        "unscheduleTitle": "Mover esta mensagem para Rascunhos?",
+        "unscheduleGo": "Salvar como rascunho",
+        "unscheduled": "Movida para Rascunhos",
+        "unscheduleKept": "Salva em Rascunhos, mas a mensagem agendada continua agendada: esta janela não a tinha mais. Exclua-a em Agendados se ela não deve ser enviada.",
+        "closeTitle": "Salvar as alterações desta mensagem agendada?",
+        "saveChanges": "Salvar alterações",
+        "discardChanges": "Descartar alterações",
+        "switchBlocked": "Primeiro atualize ou feche a mensagem agendada que você está editando."
+      },
+      "confirm": {
+        "title": "Agendar de novo?",
+        "go": "Agendar mesmo assim"
+      }
     }
   },
   "message": {

@@ -572,6 +572,54 @@
     "recipientMenu": {
       "copy": "Kopírovat adresu",
       "copyAll": "Kopírovat všechny adresy v tomto poli"
+    },
+    "scheduleSend": {
+      "title": "Odeslat později",
+      "tooltip": "Odeslat později (Ctrl+Shift+Enter)",
+      "tomorrowMorning": "Zítra ráno",
+      "tomorrowAfternoon": "Zítra odpoledne",
+      "mondayMorning": "V pondělí ráno",
+      "pick": "Vybrat datum a čas",
+      "dateLabel": "Datum",
+      "timeLabel": "Čas",
+      "dateTimeLabel": "Datum a čas",
+      "sendsAt": "Odešle se {{when}}",
+      "timeZone": "Časové pásmo: {{zone}}",
+      "schedule": "Naplánovat odeslání",
+      "scheduledFor": "Naplánováno na {{when}}",
+      "change": "Změnit",
+      "changeTime": "Změnit čas",
+      "errors": {
+        "invalid": "Zadejte datum a čas.",
+        "past": "Tento čas už uplynul.",
+        "tooSoon": "Vyberte čas alespoň minutu od teď.",
+        "tooFar": "Vyberte čas během příštích 366 dní.",
+        "clockBehind": "Hodiny tohoto zařízení se opožďují o {{minutes}} min oproti serveru, podle kterého je {{time}}.",
+        "clockAhead": "Hodiny tohoto zařízení se předbíhají o {{minutes}} min oproti serveru, podle kterého je {{time}}.",
+        "holdLost": "Tato zpráva už tu není otevřená k úpravám, takže změny nebyly uloženy. Možná je otevřená v jiném okně. Zavřete ji a otevřete znovu z Naplánovaných.",
+        "versionConflict": "Tato zpráva byla změněna jinde. Zavřete ji a otevřete znovu z Naplánovaných, abyste viděli nejnovější verzi.",
+        "notHeld": "Tato zpráva tu není otevřená k úpravám. Zavřete ji a otevřete znovu z Naplánovaných.",
+        "pickNewTime": "Naplánovaný čas už uplynul. Vyberte nový.",
+        "failed": "Zprávu se nepodařilo naplánovat."
+      },
+      "edit": {
+        "update": "Aktualizovat",
+        "updating": "Ukládání…",
+        "options": "Možnosti plánování",
+        "unschedule": "Zrušit plán (uložit jako koncept)",
+        "unscheduleTitle": "Přesunout tuto zprávu do Konceptů?",
+        "unscheduleGo": "Uložit jako koncept",
+        "unscheduled": "Přesunuto do Konceptů",
+        "unscheduleKept": "Uloženo do Konceptů, ale naplánovaná zpráva je stále naplánovaná: toto okno ji už nedrželo. Pokud nemá odejít, smažte ji v Naplánovaných.",
+        "closeTitle": "Uložit změny této naplánované zprávy?",
+        "saveChanges": "Uložit změny",
+        "discardChanges": "Zahodit změny",
+        "switchBlocked": "Nejprve aktualizujte nebo zavřete naplánovanou zprávu, kterou upravujete."
+      },
+      "confirm": {
+        "title": "Naplánovat znovu?",
+        "go": "Přesto naplánovat"
+      }
     }
   },
   "notifications": {

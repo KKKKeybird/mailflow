@@ -197,6 +197,9 @@ const SAME_VALUE_ALLOWED = {
   'admin.privacy.addSenderPh': [['en', 'ko', 'ru', 'zhCN']],
   'admin.blockList.emailPlaceholder': [['en', 'ko']],
   'admin.aliases.replyToLabel': [['en', 'pl']],
+  // Send later (#543): "Date" is spelled alike in en and fr, "Datum" in cs and de, "Data" in
+  // it, pl and pt-BR
+  'compose.scheduleSend.dateLabel': [['en', 'fr'], ['cs', 'de'], ['it', 'pl', 'ptBR']],
 
   'admin.rules.actionForwardPlaceholder': [['es', 'it']],
   'admin.sso.domainsPh':       [['de', 'en', 'ko', 'pl', 'ru', 'zhCN']],

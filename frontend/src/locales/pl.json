@@ -201,6 +201,54 @@
     "recipientMenu": {
       "copy": "Kopiuj adres",
       "copyAll": "Kopiuj wszystkie adresy z tego pola"
+    },
+    "scheduleSend": {
+      "title": "Wyślij później",
+      "tooltip": "Wyślij później (Ctrl+Shift+Enter)",
+      "tomorrowMorning": "Jutro rano",
+      "tomorrowAfternoon": "Jutro po południu",
+      "mondayMorning": "W poniedziałek rano",
+      "pick": "Wybierz datę i godzinę",
+      "dateLabel": "Data",
+      "timeLabel": "Godzina",
+      "dateTimeLabel": "Data i godzina",
+      "sendsAt": "Wysyłka: {{when}}",
+      "timeZone": "Strefa czasowa: {{zone}}",
+      "schedule": "Zaplanuj wysyłkę",
+      "scheduledFor": "Zaplanowano na {{when}}",
+      "change": "Zmień",
+      "changeTime": "Zmień godzinę",
+      "errors": {
+        "invalid": "Wpisz datę i godzinę.",
+        "past": "Ten czas już minął.",
+        "tooSoon": "Wybierz czas co najmniej minutę od teraz.",
+        "tooFar": "Wybierz czas w ciągu najbliższych 366 dni.",
+        "clockBehind": "Zegar tego urządzenia spóźnia się o {{minutes}} min względem serwera, według którego jest {{time}}.",
+        "clockAhead": "Zegar tego urządzenia spieszy się o {{minutes}} min względem serwera, według którego jest {{time}}.",
+        "holdLost": "Ta wiadomość nie jest już tu otwarta do edycji, więc zmiany nie zostały zapisane. Może jest otwarta w innym oknie. Zamknij ją i otwórz ponownie z Zaplanowanych.",
+        "versionConflict": "Ta wiadomość została zmieniona gdzie indziej. Zamknij ją i otwórz ponownie z Zaplanowanych, aby zobaczyć najnowszą wersję.",
+        "notHeld": "Ta wiadomość nie jest tu otwarta do edycji. Zamknij ją i otwórz ponownie z Zaplanowanych.",
+        "pickNewTime": "Zaplanowany czas już minął. Wybierz nowy.",
+        "failed": "Nie udało się zaplanować wiadomości."
+      },
+      "edit": {
+        "update": "Zaktualizuj",
+        "updating": "Zapisywanie…",
+        "options": "Opcje planowania",
+        "unschedule": "Cofnij planowanie (zapisz jako wersję roboczą)",
+        "unscheduleTitle": "Przenieść tę wiadomość do wersji roboczych?",
+        "unscheduleGo": "Zapisz jako wersję roboczą",
+        "unscheduled": "Przeniesiono do wersji roboczych",
+        "unscheduleKept": "Zapisano w wersjach roboczych, ale zaplanowana wiadomość jest nadal zaplanowana: to okno już jej nie trzymało. Usuń ją z Zaplanowanych, jeśli nie ma zostać wysłana.",
+        "closeTitle": "Zapisać zmiany w tej zaplanowanej wiadomości?",
+        "saveChanges": "Zapisz zmiany",
+        "discardChanges": "Odrzuć zmiany",
+        "switchBlocked": "Najpierw zaktualizuj lub zamknij zaplanowaną wiadomość, którą edytujesz."
+      },
+      "confirm": {
+        "title": "Zaplanować ponownie?",
+        "go": "Zaplanuj mimo to"
+      }
     }
   },
   "message": {

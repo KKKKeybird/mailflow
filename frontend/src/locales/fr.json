@@ -201,6 +201,54 @@
     "recipientMenu": {
       "copy": "Copier l'adresse",
       "copyAll": "Tout copier dans ce champ"
+    },
+    "scheduleSend": {
+      "title": "Envoyer plus tard",
+      "tooltip": "Envoyer plus tard (Ctrl+Maj+Entrée)",
+      "tomorrowMorning": "Demain matin",
+      "tomorrowAfternoon": "Demain après-midi",
+      "mondayMorning": "Lundi matin",
+      "pick": "Choisir la date et l'heure",
+      "dateLabel": "Date",
+      "timeLabel": "Heure",
+      "dateTimeLabel": "Date et heure",
+      "sendsAt": "Envoi le {{when}}",
+      "timeZone": "Fuseau horaire : {{zone}}",
+      "schedule": "Programmer l'envoi",
+      "scheduledFor": "Programmé pour le {{when}}",
+      "change": "Modifier",
+      "changeTime": "Changer l'heure",
+      "errors": {
+        "invalid": "Saisissez une date et une heure.",
+        "past": "Ce moment est déjà passé.",
+        "tooSoon": "Choisissez un moment au moins une minute plus tard.",
+        "tooFar": "Choisissez un moment dans les 366 prochains jours.",
+        "clockBehind": "L'horloge de cet appareil retarde de {{minutes}} min sur celle du serveur, pour qui il est {{time}}.",
+        "clockAhead": "L'horloge de cet appareil avance de {{minutes}} min sur celle du serveur, pour qui il est {{time}}.",
+        "holdLost": "Ce message n'est plus ouvert en modification ici, vos changements n'ont donc pas été enregistrés. Il est peut-être ouvert dans une autre fenêtre. Fermez-le et rouvrez-le depuis Programmés.",
+        "versionConflict": "Ce message a été modifié ailleurs. Fermez-le et rouvrez-le depuis Programmés pour voir la dernière version.",
+        "notHeld": "Ce message n'est pas ouvert en modification ici. Fermez-le et rouvrez-le depuis Programmés.",
+        "pickNewTime": "L'heure prévue est passée. Choisissez-en une nouvelle.",
+        "failed": "Le message n'a pas pu être programmé."
+      },
+      "edit": {
+        "update": "Mettre à jour",
+        "updating": "Enregistrement…",
+        "options": "Options de programmation",
+        "unschedule": "Déprogrammer (enregistrer comme brouillon)",
+        "unscheduleTitle": "Déplacer ce message dans les brouillons ?",
+        "unscheduleGo": "Enregistrer comme brouillon",
+        "unscheduled": "Déplacé dans les brouillons",
+        "unscheduleKept": "Enregistré dans les brouillons, mais le message programmé l'est toujours : cette fenêtre ne le détenait plus. Supprimez-le dans Programmés s'il ne doit pas partir.",
+        "closeTitle": "Enregistrer les modifications de ce message programmé ?",
+        "saveChanges": "Enregistrer les modifications",
+        "discardChanges": "Abandonner les modifications",
+        "switchBlocked": "Mettez d'abord à jour ou fermez le message programmé que vous modifiez."
+      },
+      "confirm": {
+        "title": "Le programmer à nouveau ?",
+        "go": "Programmer quand même"
+      }
     }
   },
   "message": {
