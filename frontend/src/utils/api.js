@@ -28,8 +28,13 @@ async function request(method, path, body, extraHeaders) {
       window.dispatchEvent(new CustomEvent('mailflow:session_expired'));
     }
     const err = await res.json().catch(() => ({ error: 'Request failed' }));
-    // The status rides along so a caller can tell a refusal (409) from a failure.
-    throw Object.assign(new Error(err.error || 'Request failed'), { status: res.status });
+    // The status rides along so a caller can tell a refusal (409) from a failure, and the code
+    // (and the server's clock, for a scheduled time it refused) which refusal it was.
+    throw Object.assign(new Error(err.error || 'Request failed'), {
+      status: res.status,
+      ...(typeof err.code === 'string' ? { code: err.code } : {}),
+      ...(typeof err.serverNow === 'string' ? { serverNow: err.serverNow } : {}),
+    });
   }
   return res.json();
 }
@@ -463,6 +468,25 @@ export const api = {
   // Undo send: a send held on the server for the undo window (backend/src/services/sendHold.js)
   getSendStatus: (id) => request('GET',  `/mail/send/${encodeURIComponent(id)}`),
   cancelSend:    (id) => request('POST', `/mail/send/${encodeURIComponent(id)}/cancel`),
+
+  // Scheduled send (#543): backend/src/routes/scheduled.js
+  scheduled: {
+    create:  (data)            => request('POST', '/mail/scheduled', data),
+    update:  (id, data)        => request('PUT',  `/mail/scheduled/${encodeURIComponent(id)}`, data),
+    hold:    (id, editToken)   => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/hold`, editToken ? { editToken } : {}),
+    release: (id, editToken)   => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/release`, { editToken }),
+    // For a page that is going away: keepalive lets the request outlive it, which a beacon
+    // could too, but a beacon cannot carry the CSRF header.
+    releaseOnUnload: (id, editToken) => {
+      try {
+        fetch(`${BASE}/mail/scheduled/${encodeURIComponent(id)}/release`, {
+          method: 'POST', credentials: 'include', keepalive: true,
+          headers: { [CSRF_HEADER]: CSRF_VALUE, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ editToken }),
+        }).catch(() => {});
+      } catch { /* the lease lapses on its own */ }
+    },
+  },
 
   // Drafts
   getReplyDraftIndicators: (ids, scope = {}) => request('POST', '/mail/reply-drafts/indicators', { ids, ...scope }),
