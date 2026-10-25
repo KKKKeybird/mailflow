@@ -222,6 +222,8 @@ function present(row) {
     timeZone: row.time_zone,
     version: row.version,
     attempts: row.attempts,
+    // A deleted (cancelled) message can be restored until then; null for every other one.
+    restoreUntil: row.status === 'cancelled' ? row.purge_after : null,
     sentAt: row.sent_at,
     sentLate: row.sent_late,
     pauseReason: row.pause_reason,
@@ -322,12 +324,15 @@ router.post('/scheduled', async (req, res) => {
 
 // --- Read --------------------------------------------------------------------------------------
 
-// Everything not yet sent (at most the 100 pending), and the most recent sent ones, with a flag
-// when there are older sent ones the list leaves out.
+// Everything not yet sent (at most the 100 pending), the deleted ones that can still be restored
+// (each with its restoreUntil), and the most recent sent ones, with a flag when there are older
+// sent ones the list leaves out.
 router.get('/scheduled', async (req, res) => {
   const [open, sent] = await Promise.all([
     query(
-      `SELECT * FROM scheduled_messages WHERE user_id = $1 AND status NOT IN ('cancelled', 'sent') ORDER BY send_at, id`,
+      `SELECT * FROM scheduled_messages
+        WHERE user_id = $1 AND (status NOT IN ('cancelled', 'sent') OR (status = 'cancelled' AND purge_after > NOW()))
+        ORDER BY send_at, id`,
       [req.session.userId],
     ),
     query(
@@ -356,9 +361,12 @@ router.get('/scheduled/count', async (req, res) => {
   res.json({ count: r.count });
 });
 
+// Deleted messages are found too while they can be restored; after that they are gone.
+const restorable = row => row.status === 'cancelled' && row.purge_after && new Date(row.purge_after).getTime() > Date.now();
+
 router.get('/scheduled/:id', validId, async (req, res) => {
   const row = await findOwnedScheduledMessage(req.session.userId, req.params.id);
-  if (!row || row.status === 'cancelled') return fail(res, 404, 'Scheduled message not found');
+  if (!row || (row.status === 'cancelled' && !restorable(row))) return fail(res, 404, 'Scheduled message not found');
   const spec = row.payload_enc ? openJson(row.payload_enc, aad.payload(row)) : null;
   if (row.payload_enc && !spec) return fail(res, 500, 'This message could not be decrypted on this server.', { code: 'decrypt_failed' });
   res.set('Cache-Control', 'no-store');
@@ -723,7 +731,9 @@ router.post('/scheduled/:id/cancel', validId, async (req, res) => {
 
 // Undo of a cancel, within its window: back to the status it had, its send time unchanged.
 // It counts as pending again, so it is checked against the limit under the user's lock, as a
-// create is. The answer says whether it goes out at once (its send time passed meanwhile).
+// create is. One that would come back scheduled at a time that has passed (by the database's
+// clock) comes back paused by the user instead, as an Undo of Send now does: scheduled and due,
+// the sender would claim it at once, and a restore would send it.
 router.post('/scheduled/:id/restore', validId, async (req, res) => {
   const userId = req.session.userId;
   let row;
@@ -738,11 +748,14 @@ router.post('/scheduled/:id/restore', validId, async (req, res) => {
       if (current.status !== 'cancelled') return { state: current.status };
       if (!current.purge_after || current.purge_after <= now) return { expired: true };
       await checkUserLimits(client, userId, { adding: 1, addingBytes: 0, exceptId: req.params.id });
+      const due = "COALESCE(status_before, 'scheduled') = 'scheduled' AND (send_at <= NOW() OR due_at <= NOW())";
       const { rows: [restored] } = await client.query(
         `UPDATE scheduled_messages
-            SET status = COALESCE(status_before, 'scheduled'), status_before = NULL, purge_after = NULL, updated_at = NOW()
+            SET status = CASE WHEN ${due} THEN 'paused' ELSE COALESCE(status_before, 'scheduled') END,
+                pause_reason = CASE WHEN ${due} THEN 'user' ELSE pause_reason END,
+                status_before = NULL, purge_after = NULL, updated_at = NOW()
           WHERE id = $1 AND user_id = $2 AND status = 'cancelled' AND purge_after > NOW()
-          RETURNING *, (send_at <= NOW()) AS due_now`,
+          RETURNING *`,
         [req.params.id, userId],
       );
       return restored || { expired: true };
@@ -754,7 +767,7 @@ router.post('/scheduled/:id/restore', validId, async (req, res) => {
   if (row.state) return fail(res, 409, stateMessage(row.state), { status: row.state });
   if (row.expired) return fail(res, 409, 'This can no longer be undone.', { status: 'cancelled' });
   changed(userId, row.id, row.status);
-  res.json({ status: row.status, sendAt: row.send_at, sendsImmediately: row.status === 'scheduled' && row.due_now === true });
+  res.json({ status: row.status, sendAt: row.send_at, ...(row.status === 'paused' && row.pause_reason ? { pauseReason: row.pause_reason } : {}) });
 });
 
 // Deletes a message for good, with its attachments: anything but one being sent. Failed

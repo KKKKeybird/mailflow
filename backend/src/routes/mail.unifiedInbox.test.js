@@ -37,6 +37,8 @@ describe('GET /api/mail/unread-counts scheduled (#543)', () => {
     expect(body.scheduled).toEqual({ pending: 3, attention: 1 });
     const [sql, params] = query.mock.calls.find(([s]) => /FROM scheduled_messages/.test(s));
     expect(sql).toMatch(/WHERE user_id = \$1/);
+    // A deleted message waiting out its restore window counts in neither.
+    expect(sql).not.toMatch(/cancelled/);
     expect(params).toEqual(['user-1']);
   });
 

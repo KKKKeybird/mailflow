@@ -114,6 +114,14 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
     return h.pool.query(`UPDATE scheduled_messages SET ${cols.map((c, i) => `${c} = $${i + 2}`).join(', ')} WHERE id = $1`, [id, ...Object.values(fields)]);
   };
   const broadcasts = () => imapManager.broadcast.mock.calls.map(c => c[0]);
+  // A sender as the process runs one, for one tick, without timers.
+  const tickSender = async () => {
+    const sender = new ScheduledSender({ sleep: async () => {}, sentLookupDelaysMs: [0] });
+    sender.running = true;
+    sender.arm = () => {};
+    await sender.runTick();
+    while (sender.inFlight.size) await Promise.allSettled([...sender.inFlight.values()]);
+  };
 
   describe('create', () => {
     it('stores the message encrypted, deletes the draft after the commit, and says so', async () => {
@@ -535,14 +543,6 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
       });
     });
 
-    // A sender as the process runs one, for one tick, without timers.
-    const tickSender = async () => {
-      const sender = new ScheduledSender({ sleep: async () => {}, sentLookupDelaysMs: [0] });
-      sender.running = true;
-      sender.arm = () => {};
-      await sender.runTick();
-      while (sender.inFlight.size) await Promise.allSettled([...sender.inFlight.values()]);
-    };
 
     it('an Undo of Send now on a message that is due leaves it paused by the user, and the sender does not take it', async () => {
       const id = await create();
@@ -681,7 +681,6 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
       const cancelled = await call('POST', `/${id}/cancel`, {});
       expect(cancelled.body).toMatchObject({ status: 'cancelled', undoUntil: expect.any(String) });
       expect(await rowOf(id)).toMatchObject({ status: 'cancelled', status_before: 'scheduled' });
-      expect((await call('GET', '')).body.messages).toEqual([]);
       expect((await call('POST', `/${id}/restore`, {})).body).toMatchObject({ status: 'scheduled' });
       expect(await rowOf(id)).toMatchObject({ status: 'scheduled', status_before: null, purge_after: null, send_at: sendAt });
 
@@ -697,17 +696,70 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
       expect((await rowOf(id)).pause_reason).toBe('overdue');
     });
 
-    it('says when an undone cancel goes out at once, and keeps the 100-pending limit', async () => {
+    it('lists a deleted message while it can be restored, and finds it, then neither', async () => {
+      const id = await create();
+      const theirs = await create({ accountId: strangerAccount.id }, stranger.id);
+      await call('POST', `/${theirs}/cancel`, {}, stranger.id);
+      const cancelled = await call('POST', `/${id}/cancel`, {});
+      const list = await call('GET', '');
+      expect(list.body.messages.map(m => m.id)).toEqual([id]);
+      expect(list.body.messages[0]).toMatchObject({
+        status: 'cancelled', restoreUntil: cancelled.body.undoUntil, summary: { subject: 'Q4 numbers' },
+      });
+      expect((await call('GET', `/${id}`)).body).toMatchObject({ id, status: 'cancelled', restoreUntil: cancelled.body.undoUntil, spec: { subject: 'Q4 numbers' } });
+      // Every other message says it has no restore window.
+      const open = await create();
+      expect((await call('GET', '')).body.messages.find(m => m.id === open).restoreUntil).toBeNull();
+      // Once the window closed (before the purge), it is gone from both.
+      await set(id, { purge_after: new Date(Date.now() - 1000) });
+      expect((await call('GET', '')).body.messages.map(m => m.id)).toEqual([open]);
+      expect((await call('GET', `/${id}`)).status).toBe(404);
+      // Another user's deleted message is theirs alone.
+      expect((await call('GET', `/${theirs}`)).status).toBe(404);
+      expect((await call('GET', '', undefined, stranger.id)).body.messages.map(m => m.id)).toEqual([theirs]);
+    });
+
+    it('a restore of a message whose time passed brings it back paused by the user, and the sender does not take it', async () => {
       const id = await create();
       await call('POST', `/${id}/cancel`, {});
-      await set(id, { send_at: new Date(Date.now() - 60_000), due_at: new Date(Date.now() - 60_000) });
-      expect((await call('POST', `/${id}/restore`, {})).body).toMatchObject({ status: 'scheduled', sendsImmediately: true });
+      const past = new Date(Date.now() - 60_000);
+      await set(id, { send_at: past, due_at: past });
+      imapManager.broadcast.mockClear();
+      const restored = await call('POST', `/${id}/restore`, {});
+      expect(restored.body).toEqual({ status: 'paused', sendAt: past.toISOString(), pauseReason: 'user' });
+      expect(await rowOf(id)).toMatchObject({ status: 'paused', pause_reason: 'user', send_at: past, due_at: past, status_before: null, purge_after: null });
+      expect(broadcasts()).toEqual([{ type: 'scheduled_changed', id, status: 'paused' }]);
+      await tickSender();
+      expect(await rowOf(id)).toMatchObject({ status: 'paused', claim_token: null, smtp_started_at: null, sent_at: null });
+
+      // Not yet due, it comes back scheduled at its time; a failed one comes back failed.
       const later = await create();
       await call('POST', `/${later}/cancel`, {});
-      expect((await call('POST', `/${later}/restore`, {})).body.sendsImmediately).toBe(false);
+      const back = await call('POST', `/${later}/restore`, {});
+      expect(back.body.status).toBe('scheduled');
+      expect(back.body.pauseReason).toBeUndefined();
+      const failed = await create();
+      await set(failed, { status: 'failed', failure_code: 'smtp_rejected', send_at: past, due_at: past });
+      await call('POST', `/${failed}/cancel`, {});
+      expect((await call('POST', `/${failed}/restore`, {})).body).toEqual({ status: 'failed', sendAt: past.toISOString() });
+    });
 
-      await call('POST', `/${later}/cancel`, {});
+    it('a restore may bring the pending count up to the limit, and the next create is refused', async () => {
+      const id = await create();
+      await call('POST', `/${id}/cancel`, {});
       for (let i = 0; i < 99; i++) await create();
+      expect((await call('POST', `/${id}/restore`, {})).body.status).toBe('scheduled');
+      const { rows: [{ pending }] } = await h.pool.query(
+        "SELECT COUNT(*)::int AS pending FROM scheduled_messages WHERE user_id = $1 AND status <> 'cancelled' AND status <> 'sent'", [owner.id]);
+      expect(pending).toBe(100);
+      const next = await call('POST', '', draftBody());
+      expect(next).toMatchObject({ status: 422, body: { code: 'too_many' } });
+    });
+
+    it('keeps the 100-pending limit on a restore', async () => {
+      const later = await create();
+      await call('POST', `/${later}/cancel`, {});
+      for (let i = 0; i < 100; i++) await create();
       const full = await call('POST', `/${later}/restore`, {});
       expect(full).toMatchObject({ status: 422, body: { code: 'too_many' } });
       expect((await rowOf(later)).status).toBe('cancelled');

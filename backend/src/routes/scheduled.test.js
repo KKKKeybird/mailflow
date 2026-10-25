@@ -269,3 +269,43 @@ describe('what needs the user\'s confirmation', () => {
     expect(await call('POST', `/${ID}/send-anyway`, { confirm: true })).toMatchObject({ status: 409, body: { status: 'failed' } });
   });
 });
+
+describe('deleted messages in their restore window', () => {
+  const cancelled = purgeAfter => ({
+    id: ID, user_id: 'u1', account_id: ACCOUNT, status: 'cancelled', status_before: 'scheduled', version: 1,
+    send_at: new Date(), due_at: new Date(), purge_after: purgeAfter, payload_enc: null, summary_enc: null, result_enc: null,
+  });
+
+  it('the list asks for them only while they can be restored, and says until when', async () => {
+    const until = new Date(Date.now() + 60_000);
+    query.mockImplementation(async sql => (/status NOT IN \('cancelled', 'sent'\)/.test(sql) ? { rows: [cancelled(until)] } : { rows: [] }));
+    const r = await call('GET', '');
+    const [openSql] = query.mock.calls.find(([sql]) => /NOT IN \('cancelled', 'sent'\)/.test(sql));
+    expect(openSql).toMatch(/status = 'cancelled' AND purge_after > NOW\(\)/);
+    expect(r.body.messages).toEqual([expect.objectContaining({ id: ID, status: 'cancelled', restoreUntil: until.toISOString() })]);
+  });
+
+  it('GET /:id finds one in its window, and not after it', async () => {
+    findOwnedScheduledMessage.mockResolvedValue(cancelled(new Date(Date.now() + 60_000)));
+    expect((await call('GET', `/${ID}`)).body).toMatchObject({ id: ID, status: 'cancelled' });
+    findOwnedScheduledMessage.mockResolvedValue(cancelled(new Date(Date.now() - 1000)));
+    expect((await call('GET', `/${ID}`)).status).toBe(404);
+  });
+
+  it('a restore decides in its UPDATE, by the database clock, to come back paused when due', async () => {
+    withTransaction.mockImplementation(fn => fn({ query }));
+    query.mockImplementation(async sql => {
+      if (/COUNT\(\*\) FILTER/.test(sql)) return { rows: [{ pending: 0, bytes: 0 }] };
+      if (/^SELECT NOW\(\)/.test(sql)) return { rows: [{ now: new Date() }] };
+      if (/^\s*UPDATE scheduled_messages/.test(sql)) return { rows: [{ ...cancelled(null), status: 'paused', pause_reason: 'user' }] };
+      return { rows: [] };
+    });
+    findOwnedScheduledMessage.mockResolvedValue(cancelled(new Date(Date.now() + 60_000)));
+    const r = await call('POST', `/${ID}/restore`, {});
+    expect(r.body).toMatchObject({ status: 'paused', pauseReason: 'user' });
+    expect(r.body.sendsImmediately).toBeUndefined();
+    const [sql] = query.mock.calls.find(([s]) => /^\s*UPDATE scheduled_messages/.test(s));
+    expect(sql).toMatch(/send_at <= NOW\(\)/);
+    expect(sql).toMatch(/THEN 'user'/);
+  });
+});
