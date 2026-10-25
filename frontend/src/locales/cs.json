@@ -162,7 +162,132 @@
     "emptied": "Složka vyprázdněna",
     "backToAccounts": "Zpět k účtům",
     "updateAvailable": "Je dostupná aktualizace: v{{version}}",
-    "snoozed": "Odložené"
+    "snoozed": "Odložené",
+    "scheduled": "Naplánované",
+    "scheduledPending": "Čeká na odeslání: {{n}}",
+    "scheduledAttention": "Vyžaduje pozornost: {{n}}"
+  },
+  "scheduled": {
+    "refresh": "Obnovit",
+    "loadFailed": "Naplánované zprávy se nepodařilo načíst.",
+    "empty": "Nic není naplánováno",
+    "emptyDesc": "V editoru zprávy použijte Odeslat později.",
+    "moreSent": "Starší odeslané zprávy se nezobrazují.",
+    "sentMessage": "Odeslaná zpráva",
+    "to": "Komu: {{names}}",
+    "toMore": "Komu: {{names}} +{{more}}",
+    "detail": "Uvedený důvod: {{detail}}",
+    "zoneTime": "{{time}} ({{zone}})",
+    "sections": {
+      "attention": "Vyžaduje pozornost",
+      "scheduled": "Naplánováno",
+      "sent": "Odesláno"
+    },
+    "when": {
+      "today": "Dnes {{time}}",
+      "tomorrow": "Zítra {{time}}",
+      "yesterday": "Včera {{time}}"
+    },
+    "chip": {
+      "sending": "Odesílá se",
+      "editing": "Upravuje se",
+      "failed": "Selhalo",
+      "paused": "Pozastaveno",
+      "uncertain": "Ověřte doručení",
+      "sent": "Odesláno",
+      "sentLate": "Odesláno pozdě",
+      "retrying": "Opakuje se"
+    },
+    "reason": {
+      "overdue": "Zpozdila se o více než 6 hodin, proto ji MailFlow podržel. Odešlete ji hned, nebo vyberte nový čas.",
+      "restored": "Byla pozastavena při obnově zálohy.",
+      "editAbandoned": "Když měla odejít, byla otevřená k úpravám.",
+      "accountDisabled": "Její účet je vypnutý.",
+      "needsReauth": "Pro odeslání se k účtu znovu přihlaste.",
+      "user": "Pozastavili jste ji.",
+      "paused": "Je pozastavená.",
+      "smtpRejected": "Poštovní server ji odmítl.",
+      "tooLarge": "Je pro poštovní server příliš velká.",
+      "config": "Nastavení odesílání účtu vyžaduje pozornost.",
+      "tls": "Zabezpečené spojení s poštovním serverem selhalo.",
+      "invalidMessage": "Zprávu se nepodařilo sestavit.",
+      "aliasMissing": "Adresa, ze které měla odejít, už neexistuje.",
+      "decryptFailed": "Na tomto serveru ji nelze dešifrovat.",
+      "accountMissing": "Její účet už neexistuje.",
+      "gaveUp": "Poštovní server stále selhával, proto to MailFlow vzdal.",
+      "failed": "Nepodařilo se ji odeslat.",
+      "uncertain": "MailFlow se během odesílání zastavil. Zpráva mohla, ale nemusela být doručena. Zkontrolujte složku Odeslané.",
+      "retrying": "Poslední pokus selhal. Další pokus: {{when}}."
+    },
+    "sent": {
+      "markedSent": "Označili jste ji jako odeslanou.",
+      "late": "Odesláno pozdě: naplánováno na {{scheduled}}, odesláno {{sent}}.",
+      "lateOffline": "Odesláno pozdě: naplánováno na {{scheduled}}, odesláno {{sent}}, protože MailFlow nebyl v provozu.",
+      "refused": "Poštovní server odmítl pro: {{list}}",
+      "deferred": "Nedoručeno pro {{list}}: jejich server požádal o pozdější pokus a MailFlow to znovu nezkouší. Pošlete jim ji znovu.",
+      "noSentFolder": "Kopie se neuložila: účet nemá složku Odeslané.",
+      "noSentCopy": "Do složky Odeslané se nepodařilo uložit kopii."
+    },
+    "a11y": {
+      "scheduledFor": "Naplánováno na {{when}}",
+      "sentAt": "Odesláno {{when}}",
+      "to": "komu {{names}}",
+      "toMore": "komu {{names}} a dalším ({{more}})",
+      "subject": "předmět {{subject}}"
+    },
+    "actions": {
+      "edit": "Upravit",
+      "reschedule": "Přeplánovat",
+      "sendNow": "Odeslat hned",
+      "resume": "Obnovit odeslání",
+      "retry": "Zkusit znovu",
+      "sendAnyway": "Přesto odeslat",
+      "markSent": "Označit jako odeslané",
+      "cancel": "Smazat",
+      "delete": "Smazat natrvalo",
+      "viewSent": "Zobrazit v Odeslaných",
+      "remove": "Odebrat ze seznamu",
+      "more": "Další akce",
+      "menu": "Akce naplánované zprávy"
+    },
+    "confirm": {
+      "uncertainTitle": "Možná už byla doručena",
+      "uncertainBody": "MailFlow se během jejího odesílání zastavil. Nejprve zkontrolujte složku Odeslané. Přesto ji odeslat znovu?",
+      "restoredTitle": "Pozastaveno obnovou zálohy",
+      "restoredBody": "Byla pozastavena při obnově zálohy. Pokud starý server stále běží, může ji odeslat také. Odeslat ji odsud?",
+      "restoredGo": "Odeslat odsud",
+      "sendAnywayTitle": "Odeslat ji znovu?",
+      "sendAnywayBody": "Možná už byla doručena: MailFlow se během odesílání zastavil. Nejprve zkontrolujte složku Odeslané. Pokud odešla, příjemci ji dostanou dvakrát.",
+      "markSentTitle": "Označit ji jako odeslanou?",
+      "markSentBody": "Udělejte to, když jste ji našli ve složce Odeslané. MailFlow smaže její obsah a nikdy ji neodešle.",
+      "deleteTitle": "Smazat ji natrvalo?",
+      "deleteBody": "Neodešle se a nepůjde obnovit."
+    },
+    "toast": {
+      "resumed": "Obnoveno. Právě se odesílá.",
+      "sendingNow": "Právě se odesílá.",
+      "markedSent": "Označeno jako odeslané",
+      "deleted": "Naplánovaná zpráva smazána",
+      "deletedForGood": "Smazáno natrvalo",
+      "restored": "Obnoveno",
+      "restoredSending": "Obnoveno. Její čas už uplynul, proto se právě odesílá.",
+      "sent": "Naplánovaná zpráva odeslána",
+      "notSent": "Neodesláno: {{reason}}",
+      "open": "Otevřít"
+    },
+    "errors": {
+      "needsReauth": "Nejprve se k účtu znovu přihlaste a pak odeslání obnovte.",
+      "accountDisabled": "Nejprve účet znovu zapněte a pak odeslání obnovte.",
+      "undoExpired": "Na vrácení je pozdě: zpráva se odesílá.",
+      "notFound": "Tato naplánovaná zpráva už neexistuje.",
+      "sending": "Právě teď se odesílá.",
+      "sent": "Už byla odeslána.",
+      "cancelled": "Byla smazána.",
+      "editing": "Je otevřená k úpravám v jiném okně.",
+      "failed": "Naplánovanou zprávu se nepodařilo změnit.",
+      "restoreFailed": "Nepodařilo se ji obnovit",
+      "restoreExpired": "Už ji nelze obnovit."
+    }
   },
   "messageList": {
     "replyDraftChanged": "Koncept odpovědi se změnil. Zkuste jej znovu otevřít.",
@@ -1253,7 +1378,8 @@
       "trustedAuthservDetectedNone": "Zatím žádná data — zprávy se kontrolují, jakmile je pro tento účet zapnutý antispam.",
       "trustedAuthservWarn": "Důvěřujte pouze ID, které znáte jako přijímající server vašeho poskytovatele.",
       "enabledGlobally": "Globálně zapnuto",
-      "microsoftImapNoteSignIn": "Microsoft už nepřijímá hesla pro schránky Outlook.com, Hotmail, Live a MSN. Přihlaste se raději přes Microsoft: heslo aplikace není potřeba."
+      "microsoftImapNoteSignIn": "Microsoft už nepřijímá hesla pro schránky Outlook.com, Hotmail, Live a MSN. Přihlaste se raději přes Microsoft: heslo aplikace není potřeba.",
+      "deleteScheduled": "Naplánované dosud neodeslané zprávy, které se smažou s ním: {{n}}."
     },
     "folderMappings": {
       "title": "Mapování složek",

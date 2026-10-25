@@ -845,10 +845,13 @@ function AccountsTab() {
     setEditTarget(null);
   };
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
+    // Its scheduled messages go with it (#543, design 1.1): the confirmation says how many.
+    const scheduled = await api.scheduled.count(id).then(r => Number(r?.count) || 0, () => 0);
     setConfirmDialog({
       title: 'Remove account?',
-      message: 'All synced messages for this account will be deleted. This cannot be undone.',
+      message: 'All synced messages for this account will be deleted. This cannot be undone.'
+        + (scheduled > 0 ? ` ${t('admin.accounts.deleteScheduled', { n: scheduled })}` : ''),
       confirmLabel: 'Remove',
       onConfirm: async () => {
         await api.deleteAccount(id);

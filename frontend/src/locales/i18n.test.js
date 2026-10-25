@@ -200,6 +200,15 @@ const SAME_VALUE_ALLOWED = {
   // Send later (#543): "Date" is spelled alike in en and fr, "Datum" in cs and de, "Data" in
   // it, pl and pt-BR
   'compose.scheduleSend.dateLabel': [['en', 'fr'], ['cs', 'de'], ['it', 'pl', 'ptBR']],
+  // The Scheduled view (#543): Spanish and Portuguese share "Editar", "Enviando", "Abrir" and
+  // "Para:"; a time with its zone in parentheses is a format, the same everywhere but Chinese,
+  // which uses full-width parentheses.
+  'scheduled.actions.edit': [['es', 'ptBR']],
+  'scheduled.chip.sending': [['es', 'ptBR']],
+  'scheduled.toast.open': [['es', 'ptBR']],
+  'scheduled.to': [['es', 'ptBR']],
+  'scheduled.toMore': [['es', 'ptBR']],
+  'scheduled.zoneTime': [['cs', 'de', 'en', 'es', 'fr', 'it', 'ko', 'pl', 'ptBR', 'ru']],
 
   'admin.rules.actionForwardPlaceholder': [['es', 'it']],
   'admin.sso.domainsPh':       [['de', 'en', 'ko', 'pl', 'ru', 'zhCN']],

@@ -34,8 +34,12 @@ async function request(method, path, body, extraHeaders) {
       status: res.status,
       ...(typeof err.code === 'string' ? { code: err.code } : {}),
       ...(typeof err.serverNow === 'string' ? { serverNow: err.serverNow } : {}),
+      // What a scheduled message is doing when the server refused to change it (sending, sent...).
+      ...(typeof err.status === 'string' ? { state: err.status } : {}),
     });
   }
+  // No Content (a DELETE): there is no body to read.
+  if (res.status === 204) return null;
   return res.json();
 }
 
@@ -471,6 +475,10 @@ export const api = {
 
   // Scheduled send (#543): backend/src/routes/scheduled.js
   scheduled: {
+    list:    ()                => request('GET',  '/mail/scheduled'),
+    get:     (id)              => request('GET',  `/mail/scheduled/${encodeURIComponent(id)}`),
+    // How many unsent scheduled messages deleting the account would delete with it.
+    count:   (accountId)       => request('GET',  `/mail/scheduled/count?accountId=${encodeURIComponent(accountId)}`),
     create:  (data)            => request('POST', '/mail/scheduled', data),
     update:  (id, data)        => request('PUT',  `/mail/scheduled/${encodeURIComponent(id)}`, data),
     // takeover: edit it here although another window holds it (that one then has lost it).
@@ -484,6 +492,14 @@ export const api = {
     sendNow: (id, confirm, editToken) => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/send-now`,
       { ...(confirm ? { confirm: true } : {}), ...(editToken ? { editToken } : {}) }),
     undoSendNow: (id, undoToken) => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/send-now/undo`, { undoToken }),
+    // confirm: the user's yes to the server's question (confirm_uncertain, confirm_restored).
+    reschedule: (id, { sendAt, timeZone }, confirm) => request('PATCH', `/mail/scheduled/${encodeURIComponent(id)}`,
+      { sendAt, ...(timeZone ? { timeZone } : {}), ...(confirm ? { confirm: true } : {}) }),
+    resume:  (id, confirm)     => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/resume`, confirm ? { confirm: true } : {}),
+    sendAnyway: (id)           => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/send-anyway`, { confirm: true }),
+    markSent: (id)             => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/mark-sent`),
+    restore: (id)              => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/restore`),
+    remove:  (id)              => request('DELETE', `/mail/scheduled/${encodeURIComponent(id)}`),
     // For a page that is going away: keepalive lets the request outlive it, which a beacon
     // could too, but a beacon cannot carry the CSRF header.
     releaseOnUnload: (id, editToken, { keepPaused = false } = {}) => {

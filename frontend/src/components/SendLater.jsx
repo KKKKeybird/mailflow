@@ -152,8 +152,12 @@ const calendarIcon = (
 // Unschedule (design 5.1); Change time opens the times, as `initialView` 'times' does (the strip's
 // Change). Escape goes back one level, and from the first one shown it closes. Choosing an item
 // gives focus back to the chevron, so a choice that fails leaves it somewhere sensible.
+//
+// The Scheduled view's Reschedule uses the times alone, with its own `title` and `submitLabel`,
+// opening below its row (`placement` 'below').
 export function SendLaterMenu({
   triggerRef, onClose, onPick, editing = false, onUnschedule, onSendNow, initialView = 'root', now: nowProp, busy = false,
+  title, submitLabel, placement = 'above',
 }) {
   const { t } = useTranslation();
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
@@ -233,7 +237,7 @@ export function SendLaterMenu({
     <div
       ref={boxRef}
       style={{
-        position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, zIndex: 20,
+        position: 'absolute', ...(placement === 'below' ? { top: 'calc(100% + 4px)', right: 0 } : { bottom: 'calc(100% + 6px)', left: 0 }), zIndex: 20,
         width: 320, maxWidth: 'calc(100vw - 32px)', background: 'var(--bg-elevated)', border: '1px solid var(--border)',
         borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', overflow: 'hidden', padding: view === 'pick' ? 0 : '4px 0',
       }}
@@ -247,8 +251,8 @@ export function SendLaterMenu({
         </div>
       )}
       {view === 'times' && (
-        <div role="menu" aria-label={editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title')} onKeyDown={onMenuKeyDown}>
-          {heading(editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title'))}
+        <div role="menu" aria-label={title || (editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title'))} onKeyDown={onMenuKeyDown}>
+          {heading(title || (editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title')))}
           {items.map(p => item(p.id, t(PRESET_LABELS[p.id]), () => { close(); onPick(p.at); },
             { icon: clockIcon(), detail: formatSendAt(p.at, undefined, now) }))}
           {separator}
@@ -263,7 +267,7 @@ export function SendLaterMenu({
             {t('common.back')}
           </button>
           <SchedulePicker variant="split" now={nowProp} busy={busy}
-            submitLabel={editing ? t('compose.scheduleSend.edit.update') : t('compose.scheduleSend.schedule')}
+            submitLabel={submitLabel || (editing ? t('compose.scheduleSend.edit.update') : t('compose.scheduleSend.schedule'))}
             onSubmit={at => { close(); onPick(at); }} />
         </div>
       )}
@@ -288,6 +292,7 @@ const sheetButton = {
 // first option and back to `returnFocusRef` when it closes.
 export function SendLaterSheet({
   onClose, onPick, editing = false, onUnschedule, onSendNow, initialView = 'root', returnFocusRef, now: nowProp, busy = false,
+  title, submitLabel,
 }) {
   const { t } = useTranslation();
   const titleId = useId();
@@ -323,11 +328,11 @@ export function SendLaterSheet({
         }}
       >
         <div id={titleId} style={{ padding: '16px 20px 8px', fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', borderBottom: '1px solid var(--border-subtle)' }}>
-          {actions ? t('compose.scheduleSend.edit.options') : editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title')}
+          {actions ? t('compose.scheduleSend.edit.options') : title || (editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title'))}
         </div>
         {picking ? (
           <SchedulePicker variant="single" now={nowProp} busy={busy}
-            submitLabel={editing ? t('compose.scheduleSend.edit.update') : t('compose.scheduleSend.schedule')}
+            submitLabel={submitLabel || (editing ? t('compose.scheduleSend.edit.update') : t('compose.scheduleSend.schedule'))}
             onSubmit={choose} />
         ) : (
           <>

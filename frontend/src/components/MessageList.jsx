@@ -16,6 +16,8 @@ import { useSwipeRow } from '../hooks/useSwipeRow.js';
 import ContextMenu from './ContextMenu.jsx';
 import RowHoverActions from './RowHoverActions.jsx';
 import UndoBar from './UndoBar.jsx';
+import ScheduledList from './ScheduledList.jsx';
+import { SCHEDULED_VIEW } from '../utils/scheduledCompose.js';
 import GtdTabList from './GtdTabList.jsx';
 import { useUiScale, descale } from '../hooks/useUiScale.js';
 import {
@@ -122,7 +124,15 @@ function SwipeBackground({ side, actionView, innerRef }) {
   );
 }
 
+// The center column: a mailbox's messages, or the Scheduled view (#543, design 5.2), whose rows are
+// not messages and which has a list of its own. It has no account selected, so its id cannot be a
+// folder's.
 export default function MessageList() {
+  const scheduledView = useStore(s => s.selectedAccountId === null && s.selectedFolder === SCHEDULED_VIEW);
+  return scheduledView ? <ScheduledList /> : <MailboxList />;
+}
+
+function MailboxList() {
   const { t } = useTranslation();
   const uiScale = useUiScale();
   const {

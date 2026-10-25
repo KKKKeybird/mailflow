@@ -629,7 +629,132 @@
     "emptied": "Folder opróżniony",
     "backToAccounts": "Powrót do kont",
     "updateAvailable": "Dostępna aktualizacja: v{{version}}",
-    "snoozed": "Odłożone"
+    "snoozed": "Odłożone",
+    "scheduled": "Zaplanowane",
+    "scheduledPending": "Czeka na wysłanie: {{n}}",
+    "scheduledAttention": "Wymaga uwagi: {{n}}"
+  },
+  "scheduled": {
+    "refresh": "Odśwież",
+    "loadFailed": "Nie udało się wczytać zaplanowanych wiadomości.",
+    "empty": "Nic nie zaplanowano",
+    "emptyDesc": "Użyj opcji Wyślij później w edytorze.",
+    "moreSent": "Starsze wysłane wiadomości nie są wyświetlane.",
+    "sentMessage": "Wysłana wiadomość",
+    "to": "Do: {{names}}",
+    "toMore": "Do: {{names}} +{{more}}",
+    "detail": "Podany powód: {{detail}}",
+    "zoneTime": "{{time}} ({{zone}})",
+    "sections": {
+      "attention": "Wymaga uwagi",
+      "scheduled": "Zaplanowano",
+      "sent": "Wysłane"
+    },
+    "when": {
+      "today": "Dziś {{time}}",
+      "tomorrow": "Jutro {{time}}",
+      "yesterday": "Wczoraj {{time}}"
+    },
+    "chip": {
+      "sending": "Wysyłanie",
+      "editing": "Edytowana",
+      "failed": "Niepowodzenie",
+      "paused": "Wstrzymana",
+      "uncertain": "Sprawdź dostarczenie",
+      "sent": "Wysłano",
+      "sentLate": "Wysłano z opóźnieniem",
+      "retrying": "Ponawianie"
+    },
+    "reason": {
+      "overdue": "Była spóźniona o ponad 6 godzin, więc MailFlow ją wstrzymał. Wyślij ją teraz albo wybierz nową godzinę.",
+      "restored": "Została wstrzymana podczas przywracania kopii zapasowej.",
+      "editAbandoned": "Była otwarta do edycji, gdy miała zostać wysłana.",
+      "accountDisabled": "Jej konto jest wyłączone.",
+      "needsReauth": "Zaloguj się ponownie do konta, aby ją wysłać.",
+      "user": "Wstrzymano ją ręcznie.",
+      "paused": "Jest wstrzymana.",
+      "smtpRejected": "Serwer poczty ją odrzucił.",
+      "tooLarge": "Jest za duża dla serwera poczty.",
+      "config": "Ustawienia wysyłania konta wymagają uwagi.",
+      "tls": "Bezpieczne połączenie z serwerem poczty nie powiodło się.",
+      "invalidMessage": "Nie udało się złożyć wiadomości.",
+      "aliasMissing": "Adres, z którego miała zostać wysłana, już nie istnieje.",
+      "decryptFailed": "Nie udało się jej odszyfrować na tym serwerze.",
+      "accountMissing": "Jej konto już nie istnieje.",
+      "gaveUp": "Serwer poczty wciąż zawodził, więc MailFlow przestał próbować.",
+      "failed": "Nie udało się jej wysłać.",
+      "uncertain": "MailFlow zatrzymał się w trakcie wysyłania. Wiadomość mogła zostać dostarczona albo nie. Sprawdź folder Wysłane.",
+      "retrying": "Ostatnia próba nie powiodła się. Następna próba: {{when}}."
+    },
+    "sent": {
+      "markedSent": "Oznaczono ją jako wysłaną.",
+      "late": "Wysłano z opóźnieniem: zaplanowano na {{scheduled}}, wysłano {{sent}}.",
+      "lateOffline": "Wysłano z opóźnieniem: zaplanowano na {{scheduled}}, wysłano {{sent}}, bo MailFlow był niedostępny.",
+      "refused": "Serwer poczty odrzucił dla: {{list}}",
+      "deferred": "Nie dostarczono do {{list}}: ich serwer poprosił o późniejszą próbę, a MailFlow nie próbuje ponownie. Wyślij ją do nich jeszcze raz.",
+      "noSentFolder": "Nie zapisano kopii: konto nie ma folderu Wysłane.",
+      "noSentCopy": "Nie udało się zapisać kopii w folderze Wysłane."
+    },
+    "a11y": {
+      "scheduledFor": "Zaplanowano na {{when}}",
+      "sentAt": "Wysłano {{when}}",
+      "to": "do {{names}}",
+      "toMore": "do {{names}} i jeszcze {{more}}",
+      "subject": "temat {{subject}}"
+    },
+    "actions": {
+      "edit": "Edytuj",
+      "reschedule": "Zmień termin",
+      "sendNow": "Wyślij teraz",
+      "resume": "Wznów",
+      "retry": "Spróbuj ponownie",
+      "sendAnyway": "Wyślij mimo to",
+      "markSent": "Oznacz jako wysłaną",
+      "cancel": "Usuń",
+      "delete": "Usuń na stałe",
+      "viewSent": "Pokaż w Wysłanych",
+      "remove": "Usuń z listy",
+      "more": "Więcej działań",
+      "menu": "Działania dla zaplanowanej wiadomości"
+    },
+    "confirm": {
+      "uncertainTitle": "Mogła już zostać dostarczona",
+      "uncertainBody": "MailFlow zatrzymał się w trakcie jej wysyłania. Najpierw sprawdź folder Wysłane. Wysłać ją mimo to ponownie?",
+      "restoredTitle": "Wstrzymana przez przywrócenie kopii",
+      "restoredBody": "Została wstrzymana podczas przywracania kopii zapasowej. Jeśli stary serwer nadal działa, też może ją wysłać. Wysłać ją stąd?",
+      "restoredGo": "Wyślij stąd",
+      "sendAnywayTitle": "Wysłać ją ponownie?",
+      "sendAnywayBody": "Mogła już zostać dostarczona: MailFlow zatrzymał się w trakcie wysyłania. Najpierw sprawdź folder Wysłane. Jeśli wyszła, odbiorcy dostaną ją dwa razy.",
+      "markSentTitle": "Oznaczyć ją jako wysłaną?",
+      "markSentBody": "Zrób to, jeśli znalazłeś ją w folderze Wysłane. MailFlow usunie jej treść i nigdy jej nie wyśle.",
+      "deleteTitle": "Usunąć ją na stałe?",
+      "deleteBody": "Nie zostanie wysłana i nie da się jej przywrócić."
+    },
+    "toast": {
+      "resumed": "Wznowiono. Właśnie jest wysyłana.",
+      "sendingNow": "Właśnie jest wysyłana.",
+      "markedSent": "Oznaczono jako wysłaną",
+      "deleted": "Usunięto zaplanowaną wiadomość",
+      "deletedForGood": "Usunięto na stałe",
+      "restored": "Przywrócono",
+      "restoredSending": "Przywrócono. Jej godzina minęła, więc właśnie jest wysyłana.",
+      "sent": "Wysłano zaplanowaną wiadomość",
+      "notSent": "Nie wysłano: {{reason}}",
+      "open": "Otwórz"
+    },
+    "errors": {
+      "needsReauth": "Najpierw zaloguj się ponownie do konta, a potem ją wznów.",
+      "accountDisabled": "Najpierw ponownie włącz konto, a potem ją wznów.",
+      "undoExpired": "Za późno na cofnięcie: wiadomość jest już wysyłana.",
+      "notFound": "Ta zaplanowana wiadomość już nie istnieje.",
+      "sending": "Właśnie teraz jest wysyłana.",
+      "sent": "Została już wysłana.",
+      "cancelled": "Została usunięta.",
+      "editing": "Jest otwarta do edycji w innym oknie.",
+      "failed": "Nie udało się zmienić zaplanowanej wiadomości.",
+      "restoreFailed": "Nie udało się jej przywrócić",
+      "restoreExpired": "Nie można jej już przywrócić."
+    }
   },
   "contextMenu": {
     "find": "Znajdź",
@@ -1082,7 +1207,8 @@
       "trustedAuthservDetectedNone": "Brak danych — wiadomości są analizowane, gdy antyspam jest włączony dla tego konta.",
       "trustedAuthservWarn": "Ufaj tylko identyfikatorowi, który rozpoznajesz jako serwer odbierający Twojego dostawcy.",
       "enabledGlobally": "Włączone globalnie",
-      "microsoftImapNoteSignIn": "Microsoft nie przyjmuje już haseł do skrzynek Outlook.com, Hotmail, Live i MSN. Zaloguj się przez Microsoft: hasło aplikacji nie jest potrzebne."
+      "microsoftImapNoteSignIn": "Microsoft nie przyjmuje już haseł do skrzynek Outlook.com, Hotmail, Live i MSN. Zaloguj się przez Microsoft: hasło aplikacji nie jest potrzebne.",
+      "deleteScheduled": "Zaplanowane, jeszcze niewysłane wiadomości usuwane razem z nim: {{n}}."
     },
     "folderMappings": {
       "title": "Mapowania folderów",
