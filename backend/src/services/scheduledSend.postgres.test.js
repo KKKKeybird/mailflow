@@ -232,6 +232,21 @@ describe.skipIf(!ADMIN_URL)('scheduled sender on PostgreSQL (#543)', () => {
       expect(sendPushToUser).not.toHaveBeenCalled();
     });
 
+    it('records which recipients the server deferred and which it refused', async () => {
+      const msg = await schedule({ payload: { cc: ['later@example.org', 'bad@example.org'] } });
+      behavior.set(msg.to, opts => ({
+        accepted: [opts.to], rejected: ['later@example.org', 'bad@example.org'],
+        rejectedErrors: [
+          Object.assign(new Error('x'), { recipient: 'later@example.org', responseCode: 451 }),
+          Object.assign(new Error('x'), { recipient: 'bad@example.org', responseCode: 550 }),
+        ],
+      }));
+      await tick(newSender());
+      const row = await rowOf(msg.id);
+      expect(row.status).toBe('sent');
+      expect(resultOf(row)).toMatchObject({ rejected: ['bad@example.org'], deferred: ['later@example.org'] });
+    });
+
     it('goes out from the alias it was scheduled with, and fails when that alias is gone', async () => {
       const account = await newAccount();
       const { rows: [alias] } = await h.pool.query(

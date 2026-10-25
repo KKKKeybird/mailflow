@@ -300,6 +300,16 @@ describe('deliverAndRecord', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {});
     await deliverAndRecord(await message({ sentDraft: { uid: 3 } }), { onDelivered });
     expect(order).toEqual([['delivered', { ok: true, rejected: ['bad@example.com'] }], ['draft']]);
+    // The refusals with their codes, for the scheduler to tell deferrals from rejections.
+    expect(onDelivered.mock.calls[0][1]).toEqual({ refusals: [] });
+    sendMail.mockResolvedValue({ rejected: ['later@example.com', 'bad@example.com'], rejectedErrors: [
+      Object.assign(new Error('x'), { recipient: 'later@example.com', responseCode: 450 }),
+      Object.assign(new Error('x'), { recipient: 'bad@example.com', responseCode: 550 }),
+    ] });
+    await deliverAndRecord(await message(), { onDelivered });
+    expect(onDelivered.mock.calls[1][1]).toEqual({ refusals: [
+      { recipient: 'later@example.com', responseCode: 450 }, { recipient: 'bad@example.com', responseCode: 550 },
+    ] });
   });
 
   it('rejects with a public message and calls onFailure when SMTP refuses the message', async () => {

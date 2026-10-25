@@ -600,9 +600,11 @@ async function learnRecipients(userId, allRecipients, now) {
 // responseCode, code and command where it has them.
 //
 // `sentDraft` is the draft to delete ({ uid, folder, accountId }) or null. The hooks:
-// - onDelivered(early): awaited as soon as SMTP has accepted the message (see sendHold.js).
-//   With it, the result also waits for recipient learning, since nobody is waiting on the
-//   response then; without it the learning runs on after the result.
+// - onDelivered(early, { refusals }): awaited as soon as SMTP has accepted the message (see
+//   sendHold.js). `refusals` lists each recipient the server refused at RCPT with its reply
+//   code, so a caller can tell a deferral (4xx) from a rejection (5xx). With the hook, the result
+//   also waits for recipient learning, since nobody is waiting on the response then; without it
+//   the learning runs on after the result.
 // - onResult(sendResult): called synchronously with the final result, before it resolves.
 // - onFailure(): called synchronously when delivery failed, before the rejection.
 export async function deliverAndRecord(
@@ -625,7 +627,10 @@ export async function deliverAndRecord(
       const codes = (info.rejectedErrors || []).map(e => e?.responseCode).filter(Boolean);
       console.warn(`SMTP refused ${rejected.length} recipient(s) for ${redactEmail(account.email_address)}: ${rejected.map(redactEmail).join(', ')}${codes.length ? ` (${codes.join(', ')})` : ''}`);
     }
-    await onDelivered?.({ ok: true, ...(rejected.length ? { rejected } : {}) });
+    const refusals = (info?.rejectedErrors || [])
+      .filter(e => e?.recipient)
+      .map(e => ({ recipient: String(e.recipient), responseCode: Number(e.responseCode) || null }));
+    await onDelivered?.({ ok: true, ...(rejected.length ? { rejected } : {}) }, { refusals });
     // Awaited, like the contact learning of a held send below: a shutdown delivers held sends
     // and waits for them to finish, and work left in a setImmediate would be cut off.
     if (sentDraft) await deleteSentDraft(userId, account, sentDraft);

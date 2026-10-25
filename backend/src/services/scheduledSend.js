@@ -473,6 +473,9 @@ export class ScheduledSender {
     if (!started.rowCount) return null;
 
     let result;
+    // Recipients the server deferred (4xx at RCPT) while it took the message for the others. The
+    // message went out, so it is not retried; the sent notice lists them (design 3.4).
+    let deferred = [];
     try {
       result = await deliverAndRecord(
         { userId: row.user_id, input: built.input, identity: built.identity, delivery },
@@ -480,7 +483,8 @@ export class ScheduledSender {
           // Never throws: a failure to record the acceptance must not skip the bookkeeping that
           // follows (recipients, the Sent copy, the Sent row). The message then still ends sent
           // through markSent, or, if that fails too, through recovery, which finds its Sent copy.
-          onDelivered: async () => {
+          onDelivered: async (_early, { refusals = [] } = {}) => {
+            deferred = refusals.filter(r => r.responseCode >= 400 && r.responseCode < 500).map(r => r.recipient);
             try {
               const accepted = await this.db.query(
                 'UPDATE scheduled_messages SET smtp_accepted_at = NOW(), updated_at = NOW() WHERE id = $1 AND claim_token = $2',
@@ -501,7 +505,8 @@ export class ScheduledSender {
       messageId: result.messageId ?? built.payload.messageId,
       // false when our APPEND failed; otherwise whether there is a Sent folder for the copy.
       sentCopySaved: result.sentCopySaved === false ? false : !!result.sentFolder,
-      ...(result.rejected ? { rejected: result.rejected } : {}),
+      ...refusedOnly(result.rejected, deferred),
+      ...(deferred.length ? { deferred } : {}),
       ...(row.lateReason ? { lateReason: row.lateReason } : {}),
     }, row.late === true);
   }
@@ -804,6 +809,12 @@ export class ScheduledSender {
       console.warn('[scheduledSend] push failed:', err.message);
     }
   }
+}
+
+// The recipients the server refused for good, apart from the ones it only deferred.
+function refusedOnly(rejected = [], deferred = []) {
+  const refused = rejected.filter(r => !deferred.includes(r));
+  return refused.length ? { rejected: refused } : {};
 }
 
 function withTimeout(promise, timeoutMs, message) {
