@@ -243,11 +243,22 @@
         "closeTitle": "이 예약 메시지의 변경 사항을 저장할까요?",
         "saveChanges": "변경 사항 저장",
         "discardChanges": "변경 사항 버리기",
-        "switchBlocked": "편집 중인 예약 메시지를 먼저 업데이트하거나 닫으세요."
+        "switchBlocked": "편집 중인 예약 메시지를 먼저 업데이트하거나 닫으세요.",
+        "sendNow": "지금 보내기",
+        "pickNewTime": "새 시간 선택",
+        "keepPaused": "일시 중지 유지",
+        "dueTitle": "이 메시지는 {{when}}에 보낼 예정이었습니다.",
+        "dueBody": "지금 닫으면 일시 중지 상태로 남아, 확인 없이는 보내지지 않습니다."
       },
       "confirm": {
         "title": "다시 예약할까요?",
         "go": "그래도 예약"
+      },
+      "laterToday": "오늘 늦게",
+      "undoFailed": "예약을 취소하지 못했습니다",
+      "sendNow": {
+        "undone": "보내지 않았습니다. 예약됨에 그대로 돌아왔습니다.",
+        "undoFailed": "지금 보내기를 취소하지 못했습니다"
       }
     }
   },

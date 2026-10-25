@@ -34,9 +34,18 @@ describe('presets', () => {
   }));
 
   test('Monday morning is left out on Sundays, where it is tomorrow morning', () => inZone('Europe/Berlin', () => {
-    const list = presets(new Date('2026-10-25T09:00:00Z'));
+    const list = presets(new Date('2026-10-25T17:00:00Z'));
     assert.deepEqual(ids(list), ['tomorrowMorning', 'tomorrowAfternoon']);
     assert.equal(list[0].at.getDay(), 1);
+  }));
+
+  test('later today, 6:00 PM, is offered only before 4:00 PM', () => inZone('Europe/Berlin', () => {
+    // Tuesday, Oct 27, 2026: 15:59 CET offers it, 16:00 does not.
+    const before = presets(new Date('2026-10-27T14:59:00Z'));
+    assert.deepEqual(ids(before), ['laterToday', 'tomorrowMorning', 'tomorrowAfternoon', 'mondayMorning']);
+    assert.equal(iso(before[0].at), '2026-10-27T17:00:00.000Z');
+    assert.deepEqual(ids(presets(new Date('2026-10-27T15:00:00Z'))), ['tomorrowMorning', 'tomorrowAfternoon', 'mondayMorning']);
+    assert.equal(iso(presets(new Date('2026-10-27T05:30:00Z'))[0].at), '2026-10-27T17:00:00.000Z', 'early morning too');
   }));
 
   test('on a Monday, Monday morning is next week', () => inZone('Europe/Berlin', () => {

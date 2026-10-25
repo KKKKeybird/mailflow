@@ -243,11 +243,22 @@
         "closeTitle": "Zapisać zmiany w tej zaplanowanej wiadomości?",
         "saveChanges": "Zapisz zmiany",
         "discardChanges": "Odrzuć zmiany",
-        "switchBlocked": "Najpierw zaktualizuj lub zamknij zaplanowaną wiadomość, którą edytujesz."
+        "switchBlocked": "Najpierw zaktualizuj lub zamknij zaplanowaną wiadomość, którą edytujesz.",
+        "sendNow": "Wyślij teraz",
+        "pickNewTime": "Wybierz nowy czas",
+        "keepPaused": "Pozostaw wstrzymaną",
+        "dueTitle": "Ta wiadomość miała wyjść {{when}}.",
+        "dueBody": "Zamknięta teraz pozostanie wstrzymana i nigdy nie wyjdzie bez Ciebie."
       },
       "confirm": {
         "title": "Zaplanować ponownie?",
         "go": "Zaplanuj mimo to"
+      },
+      "laterToday": "Później dzisiaj",
+      "undoFailed": "Nie udało się cofnąć planowania",
+      "sendNow": {
+        "undone": "Nie wysłano. Wróciła do Zaplanowanych bez zmian.",
+        "undoFailed": "Nie udało się cofnąć natychmiastowej wysyłki"
       }
     }
   },

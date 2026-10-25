@@ -475,6 +475,9 @@ export const api = {
     update:  (id, data)        => request('PUT',  `/mail/scheduled/${encodeURIComponent(id)}`, data),
     hold:    (id, editToken)   => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/hold`, editToken ? { editToken } : {}),
     release: (id, editToken)   => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/release`, { editToken }),
+    cancel:  (id)              => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/cancel`),
+    sendNow: (id, confirm)     => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/send-now`, confirm ? { confirm: true } : {}),
+    undoSendNow: (id, undoToken) => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/send-now/undo`, { undoToken }),
     // For a page that is going away: keepalive lets the request outlive it, which a beacon
     // could too, but a beacon cannot carry the CSRF header.
     releaseOnUnload: (id, editToken) => {

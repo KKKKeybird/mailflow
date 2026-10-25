@@ -82,6 +82,9 @@ before(() => {
   api.scheduled.update = (...a) => answer('update', a);
   api.scheduled.hold = (...a) => answer('hold', a);
   api.scheduled.release = (...a) => answer('release', a);
+  api.scheduled.cancel = (...a) => answer('cancel', a);
+  api.scheduled.sendNow = (...a) => answer('sendNow', a);
+  api.scheduled.undoSendNow = (...a) => answer('undoSendNow', a);
   api.scheduled.releaseOnUnload = (...a) => { calls.push(['releaseOnUnload', ...a]); };
   api.saveDraft = (...a) => answer('saveDraft', a);
   api.post = (...a) => answer('post', a);
@@ -93,6 +96,9 @@ beforeEach(() => {
     update: (id, { sendAt, version }) => ({ id, version: version + 1, sendAt, status: 'scheduled' }),
     hold: { editToken: '11111111-1111-4111-8111-111111111111', version: 3, statusBefore: 'scheduled' },
     release: { status: 'scheduled' },
+    cancel: { status: 'cancelled', undoUntil: new Date(Date.now() + 600_000).toISOString() },
+    sendNow: () => ({ status: 'scheduled', sendAt: new Date(Date.now() + 10_000).toISOString(), undoToken: 'undo-token', undoUntil: new Date(Date.now() + 10_000).toISOString() }),
+    undoSendNow: { status: 'scheduled', sendAt: SEND_AT },
     saveDraft: { uid: 9, folder: 'Drafts', scheduledRemoved: true },
   };
 });
@@ -106,6 +112,8 @@ const buttons = () => [...document.querySelectorAll('button')];
 const button = (text) => buttons().find(b => b.textContent === text);
 const chevron = () => document.querySelector('[data-send-later]');
 const menuItems = () => [...document.querySelectorAll('[role="menu"] [role="menuitem"]')];
+// A preset by its id: which ones show depends on the time of day the test runs (Later today).
+const preset = (id) => document.querySelector(`[role="menu"] [data-preset="${id}"], [role="dialog"] [data-preset="${id}"]`);
 async function setInput(input, value) {
   const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
   await React.act(async () => {
@@ -156,7 +164,7 @@ describe('Send later on desktop', () => {
     const menu = document.querySelector('[role="menu"]');
     assert.equal(menu.getAttribute('aria-label'), 'compose.scheduleSend.title');
     const items = menuItems();
-    assert.ok(items.length === 3 || items.length === 4, 'two or three presets and Pick');
+    assert.ok(items.length >= 3 && items.length <= 5, 'two to four presets and Pick');
     assert.equal(document.activeElement, items[0], 'focus starts on the first item');
     assert.ok(items.every(i => i.tabIndex === -1));
     await key(items[0], 'ArrowDown');
@@ -178,16 +186,18 @@ describe('Send later on desktop', () => {
   test('each preset shows its day and time, and Ctrl+Shift+Enter opens the menu', async () => {
     const editor = document.querySelector('.ProseMirror');
     await key(editor, 'Enter', { ctrlKey: true, shiftKey: true });
-    const first = menuItems()[0];
-    assert.equal(first.dataset.preset, 'tomorrowMorning');
-    assert.match(first.textContent, /^compose\.scheduleSend\.tomorrowMorning[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}, 8:00\sAM$/);
-    assert.match(menuItems()[1].textContent, /1:00\sPM$/);
+    const morning = preset('tomorrowMorning');
+    assert.match(morning.textContent, /^compose\.scheduleSend\.tomorrowMorning[A-Z][a-z]{2}, [A-Z][a-z]{2} \d{1,2}, 8:00\sAM$/);
+    assert.match(preset('tomorrowAfternoon').textContent, /1:00\sPM$/);
+    const later = preset('laterToday');
+    assert.equal(Boolean(later), new Date().getHours() < 16, 'Later today shows only before 4:00 PM');
+    if (later) assert.match(later.textContent, /6:00\sPM$/);
     assert.equal(callsTo('post').length, 0, 'the shortcut sends nothing');
   });
 
   test('a preset schedules the message with its time zone, key and draft, and closes like Send', async () => {
     await click(chevron());
-    await click(menuItems()[0]);
+    await click(preset('tomorrowMorning'));
     await settle();
     const [[, body]] = callsTo('create');
     assert.equal(callsTo('post').length, 0, 'nothing went to /mail/send');
@@ -210,15 +220,48 @@ describe('Send later on desktop', () => {
     assert.equal(useStore.getState().selectedAccountId, null);
   });
 
+  test('the toast offers Undo, which cancels the message and reopens it without its old draft', async () => {
+    await click(chevron());
+    await click(preset('tomorrowMorning'));
+    await settle();
+    const [toast] = useStore.getState().notifications;
+    assert.equal(typeof toast.onAction, 'function', 'View');
+    assert.equal(toast.undoMs, 10_000);
+    await React.act(async () => { toast.onUndo(); });
+    await settle();
+    assert.deepEqual(callsTo('cancel')[0], ['cancel', 's1']);
+    const state = useStore.getState();
+    assert.equal(state.composing, true, 'the composer is back');
+    assert.equal(state.composeData.subject, 'Q4 numbers');
+    assert.deepEqual(state.composeData.to, ['Bob <bob@example.invalid>']);
+    assert.match(state.composeData.body, /Here they are\./);
+    assert.equal(state.composeData.restored, true, 'unsaved, so autosave makes a new draft');
+    assert.equal(state.composeData.draftUid, null, 'the server deleted the old draft');
+  });
+
+  test('an Undo the server refuses says why', async () => {
+    answers.cancel = refusal(409, undefined, 'This message is being sent now.');
+    await click(chevron());
+    await click(preset('tomorrowMorning'));
+    await settle();
+    await React.act(async () => { useStore.getState().notifications[0].onUndo(); });
+    await settle();
+    const [error] = useStore.getState().notifications;
+    assert.equal(error.type, 'error');
+    assert.equal(error.title, 'compose.scheduleSend.undoFailed');
+    assert.equal(error.body, 'This message is being sent now.');
+    assert.equal(useStore.getState().composing, false);
+  });
+
   test('a retry after a failure uses the same client key', async () => {
     answers.create = [new TypeError('Failed to fetch'), ({ sendAt }) => ({ id: 's1', sendAt, status: 'scheduled' })];
     await click(chevron());
-    await click(menuItems()[0]);
+    await click(preset('tomorrowMorning'));
     await settle();
     assert.equal(useStore.getState().composing, true, 'still open after the failure');
     assert.ok(document.body.textContent.includes('Failed to fetch'));
     await click(chevron());
-    await click(menuItems()[1]);
+    await click(preset('tomorrowAfternoon'));
     await settle();
     const [first, second] = callsTo('create').map(c => c[1].clientKey);
     assert.match(first, UUID);
@@ -230,7 +273,7 @@ describe('Send later on desktop', () => {
     const serverNow = new Date(Date.now() + 10 * 60_000).toISOString();
     answers.create = refusal(400, 'too_soon', 'The scheduled time must be at least a minute from now.', { serverNow });
     await click(chevron());
-    await click(menuItems()[0]);
+    await click(preset('tomorrowMorning'));
     await settle();
     assert.ok(document.body.textContent.includes('The scheduled time must be at least a minute from now. compose.scheduleSend.errors.clockBehind'));
   });
@@ -238,7 +281,7 @@ describe('Send later on desktop', () => {
   test('the server message for a limit is shown as it is', async () => {
     answers.create = refusal(422, 'too_many', 'You can have at most 100 scheduled messages. Send or delete some first.');
     await click(chevron());
-    await click(menuItems()[0]);
+    await click(preset('tomorrowMorning'));
     await settle();
     assert.ok(document.body.textContent.includes('You can have at most 100 scheduled messages.'));
   });
@@ -291,7 +334,7 @@ describe('Send later passes the same warnings as Send', () => {
   test('an empty subject asks first, and Send anyway schedules', async () => {
     const close = await mount({ ...NEW_MESSAGE, subject: '' });
     await click(chevron());
-    await click(menuItems()[0]);
+    await click(preset('tomorrowMorning'));
     assert.equal(callsTo('create').length, 0);
     await click(button('compose.emptySubject.sendAnyway'));
     await settle();
@@ -312,7 +355,7 @@ describe('Send later on a phone', () => {
     const sheet = document.querySelector('[role="dialog"][aria-modal="true"]');
     assert.ok(sheet);
     assert.equal(document.getElementById(sheet.getAttribute('aria-labelledby')).textContent, 'compose.scheduleSend.title');
-    assert.equal(document.activeElement?.dataset.preset, 'tomorrowMorning');
+    assert.equal(document.activeElement, sheet.querySelector('[data-preset]'), 'focus starts on the first choice');
     await click(sheet.querySelector('[data-preset="pick"]'));
     const input = sheet.querySelector('input[type="datetime-local"]');
     assert.equal(sheet.querySelector(`label[for="${input.id}"]`).textContent, 'compose.scheduleSend.dateTimeLabel');
@@ -402,9 +445,13 @@ describe('editing a scheduled message', () => {
     const close = await mount(structuredClone(SCHEDULED));
     await click(chevron());
     assert.equal(chevron().getAttribute('aria-label'), 'compose.scheduleSend.edit.options');
-    const items = menuItems();
-    assert.equal(items.at(-1).dataset.preset, 'unschedule');
-    await click(items[1]);
+    assert.deepEqual(menuItems().map(i => i.dataset.preset), ['sendNow', 'changeTime', 'unschedule']);
+    await click(preset('changeTime'));
+    assert.equal(document.querySelector('[role="menu"]').getAttribute('aria-label'), 'compose.scheduleSend.changeTime');
+    await key(preset('tomorrowMorning'), 'Escape');
+    assert.equal(document.activeElement, preset('changeTime'), 'Escape goes back to the first level');
+    await click(preset('changeTime'));
+    await click(preset('tomorrowAfternoon'));
     await settle();
     const [[, , body]] = callsTo('update');
     assert.equal(new Date(body.sendAt).getHours(), 13);
@@ -541,5 +588,143 @@ describe('editing a scheduled message', () => {
     assert.ok(document.body.textContent.includes('compose.scheduleSend.errors.pickNewTime'));
     assert.ok(document.querySelector('[role="menu"]'), 'the menu opens to pick one');
     await close();
+  });
+});
+
+describe('Send now while editing', () => {
+  test('without changes it releases the message, sends it now, and offers the 10 s Undo', async () => {
+    await mount(structuredClone(SCHEDULED));
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    assert.deepEqual(callsTo('release')[0], ['release', ID, TOKEN]);
+    assert.deepEqual(callsTo('sendNow')[0], ['sendNow', ID, false]);
+    assert.ok(calls.findIndex(c => c[0] === 'release') < calls.findIndex(c => c[0] === 'sendNow'), 'released first');
+    assert.equal(callsTo('update').length, 0);
+    assert.equal(useStore.getState().composing, false);
+    const [toast] = useStore.getState().notifications;
+    assert.equal(toast.title, 'compose.undoSend.sending');
+    assert.ok(toast.undoMs > 9000 && toast.undoMs <= 10_000);
+    await React.act(async () => { toast.onUndo(); });
+    await settle();
+    assert.deepEqual(callsTo('undoSendNow')[0], ['undoSendNow', ID, 'undo-token']);
+    assert.equal(useStore.getState().notifications[0].title, 'compose.scheduleSend.scheduledFor');
+  });
+
+  test('with changes it saves them first, at the time it had, then sends now', async () => {
+    await mount(structuredClone(SCHEDULED));
+    await editBody(' More.');
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    const [[, , body]] = callsTo('update');
+    assert.equal(body.sendAt, SEND_AT);
+    assert.match(body.body, /More\./);
+    assert.deepEqual(callsTo('sendNow')[0], ['sendNow', ID, false]);
+    assert.equal(callsTo('release').length, 0, 'the save ended the hold');
+  });
+
+  test('an Undo of Send now the server refuses says why', async () => {
+    answers.undoSendNow = refusal(409, 'undo_expired', 'Too late to undo: the message is going out.');
+    await mount(structuredClone(SCHEDULED));
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    await React.act(async () => { useStore.getState().notifications[0].onUndo(); });
+    await settle();
+    const [error] = useStore.getState().notifications;
+    assert.equal(error.title, 'compose.scheduleSend.sendNow.undoFailed');
+    assert.equal(error.body, 'Too late to undo: the message is going out.');
+  });
+
+  test('asks before sending one that may already have gone out; No closes, the message as it was', async () => {
+    const message = 'This message may already have been delivered: MailFlow stopped while sending it. Check the Sent folder first. Send it again anyway?';
+    answers.sendNow = [refusal(409, 'confirm_uncertain', message), () => ({ status: 'scheduled', undoToken: 'u2' })];
+    const first = await mount(structuredClone(SCHEDULED));
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    assert.ok(document.querySelector('[role="alertdialog"]'));
+    await click(button('compose.scheduleSend.confirm.go'));
+    await settle();
+    assert.deepEqual(callsTo('sendNow').map(c => c[2]), [false, true]);
+    assert.equal(useStore.getState().composing, false);
+    await first();
+
+    calls.length = 0;
+    answers.sendNow = refusal(409, 'confirm_restored', 'This was paused when a backup was restored.');
+    await mount(structuredClone(SCHEDULED));
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    await click(button('common.cancel'));
+    assert.equal(useStore.getState().composing, false, 'released, so the composer closes');
+    assert.equal(callsTo('sendNow').length, 1);
+  });
+
+  test('a time that has passed is saved a few minutes ahead first', async () => {
+    await mount({ ...structuredClone(SCHEDULED), scheduled: { ...SCHEDULED.scheduled, sendAt: new Date(Date.now() - 60_000).toISOString() } });
+    await editBody(' More.');
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    const ahead = new Date(callsTo('update')[0][2].sendAt).getTime() - Date.now();
+    assert.ok(ahead > 4 * 60_000 && ahead <= 5 * 60_000, `saved ${ahead} ms ahead`);
+    assert.equal(callsTo('sendNow').length, 1);
+  });
+});
+
+describe('closing a scheduled message that fell due while open (design 2.3)', () => {
+  const DUE = () => ({ ...structuredClone(SCHEDULED), scheduled: { ...SCHEDULED.scheduled, sendAt: new Date(Date.now() - 60_000).toISOString() } });
+  const closeButton = () => document.querySelector('button[title="compose.toolbar.close"]');
+
+  test('asks: Send now, Pick a new time, or Keep paused, which closes without releasing it', async () => {
+    const unmount = await mount(DUE());
+    await click(closeButton());
+    const dialog = document.querySelector('[role="alertdialog"]');
+    assert.equal(document.getElementById(dialog.getAttribute('aria-labelledby')).textContent, 'compose.scheduleSend.edit.dueTitle');
+    assert.ok(button('compose.scheduleSend.edit.sendNow'));
+    assert.ok(button('compose.scheduleSend.edit.pickNewTime'));
+    await click(button('compose.scheduleSend.edit.keepPaused'));
+    assert.equal(useStore.getState().composing, false);
+    await React.act(async () => { window.dispatchEvent(new window.Event('pagehide')); });
+    await unmount();
+    assert.equal(callsTo('release').length + callsTo('releaseOnUnload').length, 0,
+      'released, it would go out at once; the lapsed lease pauses it instead');
+  });
+
+  test('Pick a new time opens the times, and Send now sends it', async () => {
+    await mount(DUE());
+    await click(closeButton());
+    await click(button('compose.scheduleSend.edit.pickNewTime'));
+    assert.ok(preset('tomorrowMorning'), 'the times are open');
+    await key(preset('tomorrowMorning'), 'Escape');
+    await click(closeButton());
+    await click(button('compose.scheduleSend.edit.sendNow'));
+    await settle();
+    assert.equal(callsTo('release').length, 1);
+    assert.equal(callsTo('sendNow').length, 1);
+  });
+
+  test('after Discard changes it offers no new time, which would save the discarded edits', async () => {
+    await mount(DUE());
+    await editBody(' More.');
+    await click(closeButton());
+    await click(button('compose.scheduleSend.edit.discardChanges'));
+    assert.ok(button('compose.scheduleSend.edit.keepPaused'));
+    assert.equal(button('compose.scheduleSend.edit.pickNewTime'), undefined);
+    await click(button('compose.scheduleSend.edit.sendNow'));
+    await settle();
+    assert.equal(callsTo('update').length, 0, 'the stored message is sent, not the edits');
+    assert.equal(callsTo('sendNow').length, 1);
+  });
+
+  test('one that was paused before it was opened closes and is released without asking', async () => {
+    answers.hold = { editToken: TOKEN, version: 3, statusBefore: 'paused' };
+    const unmount = await mount(DUE());
+    await click(closeButton());
+    assert.equal(document.querySelector('[role="alertdialog"]'), null);
+    await unmount();
+    assert.equal(callsTo('release').length, 1);
   });
 });

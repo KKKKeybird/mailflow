@@ -36,7 +36,8 @@ import { stripTags } from '../utils/stripTags.js';
 import { aiTextToHtml } from '../utils/aiText.js';
 import { browserTimeZone, checkSendAt, formatSendAt } from '../utils/scheduleTimes.js';
 import {
-  createEditHold, isScheduledEdit, needsConfirmation, newClientKey, openScheduledView, scheduleErrorText,
+  SCHEDULE_UNDO_MS, SEND_NOW_SAVE_AHEAD_MS, createEditHold, isScheduledEdit, needsConfirmation, newClientKey,
+  openScheduledView, scheduleErrorText, sendNowUndoMs, undoSchedule, undoSendNow,
 } from '../utils/scheduledCompose.js';
 import { ComposeQuestion, ScheduledStrip, SendLaterIcon, SendLaterMenu, SendLaterSheet } from './SendLater.jsx';
 
@@ -287,10 +288,14 @@ export default function ComposeModal() {
   const [scheduledAttachments, setScheduledAttachments] = useState(() => scheduledEdit?.attachments || []);
   const [scheduledAt] = useState(() => scheduledEdit?.sendAt || null);
   const [sendLaterOpen, setSendLaterOpen] = useState(false);
+  // Where the edit-mode menu opens: its first level, or straight at the times (Change).
+  const [sendLaterView, setSendLaterView] = useState('root');
   // What scheduling asks: { kind: 'confirm', text, retry }, 'unscheduleAttachments' or 'closeEdit'.
   const [scheduleQuestion, setScheduleQuestion] = useState(null);
   // Whether this composer holds the scheduled message it edits; Update and Unschedule need it.
   const [holdReady, setHoldReady] = useState(false);
+  // What the message was before the hold (the server's statusBefore).
+  const statusBeforeRef = useRef(null);
   const sendLaterBtnRef = useRef(null);
   const holdRef = useRef(null);
   // One create key per composer (the server dedupes on it), so a double click or a retry after
@@ -821,7 +826,7 @@ export default function ComposeModal() {
     } else if (isSendLaterShortcut(e)) {
       e.preventDefault();
       e.stopPropagation();
-      if (!sending) setSendLaterOpen(true);
+      if (!sending) { setSendLaterView('root'); setSendLaterOpen(true); }
     }
   };
 
@@ -992,8 +997,39 @@ export default function ComposeModal() {
         forwardedMessages: fwdAttachments.filter(a => a.asMessage).map(a => a.messageId),
       } : {}),
     };
-    return { toFinal, ccFinal, bccFinal, bodyToSend, sentQuotedHtml, autoAtSend, savedDraft, hasDraft, payload };
+    return { accountId, aliasId, toFinal, ccFinal, bccFinal, bodyToSend, sentQuotedHtml, autoAtSend, savedDraft, hasDraft, payload };
   };
+
+  // Everything needed to put a message back in front of the user exactly as it went, attachments
+  // included: after an undone send or schedule, or a send that failed once this composer is gone.
+  // `built` is buildSendPayload's result.
+  const buildRestoreData = ({ accountId, aliasId, toFinal, ccFinal, bccFinal, bodyToSend, sentQuotedHtml, autoAtSend, savedDraft, hasDraft }) => ({
+    ...composeData,
+    accountId,
+    aliasId: aliasId || undefined,
+    draftUid: hasDraft ? savedDraft.uid : null,
+    draftFolder: hasDraft ? savedDraft.folder : null,
+    draftAccountId: hasDraft ? savedDraft.accountId : null,
+    to: toFinal,
+    cc: ccFinal,
+    bcc: bccFinal,
+    subject,
+    body: bodyToSend,
+    quotedBody,
+    quotedBodyHtml: sentQuotedHtml,
+    // '' means no signature. The composer reads this as HTML, so plain text is escaped.
+    signature: !signatureEnabled ? ''
+      : plaintextEmail
+        ? plainSig.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        : signatureContentRef.current,
+    attachments,
+    forwardedAttachments: fwdAttachments,
+    priority,
+    restored: true,
+    autoRecipients: autoAtSend,
+    draftWasPreExisting: draftWasPreExisting.current,
+    sendError: undefined,
+  });
 
   const handleSend = async (opts = {}) => {
     // A scheduled message being edited is saved, not sent (Ctrl+Enter is Update there).
@@ -1010,7 +1046,8 @@ export default function ComposeModal() {
     if (!idempotencyKeyRef.current) {
       idempotencyKeyRef.current = crypto.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
     }
-    const { toFinal, ccFinal, bccFinal, bodyToSend, sentQuotedHtml, autoAtSend, savedDraft, hasDraft, payload } = buildSendPayload(accountId, aliasId);
+    const built = buildSendPayload(accountId, aliasId);
+    const { savedDraft, hasDraft, payload } = built;
     try {
       const sendResult = await api.post('/mail/send', {
         ...payload,
@@ -1074,33 +1111,7 @@ export default function ComposeModal() {
       if (sendResult?.pending) {
         // Everything needed to put this message back in front of the user exactly as it was sent,
         // attachments included, if they undo it or it fails once this composer is gone.
-        const restoreData = {
-          ...composeData,
-          accountId,
-          aliasId: aliasId || undefined,
-          draftUid: hasDraft ? savedDraft.uid : null,
-          draftFolder: hasDraft ? savedDraft.folder : null,
-          draftAccountId: hasDraft ? savedDraft.accountId : null,
-          to: toFinal,
-          cc: ccFinal,
-          bcc: bccFinal,
-          subject,
-          body: bodyToSend,
-          quotedBody,
-          quotedBodyHtml: sentQuotedHtml,
-          // '' means no signature. The composer reads this as HTML, so plain text is escaped.
-          signature: !signatureEnabled ? ''
-            : plaintextEmail
-              ? plainSig.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-              : signatureContentRef.current,
-          attachments,
-          forwardedAttachments: fwdAttachments,
-          priority,
-          restored: true,
-          autoRecipients: autoAtSend,
-          draftWasPreExisting: draftWasPreExisting.current,
-          sendError: undefined,
-        };
+        const restoreData = buildRestoreData(built);
         const pendingId = sendResult.pendingId;
         const undoMs = undoWindowMs(sendResult.remainingMs);
         const shownSubject = subject || t('common.noSubject');
@@ -1157,12 +1168,28 @@ export default function ComposeModal() {
     ...(composeData?.allRecipients ? { allRecipients: composeData.allRecipients } : {}),
   });
 
-  // After Send later or Update the composer closes as after Send, and a toast says when it goes.
-  const reportScheduled = (sendAt) => {
+  // After Send later or Update the composer closes as after Send, and a toast says when it goes,
+  // with View, and for a new schedule Undo: the message is cancelled and comes back in the
+  // composer as it was, as after undo send. It runs once this composer is gone, so it uses only
+  // the store and what was captured here.
+  const reportScheduled = (sendAt, undo = null) => {
+    const owner = composeOwner;
     addNotification({
       title: t('compose.scheduleSend.scheduledFor', { when: formatSendAt(sendAt) }),
       body: subject || t('common.noSubject'),
       onAction: () => openScheduledView(useStore),
+      ...(undo ? {
+        undoMs: SCHEDULE_UNDO_MS,
+        onUndo: () => {
+          if (useStore.getState().user?.id !== owner) return;
+          undoSchedule(undo, {
+            cancel: api.scheduled.cancel,
+            reopen: data => reopenCompose(useStore, data),
+            notify: n => useStore.getState().addNotification(n),
+            t,
+          });
+        },
+      } : {}),
     });
   };
   const closeIfStillOpen = () => {
@@ -1185,7 +1212,8 @@ export default function ComposeModal() {
     setSending(true);
     setError('');
     if (!clientKeyRef.current) clientKeyRef.current = newClientKey();
-    const { savedDraft, hasDraft, payload } = buildSendPayload(accountId, aliasId);
+    const built = buildSendPayload(accountId, aliasId);
+    const { savedDraft, hasDraft, payload } = built;
     const timeZone = browserTimeZone();
     try {
       const result = await api.scheduled.create({
@@ -1198,7 +1226,10 @@ export default function ComposeModal() {
       });
       if (!closeIfStillOpen()) return;
       if (hasDraft) useStore.getState().invalidateReplyDrafts();
-      reportScheduled(result?.sendAt || sendAt);
+      // The server deleted the draft, so the message comes back without one, and autosave makes
+      // a new one.
+      const restoreData = { ...buildRestoreData({ ...built, hasDraft: false }), draftWasPreExisting: false };
+      reportScheduled(result?.sendAt || sendAt, { id: result.id, restoreData });
     } catch (err) {
       setError(scheduleErrorText(err, t));
       sendingRef.current = false;
@@ -1208,20 +1239,13 @@ export default function ComposeModal() {
   const scheduleRef = useRef(null);
   scheduleRef.current = handleSchedule;
 
-  // Update (design 2.3): saves the edit under the version this composer opened, to go at `sendAt`
-  // (a new time from the menu) or at the time it had. `confirm` is the user's yes to the server's
-  // question about a message that may already have gone out, or one a restored backup paused.
-  const handleUpdate = async ({ sendAt: chosen, confirm = false, skipSubjectWarn = false, skipAttachWarn = false } = {}) => {
+  // Saves the edit (PUT) under the version this composer opened, to go at `at`. Resolves the
+  // server's answer, or null when it did not save: a warning to answer first, a question
+  // (`retry` is how its yes carries on), or a refusal, which is shown.
+  const saveScheduled = async ({ at, confirm, skipSubjectWarn, skipAttachWarn, resume, retry }) => {
     const hold = holdRef.current;
-    if (!hold?.isHeld()) { setError(t('compose.scheduleSend.errors.notHeld')); return; }
-    const at = chosen instanceof Date ? chosen : new Date(scheduledAt);
-    if (checkSendAt(at)) {
-      setError(t('compose.scheduleSend.errors.pickNewTime'));
-      setSendLaterOpen(true);
-      return;
-    }
-    const from = await readyToSubmit({ skipSubjectWarn, skipAttachWarn }, o => updateRef.current({ ...o, sendAt: chosen, confirm }));
-    if (!from) return;
+    const from = await readyToSubmit({ skipSubjectWarn, skipAttachWarn }, resume);
+    if (!from) return null;
     const { accountId, aliasId } = from;
 
     sendingRef.current = true;
@@ -1241,21 +1265,120 @@ export default function ComposeModal() {
         ...(confirm ? { confirm: true } : {}),
       });
       hold.settle();
-      if (!closeIfStillOpen()) return;
-      reportScheduled(result?.sendAt || at);
+      setHoldReady(false);
+      return result;
     } catch (err) {
       sendingRef.current = false;
       setSending(false);
       if (needsConfirmation(err)) {
-        setScheduleQuestion({ kind: 'confirm', text: err.message, retry: () => updateRef.current({ sendAt: at, confirm: true, skipSubjectWarn: true, skipAttachWarn: true }) });
-        return;
+        setScheduleQuestion({ kind: 'confirm', text: err.message, retry });
+        return null;
       }
       if (err.code === 'hold_lost') { hold.markLost(); setHoldReady(false); }
       setError(scheduleErrorText(err, t));
+      return null;
     }
+  };
+
+  // Update (design 2.3): saves the edit to go at `sendAt` (a new time from the menu) or at the
+  // time it had. `confirm` is the user's yes to the server's question about a message that may
+  // already have gone out, or one a restored backup paused.
+  const handleUpdate = async ({ sendAt: chosen, confirm = false, skipSubjectWarn = false, skipAttachWarn = false } = {}) => {
+    if (!holdRef.current?.isHeld()) { setError(t('compose.scheduleSend.errors.notHeld')); return; }
+    const at = chosen instanceof Date ? chosen : new Date(scheduledAt);
+    if (checkSendAt(at)) {
+      setError(t('compose.scheduleSend.errors.pickNewTime'));
+      setSendLaterView('times');
+      setSendLaterOpen(true);
+      return;
+    }
+    const result = await saveScheduled({
+      at, confirm, skipSubjectWarn, skipAttachWarn,
+      resume: o => updateRef.current({ ...o, sendAt: chosen, confirm }),
+      retry: () => updateRef.current({ sendAt: at, confirm: true, skipSubjectWarn: true, skipAttachWarn: true }),
+    });
+    if (!result || !closeIfStillOpen()) return;
+    reportScheduled(result.sendAt || at);
   };
   const updateRef = useRef(null);
   updateRef.current = handleUpdate;
+
+  // Send now (design 2.4, 5.1). The server's send-now takes a scheduled, paused, failed or
+  // uncertain message, never one held for editing, so this composer gives its hold up first:
+  // with changes it saves them (PUT leaves the message scheduled, at the time it had or, when
+  // that has passed, SEND_NOW_SAVE_AHEAD_MS ahead, never due before Send now moves it), and
+  // without, it releases the message as it was. Then Send now moves it to 10 s from now, with an
+  // Undo that puts back what it replaced. `stored` sends the message as stored, edits or not.
+  const handleSendNow = async ({ stored = false, confirm = false, skipSubjectWarn = false, skipAttachWarn = false } = {}) => {
+    const hold = holdRef.current;
+    if (!hold?.isHeld()) { setError(t('compose.scheduleSend.errors.notHeld')); return; }
+    if (sending || sendingRef.current) return;
+    if (stored || !isDirty()) {
+      sendingRef.current = true;
+      setSending(true);
+      setError('');
+      const token = hold.token();
+      hold.settle();
+      setHoldReady(false);
+      try {
+        await api.scheduled.release(scheduledEdit.id, token);
+      } catch (err) {
+        sendingRef.current = false;
+        setSending(false);
+        setError(scheduleErrorText(err, t));
+        return;
+      }
+      return sendNowRef.current(false);
+    }
+    const due = new Date(scheduledAt);
+    const at = checkSendAt(due) ? new Date(Date.now() + SEND_NOW_SAVE_AHEAD_MS) : due;
+    const saved = await saveScheduled({
+      at, confirm, skipSubjectWarn, skipAttachWarn,
+      resume: o => sendNowStartRef.current({ ...o, confirm }),
+      retry: () => sendNowStartRef.current({ confirm: true, skipSubjectWarn: true, skipAttachWarn: true }),
+    });
+    if (saved) return sendNowRef.current(false);
+  };
+  const sendNowStartRef = useRef(null);
+  sendNowStartRef.current = handleSendNow;
+
+  // Send now itself, once the message is no longer held. A question the server asks here comes
+  // after the hold is given up, so No closes the composer: the message is as it was.
+  const sendNowReleased = async (confirm) => {
+    sendingRef.current = true;
+    setSending(true);
+    setError('');
+    const started = Date.now();
+    const id = scheduledEdit.id;
+    const shownSubject = subject || t('common.noSubject');
+    try {
+      const result = await api.scheduled.sendNow(id, confirm);
+      if (!closeIfStillOpen()) return;
+      const owner = composeOwner;
+      addNotification({
+        title: t('compose.undoSend.sending', { subject: shownSubject }),
+        undoMs: sendNowUndoMs(started),
+        onUndo: () => {
+          if (useStore.getState().user?.id !== owner) return;
+          undoSendNow({ id, undoToken: result.undoToken, subject: shownSubject }, {
+            undo: api.scheduled.undoSendNow,
+            notify: n => useStore.getState().addNotification(n),
+            t,
+          });
+        },
+      });
+    } catch (err) {
+      sendingRef.current = false;
+      setSending(false);
+      if (needsConfirmation(err)) {
+        setScheduleQuestion({ kind: 'confirm', text: err.message, retry: () => sendNowRef.current(true), onCancel: () => closeCompose() });
+        return;
+      }
+      setError(scheduleErrorText(err, t));
+    }
+  };
+  const sendNowRef = useRef(null);
+  sendNowRef.current = sendNowReleased;
 
   // Unschedule (design 2.4): back to Drafts as an ordinary draft. The server deletes the scheduled
   // copy only once the draft is stored, so there is always one. Drafts carry no attachments, so a
@@ -1295,6 +1418,12 @@ export default function ComposeModal() {
     }
   };
 
+  // Whether releasing the message now would send it at once: it was scheduled when the hold was
+  // taken, and its time has passed since.
+  const dueWhileHeldRef = useRef(null);
+  dueWhileHeldRef.current = () => Boolean(holdRef.current?.isHeld() && statusBeforeRef.current === 'scheduled'
+    && scheduledAt && new Date(scheduledAt).getTime() <= Date.now());
+
   // Edit mode: take the hold, keep it while the composer is open, and hand the message back when
   // it closes without saving (unmount) or the page goes away. Started after the commit, so a mount
   // React throws away at once (StrictMode) never sends a request.
@@ -1310,19 +1439,24 @@ export default function ComposeModal() {
       const r = await hold.start();
       if (!live) return;
       if (r.ok) {
+        statusBeforeRef.current = r.statusBefore;
         setHoldReady(true);
         if (r.stale) setError(t('compose.scheduleSend.errors.versionConflict'));
       } else if (!r.closed) {
         setError(scheduleErrorText(r.error, t));
       }
     }, 0);
-    const onPageHide = () => hold.release({ unloading: true });
+    // A scheduled message that fell due while open would go out the moment it is released, so it
+    // is not: the server pauses it when the lease lapses (edit_abandoned), and it is never sent
+    // without the user confirming it (design 2.3).
+    const leave = (options) => { if (dueWhileHeldRef.current()) hold.settle(); else hold.release(options); };
+    const onPageHide = () => leave({ unloading: true });
     window.addEventListener('pagehide', onPageHide);
     return () => {
       live = false;
       clearTimeout(starting);
       window.removeEventListener('pagehide', onPageHide);
-      hold.release();
+      leave();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- one hold per mounted composer
 
@@ -1610,11 +1744,19 @@ export default function ComposeModal() {
     doSaveDraft({ closeAfter });
   };
 
+  // Closing a scheduled message without saving. One that fell due while open asks first (design
+  // 2.3): Send now, Pick a new time, or Keep paused. `discarded` drops Pick a new time, which would
+  // save the edits just discarded.
+  const closeScheduled = ({ discarded = false } = {}) => {
+    if (dueWhileHeldRef.current()) setScheduleQuestion({ kind: 'due', discarded });
+    else closeCompose();
+  };
+
   const handleClose = () => {
     // A scheduled message: closing releases it (the hold effect), after asking about changes.
     if (scheduledEdit) {
       if (isDirty()) setScheduleQuestion({ kind: 'closeEdit' });
-      else closeCompose();
+      else closeScheduled();
       return;
     }
     setCloseDialogMode('close');
@@ -1757,6 +1899,22 @@ export default function ComposeModal() {
   const sendDisabled = sending || noRecipients || Boolean(scheduledEdit && !holdReady);
   const sendLabel = scheduledEdit ? t('compose.scheduleSend.edit.update') : t('compose.send');
   const closeQuestion = () => setScheduleQuestion(null);
+  const sendLaterDue = scheduleQuestion?.kind === 'due' ? (
+    <ComposeQuestion
+      mobile={isMobile}
+      title={t('compose.scheduleSend.edit.dueTitle', { when: formatSendAt(scheduledAt) })}
+      body={t('compose.scheduleSend.edit.dueBody')}
+      onCancel={closeQuestion}
+      actions={[
+        { label: t('compose.scheduleSend.edit.sendNow'), kind: 'primary', onClick: () => { const { discarded } = scheduleQuestion; closeQuestion(); handleSendNow({ stored: discarded }); } },
+        ...(scheduleQuestion.discarded ? [] : [{
+          label: t('compose.scheduleSend.edit.pickNewTime'), kind: 'plain',
+          onClick: () => { closeQuestion(); setSendLaterView('times'); setSendLaterOpen(true); },
+        }]),
+        { label: t('compose.scheduleSend.edit.keepPaused'), kind: 'plain', onClick: () => { closeQuestion(); closeCompose(); } },
+      ]}
+    />
+  ) : null;
   const scheduleOverlays = (
     <>
       {isMobile && sendLaterOpen && (
@@ -1765,6 +1923,7 @@ export default function ComposeModal() {
           onPick={at => handleSchedule(at)}
           editing={Boolean(scheduledEdit)}
           onUnschedule={() => handleUnschedule()}
+          onSendNow={() => handleSendNow()}
           returnFocusRef={sendLaterBtnRef}
           busy={sending}
         />
@@ -1774,10 +1933,10 @@ export default function ComposeModal() {
           mobile={isMobile}
           title={t('compose.scheduleSend.confirm.title')}
           body={scheduleQuestion.text}
-          onCancel={closeQuestion}
+          onCancel={() => { const { onCancel } = scheduleQuestion; closeQuestion(); onCancel?.(); }}
           actions={[
             { label: t('compose.scheduleSend.confirm.go'), kind: 'primary', onClick: () => { const { retry } = scheduleQuestion; closeQuestion(); retry(); } },
-            { label: t('common.cancel'), kind: 'plain', onClick: closeQuestion },
+            { label: t('common.cancel'), kind: 'plain', onClick: () => { const { onCancel } = scheduleQuestion; closeQuestion(); onCancel?.(); } },
           ]}
         />
       )}
@@ -1793,6 +1952,7 @@ export default function ComposeModal() {
           ]}
         />
       )}
+      {sendLaterDue}
       {scheduleQuestion?.kind === 'closeEdit' && (
         <ComposeQuestion
           mobile={isMobile}
@@ -1800,7 +1960,7 @@ export default function ComposeModal() {
           onCancel={closeQuestion}
           actions={[
             { label: t('compose.scheduleSend.edit.saveChanges'), kind: 'primary', onClick: () => { closeQuestion(); handleUpdate(); } },
-            { label: t('compose.scheduleSend.edit.discardChanges'), kind: 'danger', onClick: () => { closeQuestion(); closeCompose(); } },
+            { label: t('compose.scheduleSend.edit.discardChanges'), kind: 'danger', onClick: () => { closeQuestion(); closeScheduled({ discarded: true }); } },
             { label: t('compose.closeDraft.keepEditing'), kind: 'plain', onClick: closeQuestion },
           ]}
         />
@@ -1808,7 +1968,7 @@ export default function ComposeModal() {
     </>
   );
   const scheduledStrip = scheduledEdit && scheduledAt ? (
-    <ScheduledStrip sendAt={scheduledAt} mobile={isMobile} onChange={() => setSendLaterOpen(true)} />
+    <ScheduledStrip sendAt={scheduledAt} mobile={isMobile} onChange={() => { setSendLaterView('times'); setSendLaterOpen(true); }} />
   ) : null;
   const scheduledChips = scheduledAttachments.length > 0 ? (
     <AttachmentChips
@@ -2945,7 +3105,7 @@ export default function ComposeModal() {
           <button
             ref={sendLaterBtnRef}
             type="button"
-            onClick={() => setSendLaterOpen(open => !open)}
+            onClick={() => { setSendLaterView('root'); setSendLaterOpen(open => !open); }}
             disabled={sendDisabled}
             aria-label={scheduledEdit ? t('compose.scheduleSend.edit.options') : t('compose.scheduleSend.title')}
             title={scheduledEdit ? t('compose.scheduleSend.edit.options') : t('compose.scheduleSend.tooltip')}
@@ -2972,6 +3132,8 @@ export default function ComposeModal() {
               onPick={at => handleSchedule(at)}
               editing={Boolean(scheduledEdit)}
               onUnschedule={() => handleUnschedule()}
+              onSendNow={() => handleSendNow()}
+              initialView={sendLaterView}
               busy={sending}
             />
           )}

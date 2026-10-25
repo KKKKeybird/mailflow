@@ -243,11 +243,22 @@
         "closeTitle": "Änderungen an dieser geplanten Nachricht speichern?",
         "saveChanges": "Änderungen speichern",
         "discardChanges": "Änderungen verwerfen",
-        "switchBlocked": "Aktualisiere oder schließe zuerst die geplante Nachricht, die du bearbeitest."
+        "switchBlocked": "Aktualisiere oder schließe zuerst die geplante Nachricht, die du bearbeitest.",
+        "sendNow": "Jetzt senden",
+        "pickNewTime": "Neuen Zeitpunkt wählen",
+        "keepPaused": "Pausiert lassen",
+        "dueTitle": "Diese Nachricht war fällig: {{when}}.",
+        "dueBody": "Wird sie jetzt geschlossen, bleibt sie pausiert und geht nie ohne dich raus."
       },
       "confirm": {
         "title": "Erneut planen?",
         "go": "Trotzdem planen"
+      },
+      "laterToday": "Später heute",
+      "undoFailed": "Planung konnte nicht rückgängig gemacht werden",
+      "sendNow": {
+        "undone": "Nicht gesendet. Sie ist wieder unter Geplant, wie zuvor.",
+        "undoFailed": "Jetzt senden konnte nicht rückgängig gemacht werden"
       }
     }
   },

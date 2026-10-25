@@ -614,11 +614,22 @@
         "closeTitle": "Uložit změny této naplánované zprávy?",
         "saveChanges": "Uložit změny",
         "discardChanges": "Zahodit změny",
-        "switchBlocked": "Nejprve aktualizujte nebo zavřete naplánovanou zprávu, kterou upravujete."
+        "switchBlocked": "Nejprve aktualizujte nebo zavřete naplánovanou zprávu, kterou upravujete.",
+        "sendNow": "Odeslat hned",
+        "pickNewTime": "Vybrat nový čas",
+        "keepPaused": "Ponechat pozastavené",
+        "dueTitle": "Tato zpráva měla odejít {{when}}.",
+        "dueBody": "Když ji teď zavřete, zůstane pozastavená a bez vás nikdy neodejde."
       },
       "confirm": {
         "title": "Naplánovat znovu?",
         "go": "Přesto naplánovat"
+      },
+      "laterToday": "Později dnes",
+      "undoFailed": "Plánování se nepodařilo vrátit",
+      "sendNow": {
+        "undone": "Neodesláno. Je zpět v Naplánovaných jako předtím.",
+        "undoFailed": "Okamžité odeslání se nepodařilo vrátit"
       }
     }
   },

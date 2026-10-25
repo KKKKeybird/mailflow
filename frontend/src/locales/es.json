@@ -243,11 +243,22 @@
         "closeTitle": "¿Guardar los cambios de este mensaje programado?",
         "saveChanges": "Guardar cambios",
         "discardChanges": "Descartar cambios",
-        "switchBlocked": "Primero actualiza o cierra el mensaje programado que estás editando."
+        "switchBlocked": "Primero actualiza o cierra el mensaje programado que estás editando.",
+        "sendNow": "Enviar ahora",
+        "pickNewTime": "Elegir una nueva hora",
+        "keepPaused": "Dejar en pausa",
+        "dueTitle": "Este mensaje debía enviarse el {{when}}.",
+        "dueBody": "Si lo cierras ahora, queda en pausa y nunca se envía sin ti."
       },
       "confirm": {
         "title": "¿Programarlo de nuevo?",
         "go": "Programar de todos modos"
+      },
+      "laterToday": "Hoy más tarde",
+      "undoFailed": "No se pudo deshacer la programación",
+      "sendNow": {
+        "undone": "No enviado. Ha vuelto a Programados como estaba.",
+        "undoFailed": "No se pudo deshacer el envío inmediato"
       }
     }
   },

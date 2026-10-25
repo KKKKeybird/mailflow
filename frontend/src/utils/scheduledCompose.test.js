@@ -4,7 +4,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   HOLD_RENEW_MS, SCHEDULED_VIEW, createEditHold, isScheduledEdit, needsConfirmation, newClientKey,
-  openScheduledView, scheduleErrorText,
+  openScheduledView, scheduleErrorText, sendNowUndoMs, undoSchedule, undoSendNow,
 } from './scheduledCompose.js';
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -218,5 +218,67 @@ describe('the rest', () => {
     openScheduledView({ getState: () => ({ setSelectedAccount: (...args) => seen.push(args) }) });
     assert.deepEqual(seen, [[null, SCHEDULED_VIEW]]);
     assert.equal(SCHEDULED_VIEW, '__scheduled__');
+  });
+});
+
+describe('undoing a schedule', () => {
+  test('cancels it, then reopens the composer with it', async () => {
+    const order = [];
+    const ok = await undoSchedule({ id: 's1', restoreData: { subject: 'Hi' } }, {
+      cancel: async id => { order.push(['cancel', id]); },
+      reopen: data => { order.push(['reopen', data.subject]); },
+      notify: n => order.push(['notify', n]),
+      t,
+    });
+    assert.equal(ok, true);
+    assert.deepEqual(order, [['cancel', 's1'], ['reopen', 'Hi']]);
+  });
+
+  test('a refused cancel says the server message and reopens nothing', async () => {
+    const seen = [];
+    const ok = await undoSchedule({ id: 's1', restoreData: {} }, {
+      cancel: async () => { throw new Error('This message has already been sent.'); },
+      reopen: () => seen.push('reopen'),
+      notify: n => seen.push(n),
+      t,
+    });
+    assert.equal(ok, false);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].type, 'error');
+    assert.equal(seen[0].body, 'This message has already been sent.');
+  });
+});
+
+describe('undoing Send now', () => {
+  test('the window counts from when the request went out', () => {
+    assert.equal(sendNowUndoMs(1000, 1000), 10_000);
+    assert.equal(sendNowUndoMs(1000, 2500), 8500);
+    assert.equal(sendNowUndoMs(1000, 20_000), 0);
+  });
+
+  test('puts back what it replaced and says when it goes, or that it is back as it was', async () => {
+    const seen = [];
+    const calls = [];
+    await undoSendNow({ id: 'm1', undoToken: 'tok', subject: 'Hi' }, {
+      undo: async (id, token) => { calls.push([id, token]); return { status: 'scheduled', sendAt: '2026-10-28T07:00:00.000Z' }; },
+      notify: n => seen.push(n), t, locale: 'en-US',
+    });
+    assert.deepEqual(calls, [['m1', 'tok']]);
+    assert.match(seen[0].title, /^compose\.scheduleSend\.scheduledFor:/);
+    await undoSendNow({ id: 'm1', undoToken: 'tok', subject: 'Hi' }, {
+      undo: async () => ({ status: 'paused', sendAt: null }), notify: n => seen.push(n), t,
+    });
+    assert.equal(seen[1].title, 'compose.scheduleSend.sendNow.undone');
+  });
+
+  test('a refused undo says the server message', async () => {
+    const seen = [];
+    const ok = await undoSendNow({ id: 'm1', undoToken: 'tok', subject: 'Hi' }, {
+      undo: async () => { throw new Error('Too late to undo: the message is going out.'); },
+      notify: n => seen.push(n), t,
+    });
+    assert.equal(ok, false);
+    assert.equal(seen[0].type, 'error');
+    assert.equal(seen[0].body, 'Too late to undo: the message is going out.');
   });
 });

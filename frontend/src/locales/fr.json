@@ -243,11 +243,22 @@
         "closeTitle": "Enregistrer les modifications de ce message programmé ?",
         "saveChanges": "Enregistrer les modifications",
         "discardChanges": "Abandonner les modifications",
-        "switchBlocked": "Mettez d'abord à jour ou fermez le message programmé que vous modifiez."
+        "switchBlocked": "Mettez d'abord à jour ou fermez le message programmé que vous modifiez.",
+        "sendNow": "Envoyer maintenant",
+        "pickNewTime": "Choisir une nouvelle heure",
+        "keepPaused": "Laisser en pause",
+        "dueTitle": "Ce message était prévu pour le {{when}}.",
+        "dueBody": "Fermé maintenant, il reste en pause et ne part jamais sans vous."
       },
       "confirm": {
         "title": "Le programmer à nouveau ?",
         "go": "Programmer quand même"
+      },
+      "laterToday": "Plus tard aujourd'hui",
+      "undoFailed": "Impossible d'annuler la programmation",
+      "sendNow": {
+        "undone": "Non envoyé. Il est de retour dans Programmés, comme avant.",
+        "undoFailed": "Impossible d'annuler l'envoi immédiat"
       }
     }
   },

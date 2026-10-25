@@ -4377,6 +4377,18 @@ function UndoBar({ notification, onDismiss, showTopBorder }) {
       }}>
         {notification.title}
       </span>
+      {notification.onAction && (
+        <button
+          onClick={() => { notification.onAction(); dismiss(); }}
+          style={{
+            background: 'none', border: 'none',
+            color: 'var(--text-secondary)', fontSize: 13, fontWeight: 600,
+            cursor: 'pointer', padding: '2px 4px', flexShrink: 0,
+          }}
+        >
+          {notification.actionLabel || t('common.view')}
+        </button>
+      )}
       <button
         onClick={handleUndo}
         style={{

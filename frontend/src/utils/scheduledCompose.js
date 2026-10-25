@@ -36,6 +36,51 @@ export function newClientKey(cryptoApi = globalThis.crypto) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
+// How long the "Scheduled for ..." toast offers Undo. Cancel works for minutes on the server; the
+// toast is what bounds it, so Undo is there exactly as long as the toast is.
+export const SCHEDULE_UNDO_MS = 10_000;
+// Send now from the composer saves changes first, and a save needs a time at least a minute
+// ahead. When the time the message had has passed, it is saved this far ahead: the 10 s Send now
+// sets comes long before, and an Undo of Send now leaves it there, said in its toast.
+export const SEND_NOW_SAVE_AHEAD_MS = 5 * 60_000;
+// Send now goes 10 s later (SEND_NOW_DELAY_MS in routes/scheduled.js), the window of its Undo.
+export const SEND_NOW_DELAY_MS = 10_000;
+
+// What is left of Send now's window once its answer is in, counted from when the request went
+// out rather than from the server's undoUntil, so a wrong clock here cannot shorten or stretch it.
+export function sendNowUndoMs(startedAt, now = Date.now()) {
+  return Math.max(0, Math.min(SEND_NOW_DELAY_MS, SEND_NOW_DELAY_MS - (now - startedAt)));
+}
+
+// Undo of a schedule (design 2.2): cancel the message, then reopen the composer with it, as undo
+// send does. A cancel the server refuses (the message already went out) is said, with its words.
+// Resolves whether the message came back.
+export async function undoSchedule({ id, restoreData }, { cancel, reopen, notify, t }) {
+  try {
+    await cancel(id);
+  } catch (err) {
+    notify({ type: 'error', title: t('compose.scheduleSend.undoFailed'), body: err.message, allowWrap: true, persistent: true });
+    return false;
+  }
+  reopen(restoreData);
+  return true;
+}
+
+// Undo of Send now: puts back what Send now replaced. Says when the message goes now, or that it
+// is back as it was (paused or failed), or why it could not be undone.
+export async function undoSendNow({ id, undoToken, subject }, { undo, notify, t, locale }) {
+  try {
+    const r = await undo(id, undoToken);
+    notify(r?.status === 'scheduled'
+      ? { title: t('compose.scheduleSend.scheduledFor', { when: formatSendAt(r.sendAt, locale) }), body: subject }
+      : { title: t('compose.scheduleSend.sendNow.undone'), body: subject });
+    return true;
+  } catch (err) {
+    notify({ type: 'error', title: t('compose.scheduleSend.sendNow.undoFailed'), body: err.message, allowWrap: true, persistent: true });
+    return false;
+  }
+}
+
 // What the server answers when an action could send a message that may already have gone out,
 // or one a restored backup paused: it asks first, and the same request with confirm: true goes on.
 export const needsConfirmation = err => err?.code === 'confirm_uncertain' || err?.code === 'confirm_restored';

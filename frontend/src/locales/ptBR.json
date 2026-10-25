@@ -243,11 +243,22 @@
         "closeTitle": "Salvar as alterações desta mensagem agendada?",
         "saveChanges": "Salvar alterações",
         "discardChanges": "Descartar alterações",
-        "switchBlocked": "Primeiro atualize ou feche a mensagem agendada que você está editando."
+        "switchBlocked": "Primeiro atualize ou feche a mensagem agendada que você está editando.",
+        "sendNow": "Enviar agora",
+        "pickNewTime": "Escolher um novo horário",
+        "keepPaused": "Manter pausada",
+        "dueTitle": "Esta mensagem era para {{when}}.",
+        "dueBody": "Se fechar agora, ela fica pausada e nunca sai sem você."
       },
       "confirm": {
         "title": "Agendar de novo?",
         "go": "Agendar mesmo assim"
+      },
+      "laterToday": "Mais tarde hoje",
+      "undoFailed": "Não foi possível desfazer o agendamento",
+      "sendNow": {
+        "undone": "Não enviada. Ela voltou para Agendados como estava.",
+        "undoFailed": "Não foi possível desfazer o envio imediato"
       }
     }
   },

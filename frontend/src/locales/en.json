@@ -243,11 +243,22 @@
         "closeTitle": "Save changes to this scheduled message?",
         "saveChanges": "Save changes",
         "discardChanges": "Discard changes",
-        "switchBlocked": "Update or close the scheduled message you are editing first."
+        "switchBlocked": "Update or close the scheduled message you are editing first.",
+        "sendNow": "Send now",
+        "pickNewTime": "Pick a new time",
+        "keepPaused": "Keep paused",
+        "dueTitle": "This was due {{when}}.",
+        "dueBody": "Closed now, it stays paused, so it never goes out without you."
       },
       "confirm": {
         "title": "Schedule it again?",
         "go": "Schedule anyway"
+      },
+      "laterToday": "Later today",
+      "undoFailed": "Could not undo the schedule",
+      "sendNow": {
+        "undone": "Not sent. It is back in Scheduled as it was.",
+        "undoFailed": "Could not undo Send now"
       }
     }
   },

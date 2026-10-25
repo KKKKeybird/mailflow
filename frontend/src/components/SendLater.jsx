@@ -10,6 +10,7 @@ import {
 // strip a scheduled message shows while it is edited, and the dialogs scheduling asks with.
 
 const PRESET_LABELS = {
+  laterToday: 'compose.scheduleSend.laterToday',
   tomorrowMorning: 'compose.scheduleSend.tomorrowMorning',
   tomorrowAfternoon: 'compose.scheduleSend.tomorrowAfternoon',
   mondayMorning: 'compose.scheduleSend.mondayMorning',
@@ -120,27 +121,52 @@ const menuItemStyle = {
 const hover = { onMouseEnter: e => { e.currentTarget.style.background = 'var(--bg-hover)'; }, onMouseLeave: e => { e.currentTarget.style.background = 'transparent'; },
   onFocus: e => { e.currentTarget.style.background = 'var(--bg-hover)'; }, onBlur: e => { e.currentTarget.style.background = 'transparent'; } };
 
+const separator = <div role="separator" style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />;
+const chevronRight = (
+  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><polyline points="9 18 15 12 9 6"/></svg>
+);
+const calendarIcon = (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+    <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+  </svg>
+);
+
 // The desktop menu, opened from the split Send button's chevron (`triggerRef`). It is an ARIA
 // menu: arrow keys, Home and End move, Escape closes it and gives focus back to the chevron, Tab
-// leaves it. "Pick date and time" turns it into a small dialog with the picker; Escape there goes
-// back to the list. `onPick(date)` schedules; `editing` adds Unschedule.
-export function SendLaterMenu({ triggerRef, onClose, onPick, editing = false, onUnschedule, now: nowProp, busy = false }) {
+// leaves it. "Pick date and time" turns it into a small dialog with the picker. `onPick(date)`
+// schedules.
+//
+// Editing a scheduled message (`editing`), its first level is Send now, Change time and
+// Unschedule (design 5.1); Change time opens the times, as `initialView` 'times' does (the strip's
+// Change). Escape goes back one level, and from the first one shown it closes.
+export function SendLaterMenu({
+  triggerRef, onClose, onPick, editing = false, onUnschedule, onSendNow, initialView = 'root', now: nowProp, busy = false,
+}) {
   const { t } = useTranslation();
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
-  const [view, setView] = useState('menu');
+  const firstView = editing && initialView === 'root' ? 'root' : 'times';
+  const [view, setView] = useState(firstView);
   const boxRef = useRef(null);
-  const pickItemRef = useRef(null);
+  // The item to focus when a level comes back (the one that left it).
+  const returnToRef = useRef(null);
   const items = presets(now);
 
   const close = (refocus = true) => {
     onClose();
     if (refocus) triggerRef?.current?.focus();
   };
+  const back = () => {
+    if (view === 'pick') setView('times');
+    else if (view === 'times' && firstView === 'root') setView('root');
+    else close();
+  };
 
   useEffect(() => {
-    if (view !== 'menu') return;
-    const first = boxRef.current?.querySelector('[role="menuitem"]');
-    first?.focus();
+    if (view === 'pick') return;
+    const list = [...(boxRef.current?.querySelectorAll('[role="menuitem"]') || [])];
+    const target = list.find(el => el.dataset.preset === returnToRef.current) || list[0];
+    returnToRef.current = null;
+    target?.focus();
   }, [view]);
 
   useEffect(() => {
@@ -160,17 +186,35 @@ export function SendLaterMenu({ triggerRef, onClose, onPick, editing = false, on
     else if (e.key === 'ArrowUp') move(at < 0 ? list.length - 1 : at - 1);
     else if (e.key === 'Home') move(0);
     else if (e.key === 'End') move(list.length - 1);
-    else if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); close(); }
-    else if (e.key === 'Tab') close(false);
+    else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      if (view === 'times' && firstView === 'root') { returnToRef.current = 'changeTime'; setView('root'); } else close();
+    } else if (e.key === 'Tab') close(false);
   };
 
   const onPickKeyDown = (e) => {
     if (e.key !== 'Escape') return;
     e.preventDefault();
     e.stopPropagation();
-    setView('menu');
-    setTimeout(() => pickItemRef.current?.focus(), 0);
+    returnToRef.current = 'pick';
+    setView('times');
   };
+
+  const item = (key, label, onClick, { icon, detail, more } = {}) => (
+    <button key={key} type="button" role="menuitem" tabIndex={-1} disabled={busy} data-preset={key}
+      {...(more ? { 'aria-haspopup': more } : {})} onClick={onClick} style={menuItemStyle} {...hover}>
+      {icon && <span style={{ color: 'var(--text-tertiary)', display: 'flex' }}>{icon}</span>}
+      <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{label}</span>
+      {detail && <span style={{ fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{detail}</span>}
+      {more === 'menu' && <span style={{ color: 'var(--text-tertiary)', display: 'flex' }}>{chevronRight}</span>}
+    </button>
+  );
+  const heading = (text) => (
+    <div aria-hidden="true" style={{ padding: '6px 14px 4px', fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+      {text}
+    </div>
+  );
 
   return (
     <div
@@ -178,45 +222,29 @@ export function SendLaterMenu({ triggerRef, onClose, onPick, editing = false, on
       style={{
         position: 'absolute', bottom: 'calc(100% + 6px)', left: 0, zIndex: 20,
         width: 320, maxWidth: 'calc(100vw - 32px)', background: 'var(--bg-elevated)', border: '1px solid var(--border)',
-        borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', overflow: 'hidden', padding: view === 'menu' ? '4px 0' : 0,
+        borderRadius: 8, boxShadow: '0 4px 20px rgba(0,0,0,0.3)', overflow: 'hidden', padding: view === 'pick' ? 0 : '4px 0',
       }}
     >
-      {view === 'menu' ? (
-        <div role="menu" aria-label={t('compose.scheduleSend.title')} onKeyDown={onMenuKeyDown}>
-          <div aria-hidden="true" style={{ padding: '6px 14px 4px', fontSize: 11, fontWeight: 600, color: 'var(--text-tertiary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-            {editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title')}
-          </div>
-          {items.map(p => (
-            <button key={p.id} type="button" role="menuitem" tabIndex={-1} disabled={busy}
-              data-preset={p.id} onClick={() => { onClose(); onPick(p.at); }} style={menuItemStyle} {...hover}>
-              <span style={{ color: 'var(--text-tertiary)', display: 'flex' }}>{clockIcon()}</span>
-              <span style={{ flex: 1, whiteSpace: 'nowrap' }}>{t(PRESET_LABELS[p.id])}</span>
-              <span style={{ fontSize: 12, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>{formatSendAt(p.at, undefined, now)}</span>
-            </button>
-          ))}
-          <div role="separator" style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
-          <button ref={pickItemRef} type="button" role="menuitem" tabIndex={-1} aria-haspopup="dialog" disabled={busy}
-            data-preset="pick" onClick={() => setView('pick')} style={menuItemStyle} {...hover}>
-            <span style={{ color: 'var(--text-tertiary)', display: 'flex' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
-                <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
-              </svg>
-            </span>
-            <span style={{ flex: 1 }}>{t('compose.scheduleSend.pick')}</span>
-          </button>
-          {editing && (
-            <>
-              <div role="separator" style={{ height: 1, background: 'var(--border-subtle)', margin: '4px 0' }} />
-              <button type="button" role="menuitem" tabIndex={-1} disabled={busy} data-preset="unschedule"
-                onClick={() => { onClose(); onUnschedule?.(); }} style={menuItemStyle} {...hover}>
-                <span style={{ flex: 1 }}>{t('compose.scheduleSend.edit.unschedule')}</span>
-              </button>
-            </>
-          )}
+      {view === 'root' && (
+        <div role="menu" aria-label={t('compose.scheduleSend.edit.options')} onKeyDown={onMenuKeyDown}>
+          {item('sendNow', t('compose.scheduleSend.edit.sendNow'), () => { onClose(); onSendNow?.(); }, { icon: <SendNowIcon /> })}
+          {item('changeTime', t('compose.scheduleSend.changeTime'), () => setView('times'), { icon: clockIcon(), more: 'menu' })}
+          {separator}
+          {item('unschedule', t('compose.scheduleSend.edit.unschedule'), () => { onClose(); onUnschedule?.(); })}
         </div>
-      ) : (
+      )}
+      {view === 'times' && (
+        <div role="menu" aria-label={editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title')} onKeyDown={onMenuKeyDown}>
+          {heading(editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title'))}
+          {items.map(p => item(p.id, t(PRESET_LABELS[p.id]), () => { onClose(); onPick(p.at); },
+            { icon: clockIcon(), detail: formatSendAt(p.at, undefined, now) }))}
+          {separator}
+          {item('pick', t('compose.scheduleSend.pick'), () => setView('pick'), { icon: calendarIcon, more: 'dialog' })}
+        </div>
+      )}
+      {view === 'pick' && (
         <div role="dialog" aria-label={t('compose.scheduleSend.pick')} onKeyDown={onPickKeyDown}>
-          <button type="button" onClick={() => { setView('menu'); }}
+          <button type="button" onClick={() => { returnToRef.current = 'pick'; back(); }}
             style={{ ...menuItemStyle, gap: 8, fontSize: 12, color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-subtle)' }} {...hover}>
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
             {t('common.back')}
@@ -230,6 +258,12 @@ export function SendLaterMenu({ triggerRef, onClose, onPick, editing = false, on
   );
 }
 
+const SendNowIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" aria-hidden="true">
+    <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
+  </svg>
+);
+
 const sheetButton = {
   width: '100%', minHeight: 52, padding: '12px 20px', textAlign: 'left', background: 'none', border: 'none',
   borderBottom: '1px solid var(--border-subtle)', color: 'var(--text-primary)', fontSize: 16, cursor: 'pointer',
@@ -237,8 +271,9 @@ const sheetButton = {
 };
 
 // The phone sheet behind the composer's clock button: the same presets and picker, as a modal
-// dialog. Focus goes to its first option and back to `returnFocusRef` when it closes.
-export function SendLaterSheet({ onClose, onPick, editing = false, onUnschedule, returnFocusRef, now: nowProp, busy = false }) {
+// dialog, and for a scheduled message being edited Send now and Unschedule too. Focus goes to its
+// first option and back to `returnFocusRef` when it closes.
+export function SendLaterSheet({ onClose, onPick, editing = false, onUnschedule, onSendNow, returnFocusRef, now: nowProp, busy = false }) {
   const { t } = useTranslation();
   const titleId = useId();
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
@@ -269,7 +304,7 @@ export function SendLaterSheet({ onClose, onPick, editing = false, onUnschedule,
         }}
       >
         <div id={titleId} style={{ padding: '16px 20px 8px', fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', borderBottom: '1px solid var(--border-subtle)' }}>
-          {editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title')}
+          {editing ? t('compose.scheduleSend.edit.options') : t('compose.scheduleSend.title')}
         </div>
         {picking ? (
           <SchedulePicker variant="single" now={nowProp} busy={busy}
@@ -277,6 +312,17 @@ export function SendLaterSheet({ onClose, onPick, editing = false, onUnschedule,
             onSubmit={choose} />
         ) : (
           <>
+            {editing && (
+              <>
+                <button type="button" data-preset="sendNow" disabled={busy} onClick={() => { onClose(); onSendNow?.(); }} style={sheetButton}>
+                  <span style={{ color: 'var(--text-tertiary)', display: 'flex' }}><SendNowIcon /></span>
+                  <span style={{ flex: 1 }}>{t('compose.scheduleSend.edit.sendNow')}</span>
+                </button>
+                <div aria-hidden="true" style={{ padding: '12px 20px 4px', fontSize: 12, fontWeight: 600, color: 'var(--text-tertiary)' }}>
+                  {t('compose.scheduleSend.changeTime')}
+                </div>
+              </>
+            )}
             {items.map(p => (
               <button key={p.id} type="button" data-preset={p.id} disabled={busy} onClick={() => choose(p.at)} style={sheetButton}>
                 <span style={{ color: 'var(--text-tertiary)', display: 'flex' }}>{clockIcon(16)}</span>

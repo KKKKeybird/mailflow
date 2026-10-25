@@ -10,6 +10,9 @@ export const MAX_AHEAD_MS = 366 * 86_400_000;
 // The fixed preset hours (open question 5): morning and afternoon, as Gmail has them.
 export const MORNING_HOUR = 8;
 export const AFTERNOON_HOUR = 13;
+// "Later today" goes at 18:00, and is offered only before 16:00, so it is always two hours away.
+export const EVENING_HOUR = 18;
+export const LATER_TODAY_UNTIL_HOUR = 16;
 
 // Local midnight `days` after `now`'s day, at `hour`. The Date constructor takes a wall time that
 // a spring-forward gap skips to the first time that exists (02:30 becomes 03:30).
@@ -17,10 +20,12 @@ function dayAt(now, days, hour, minute = 0) {
   return new Date(now.getFullYear(), now.getMonth(), now.getDate() + days, hour, minute, 0, 0);
 }
 
-// The presets, soonest first: tomorrow morning and afternoon, and Monday morning, which is left
-// out on Sundays because it is tomorrow morning then. On a Monday it is next week's.
+// The presets, soonest first: later today (before 16:00 only), tomorrow morning and afternoon,
+// and Monday morning, which is left out on Sundays because it is tomorrow morning then. On a
+// Monday it is next week's.
 export function presets(now = new Date()) {
   const list = [
+    ...(now.getHours() < LATER_TODAY_UNTIL_HOUR ? [{ id: 'laterToday', at: dayAt(now, 0, EVENING_HOUR) }] : []),
     { id: 'tomorrowMorning', at: dayAt(now, 1, MORNING_HOUR) },
     { id: 'tomorrowAfternoon', at: dayAt(now, 1, AFTERNOON_HOUR) },
   ];
