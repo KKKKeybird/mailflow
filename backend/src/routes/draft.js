@@ -396,8 +396,27 @@ router.post('/draft', async (req, res) => {
       }
     }
 
+    // Unschedule (design 2.4): the scheduled message this draft was made from goes only now that
+    // the draft is stored, and only while the composer still holds it, so there is always a copy.
+    let scheduledRemoved;
+    const fromScheduled = req.body.fromScheduled;
+    if (fromScheduled && typeof fromScheduled === 'object' && UUID_RE.test(String(fromScheduled.id))
+      && UUID_RE.test(String(fromScheduled.editToken))) {
+      const removed = await query(
+        `DELETE FROM scheduled_messages
+          WHERE id = $1 AND user_id = $2 AND status = 'editing' AND edit_token = $3 RETURNING id`,
+        [fromScheduled.id, req.session.userId, fromScheduled.editToken]
+      ).catch(err => { console.error(`Draft: could not remove the scheduled message: ${err.message}`); return { rows: [] }; });
+      scheduledRemoved = removed.rows.length > 0;
+      if (scheduledRemoved) imapManager.broadcast({ type: 'scheduled_changed', id: fromScheduled.id, status: 'deleted' }, req.session.userId);
+    }
+
     noteDraftsChanged(req.session.userId, account.id);
-    res.json({ uid, folder: draftsFolder, ...(req.body.includeIdentity === true ? { messageId: meta.messageId } : {}) });
+    res.json({
+      uid, folder: draftsFolder,
+      ...(req.body.includeIdentity === true ? { messageId: meta.messageId } : {}),
+      ...(scheduledRemoved !== undefined ? { scheduledRemoved } : {}),
+    });
   } catch (err) {
     console.error('Save draft failed:', err.message);
     res.status(err.status || 500).json({ error: err.message || 'Failed to save draft' });

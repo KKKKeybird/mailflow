@@ -37,6 +37,17 @@ import { imapManager } from '../index.js';
 
 const PURPOSE = 'scheduled-send';
 export const CHUNK_BYTES = 1024 * 1024;
+// The limits of design 1.4. The API checks them, the counts under a lock on the user's row.
+export const LIMITS = Object.freeze({
+  pending: 100, // scheduled, editing, paused, failed, uncertain
+  storedBytes: 250 * 1024 * 1024,
+  payloadBytes: 10 * 1024 * 1024,
+  attachmentBytes: 26_214_400,
+  minAheadMs: 60 * 1000,
+  maxAheadMs: 366 * 24 * 60 * 60 * 1000,
+  createsPerMinute: 30,
+});
+export const PENDING_STATUSES = ['scheduled', 'editing', 'paused', 'failed', 'uncertain'];
 const MAX_IN_FLIGHT = 2;
 const SENT_PURGE_INTERVAL = '7 days';
 // Like the Sent metadata upsert after an immediate send (outgoingMail.js): an auto-saving
@@ -111,10 +122,10 @@ export function attachmentRows(id, version, attachments) {
 }
 
 // Stores a scheduled message, its payload and summary encrypted and its attachments chunked, on
-// `client` (inside the caller's transaction). The same clientKey again returns the row the first
+// `client` (inside the caller's transaction). `id` may be given (the caller built the payload
+// for it); otherwise one is made. The same clientKey again returns the row the first
 // call made and stores nothing. Limits are the caller's to check. Resolves { id, created }.
-export async function storeScheduledMessage(client, { userId, accountId, clientKey, sendAt, timeZone = null, payload, summary, attachments = [] }) {
-  const id = randomUUID();
+export async function storeScheduledMessage(client, { id = randomUUID(), userId, accountId, clientKey, sendAt, timeZone = null, payload, summary, attachments = [] }) {
   const row = { id, user_id: userId, version: 1 };
   const payloadJson = Buffer.from(JSON.stringify(payload), 'utf8');
   const { rows } = await client.query(
@@ -140,16 +151,18 @@ export async function storeScheduledMessage(client, { userId, accountId, clientK
   return { id, created: true };
 }
 
-const headerSafe = value => String(value ?? '').replace(/[\r\n\0]/g, '').trim();
+export const headerSafe = value => String(value ?? '').replace(/[\r\n\0]/g, '').trim();
 
-// A message's attachments, decrypted and put back together, ready for mailOptions.attachments.
+// A message's attachments, decrypted and put back together, each as { index, meta, content }
+// with the meta stored with it ({ filename, contentType, disposition, kind, size, sha256 }).
 // Throws ScheduledSendError('decrypt_failed') when any chunk is missing, out of order, does not
-// decrypt, or the whole does not match the size and hash stored with it.
-export async function loadAttachments(db, row) {
+// decrypt, or the whole does not match the size and hash stored with it. `only` limits it to
+// one attachment index.
+export async function readAttachments(db, row, { only } = {}) {
   const { rows } = await db.query(
     `SELECT attachment_index, chunk_index, meta_enc, data_enc FROM scheduled_message_attachments
-      WHERE scheduled_id = $1 ORDER BY attachment_index, chunk_index`,
-    [row.id],
+      WHERE scheduled_id = $1 AND ($2::int IS NULL OR attachment_index = $2) ORDER BY attachment_index, chunk_index`,
+    [row.id, only ?? null],
   );
   const byIndex = new Map();
   for (const r of rows) {
@@ -157,7 +170,7 @@ export async function loadAttachments(db, row) {
     byIndex.get(r.attachment_index).push(r);
   }
   const out = [];
-  let expected = 0;
+  let expected = only ?? 0;
   for (const [attachmentIndex, chunks] of byIndex) {
     if (attachmentIndex !== expected++) throw new ScheduledSendError('decrypt_failed');
     const meta = openJson(chunks[0].meta_enc, aad.meta(row.id, attachmentIndex, row.version));
@@ -172,14 +185,59 @@ export async function loadAttachments(db, row) {
     if (content.length !== meta.size || createHash('sha256').update(content).digest('hex') !== meta.sha256) {
       throw new ScheduledSendError('decrypt_failed');
     }
-    out.push({
-      filename: headerSafe(meta.filename) || 'attachment',
-      content,
-      contentType: headerSafe(meta.contentType) || 'application/octet-stream',
-      ...(meta.disposition ? { contentDisposition: meta.disposition === 'inline' ? 'inline' : 'attachment' } : {}),
-    });
+    out.push({ index: attachmentIndex, meta, content });
   }
   return out;
+}
+
+// The attachments of a row as mailOptions.attachments wants them.
+export async function loadAttachments(db, row) {
+  return (await readAttachments(db, row)).map(({ meta, content }) => ({
+    filename: headerSafe(meta.filename) || 'attachment',
+    content,
+    contentType: headerSafe(meta.contentType) || 'application/octet-stream',
+    ...(meta.disposition ? { contentDisposition: meta.disposition === 'inline' ? 'inline' : 'attachment' } : {}),
+  }));
+}
+
+// The stored meta of each attachment, without reading or decrypting the data.
+export async function attachmentMetas(db, row) {
+  const { rows } = await db.query(
+    `SELECT attachment_index, meta_enc FROM scheduled_message_attachments
+      WHERE scheduled_id = $1 AND chunk_index = 0 ORDER BY attachment_index`,
+    [row.id],
+  );
+  return rows.map(r => {
+    const meta = openJson(r.meta_enc, aad.meta(row.id, r.attachment_index, row.version));
+    return meta && { index: r.attachment_index, filename: meta.filename, contentType: meta.contentType, size: meta.size, kind: meta.kind };
+  });
+}
+
+// Replaces a row's content on `client` (inside the caller's transaction) under the next
+// version: the payload, the summary and every attachment are encrypted again, so nothing of an
+// earlier version can be put back under the new one. `attachments` are, as for
+// storeScheduledMessage, { filename, contentType, disposition, kind, content }. Resolves the new
+// version.
+export async function replaceContent(client, row, { payload, summary, attachments }) {
+  const version = row.version + 1;
+  const next = { id: row.id, user_id: row.user_id, version };
+  const payloadJson = Buffer.from(JSON.stringify(payload), 'utf8');
+  await client.query(
+    `UPDATE scheduled_messages
+        SET version = $2, payload_enc = $3, summary_enc = $4, payload_bytes = $5, attachment_bytes = $6, updated_at = NOW()
+      WHERE id = $1`,
+    [row.id, version, encryptBytes(payloadJson, { purpose: PURPOSE, aad: aad.payload(next) }),
+      sealJson(summary, aad.summary(next)), payloadJson.length, attachments.reduce((sum, a) => sum + a.content.length, 0)],
+  );
+  await client.query('DELETE FROM scheduled_message_attachments WHERE scheduled_id = $1', [row.id]);
+  for (const chunk of attachmentRows(row.id, version, attachments)) {
+    await client.query(
+      `INSERT INTO scheduled_message_attachments (scheduled_id, attachment_index, chunk_index, meta_enc, data_enc)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [row.id, chunk.attachment_index, chunk.chunk_index, chunk.meta_enc, chunk.data_enc],
+    );
+  }
+  return version;
 }
 
 export class ScheduledSender {

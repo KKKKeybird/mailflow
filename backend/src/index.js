@@ -14,6 +14,7 @@ import { mountBodyParsers } from './middleware/bodyParsers.js';
 
 import sendRoutes from './routes/send.js';
 import draftRoutes from './routes/draft.js';
+import scheduledRoutes from './routes/scheduled.js';
 import oauthRoutes from './routes/oauth.js';
 import integrationsRoutes, { loadIntegrationConfigs } from './routes/integrations.js';
 import authRoutes from './routes/auth.js';
@@ -185,6 +186,7 @@ app.use('/api/spam', spamRoutes);
 app.use('/api/mail', mailRoutes);
 app.use('/api/mail', sendRoutes);
 app.use('/api/mail', draftRoutes);
+app.use('/api/mail', scheduledRoutes);
 app.use('/api/search', searchRoutes);
 app.use('/api/admin/backup', backupRoutes);
 app.use('/api/admin', adminRoutes);

@@ -1,0 +1,171 @@
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
+import { randomUUID } from 'crypto';
+
+// The scheduled messages API without a database (scheduled.postgres.test.js runs it on one):
+// the checks a request meets before anything is stored, and the 404 for a message that is not
+// the user's on every route.
+vi.mock('../services/db.js', () => ({ query: vi.fn(), withTransaction: vi.fn() }));
+vi.mock('../middleware/auth.js', () => ({ requireAuth: (req, _res, next) => { req.session = { userId: 'u1' }; next(); } }));
+vi.mock('../index.js', () => ({ imapManager: { broadcast: vi.fn() } }));
+vi.mock('../services/ownership.js', () => ({
+  findOwnedAccount: vi.fn(), findOwnedAlias: vi.fn(), findOwnedScheduledMessage: vi.fn(),
+}));
+vi.mock('../services/rateLimiter.js', () => ({ consume: vi.fn() }));
+vi.mock('../services/draftCopies.js', () => ({ deleteSentDraft: vi.fn() }));
+vi.mock('../services/outgoingMail.js', async importOriginal => ({
+  ...(await importOriginal()),
+  resolveIdentity: vi.fn(async (_u, input) => ({ account: { id: input.accountId }, fromEmail: 'me@example.com', signature: null, plaintextEmail: false })),
+  resolveForwarded: vi.fn(async () => ({ attachments: [], messages: [] })),
+}));
+
+import 'express-async-errors';
+import express from 'express';
+import routes from './scheduled.js';
+import { query, withTransaction } from '../services/db.js';
+import { findOwnedAccount, findOwnedScheduledMessage } from '../services/ownership.js';
+import { consume } from '../services/rateLimiter.js';
+
+const ACCOUNT = '11111111-1111-4111-8111-111111111111';
+const ID = '22222222-2222-4222-8222-222222222222';
+let server, base;
+beforeAll(async () => {
+  const app = express();
+  app.use(express.json({ limit: '35mb' }));
+  app.use('/api/mail', routes);
+  await new Promise(resolve => { server = app.listen(0, resolve); });
+  base = `http://127.0.0.1:${server.address().port}/api/mail/scheduled`;
+});
+afterAll(() => new Promise(resolve => server.close(resolve)));
+beforeEach(() => {
+  vi.clearAllMocks();
+  query.mockResolvedValue({ rows: [] });
+  consume.mockResolvedValue({ limited: false });
+  findOwnedAccount.mockResolvedValue({ id: ACCOUNT, enabled: true });
+  findOwnedScheduledMessage.mockResolvedValue(null);
+  withTransaction.mockRejectedValue(new Error('no database here'));
+});
+
+const call = (method, path, body) => fetch(`${base}${path}`, {
+  method, headers: { 'content-type': 'application/json' }, ...(body ? { body: JSON.stringify(body) } : {}),
+}).then(async res => ({ status: res.status, body: await res.json().catch(() => null) }));
+const createBody = extra => ({
+  accountId: ACCOUNT, to: ['you@example.net'], subject: 'Hi', body: 'Hello',
+  sendAt: new Date(Date.now() + 3_600_000).toISOString(), clientKey: randomUUID(), ...extra,
+});
+
+describe('POST /scheduled checks before storing anything', () => {
+  it.each([
+    [{ to: [] }, 400, 'accountId and to required'],
+    [{ clientKey: undefined }, 400, 'clientKey must be a UUID'],
+    [{ attachments: [{ filename: '', content: '' }] }, 400, 'attachments[0].filename is required'],
+    [{ bcc: ['nobody'] }, 400, 'bcc[0] is not a valid email address'],
+    [{ forwardedMessages: Array(21).fill(ID) }, 400, 'Too many forwarded messages (max 20)'],
+    [{ sendAt: 'tomorrow-ish' }, 400, 'sendAt must be a date and time'],
+    [{ accountId: 'not-an-id' }, 400, 'accountId is invalid'],
+    [{ aliasId: 'not-an-id' }, 400, 'aliasId is invalid'],
+  ])('%j: %i %s', async (extra, status, error) => {
+    const r = await call('POST', '', createBody(extra));
+    expect(r).toMatchObject({ status, body: { error } });
+    expect(withTransaction).not.toHaveBeenCalled();
+  });
+
+  it('takes 60 s ahead at the earliest and 366 days at the latest, by the server clock', async () => {
+    const at = ms => new Date(Date.now() + ms).toISOString();
+    expect((await call('POST', '', createBody({ sendAt: at(59_000) }))).body).toMatchObject({ code: 'too_soon', serverNow: expect.any(String) });
+    expect((await call('POST', '', createBody({ sendAt: at(366 * 86_400_000 + 5000) }))).body).toMatchObject({ code: 'too_far' });
+    // Within the window, the request goes on to the transaction (which fails here, no database).
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    for (const ms of [61_000, 366 * 86_400_000 - 5000]) {
+      await call('POST', '', createBody({ sendAt: at(ms) }));
+    }
+    expect(withTransaction).toHaveBeenCalledTimes(2);
+  });
+
+  it('refuses a disabled or foreign account, and an alias of another account', async () => {
+    findOwnedAccount.mockResolvedValue(null);
+    expect((await call('POST', '', createBody())).body).toEqual({ error: 'Account not found' });
+    findOwnedAccount.mockResolvedValue({ id: ACCOUNT, enabled: true });
+    expect((await call('POST', '', createBody({ aliasId: ID }))).body).toEqual({ error: 'Alias not found' });
+    expect(findOwnedAccount).toHaveBeenCalledWith('u1', ACCOUNT, { enabled: true });
+  });
+
+  it('refuses more than 10 MB of payload, and the 31st create in a minute', async () => {
+    expect((await call('POST', '', createBody({ body: 'x'.repeat(10 * 1024 * 1024) }))).body.code).toBe('payload_too_large');
+    consume.mockResolvedValue({ limited: true });
+    expect(await call('POST', '', createBody())).toMatchObject({ status: 429, body: { code: 'rate_limited' } });
+  });
+
+  it('answers a retried create with the message the first one made, before anything else', async () => {
+    query.mockResolvedValueOnce({ rows: [{ id: ID, send_at: '2026-10-25T07:00:00.000Z', status: 'scheduled' }] });
+    expect(await call('POST', '', createBody())).toEqual({ status: 200, body: { id: ID, sendAt: '2026-10-25T07:00:00.000Z', status: 'scheduled' } });
+    expect(consume).not.toHaveBeenCalled();
+  });
+});
+
+describe('a message that is not the user\'s', () => {
+  beforeEach(() => {
+    withTransaction.mockImplementation(fn => fn({ query }));
+    query.mockImplementation(async sql => {
+      if (/COUNT\(\*\) FILTER/.test(sql)) return { rows: [{ pending: 0, bytes: 0 }] };
+      if (/^SELECT NOW\(\)/.test(sql)) return { rows: [{ now: new Date() }] };
+      return { rows: [] };
+    });
+  });
+  it.each([
+    ['GET', `/${ID}`], ['GET', `/${ID}/attachments/0`], ['POST', `/${ID}/hold`, {}],
+    ['POST', `/${ID}/release`, { editToken: ID }], ['PUT', `/${ID}`, { ...createBody(), editToken: ID, version: 1 }],
+    ['PATCH', `/${ID}`, { sendAt: new Date(Date.now() + 3_600_000).toISOString() }],
+    ['POST', `/${ID}/send-now`, {}], ['POST', `/${ID}/send-now/undo`, { undoToken: 'x' }], ['POST', `/${ID}/resume`, {}],
+    ['POST', `/${ID}/send-anyway`, { confirm: true }], ['POST', `/${ID}/cancel`, {}], ['POST', `/${ID}/restore`, {}],
+    ['DELETE', `/${ID}`], ['GET', '/not-a-uuid'],
+    ['GET', `/${ID}/attachments/1000`], ['GET', `/${ID}/attachments/-1`], ['GET', `/${ID}/attachments/1e2`],
+  ])('%s %s is 404', async (method, path, body) => {
+    const r = await call(method, path, body);
+    expect(r.status).toBe(404);
+    // Every lookup and change names the signed-in user.
+    for (const [, params] of query.mock.calls) expect(params).toContain('u1');
+    for (const [userId] of findOwnedScheduledMessage.mock.calls) expect(userId).toBe('u1');
+  });
+});
+
+describe('what needs the user\'s confirmation', () => {
+  beforeEach(() => { withTransaction.mockImplementation(fn => fn({ query })); });
+  const owned = row => findOwnedScheduledMessage.mockResolvedValue({ id: ID, user_id: 'u1', account_id: ACCOUNT, version: 1, ...row });
+
+  it('anything that could send an uncertain message again', async () => {
+    owned({ status: 'uncertain' });
+    for (const [method, path, body] of [
+      ['POST', `/${ID}/send-anyway`, {}], ['POST', `/${ID}/send-now`, {}],
+      ['PATCH', `/${ID}`, { sendAt: new Date(Date.now() + 3_600_000).toISOString() }],
+    ]) {
+      const r = await call(method, path, body);
+      expect(r).toMatchObject({ status: 409, body: { code: 'confirm_uncertain', error: expect.stringContaining('may already have been delivered') } });
+    }
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('a message a restore paused', async () => {
+    owned({ status: 'paused', pause_reason: 'restored' });
+    expect((await call('POST', `/${ID}/resume`, {})).body.code).toBe('confirm_restored');
+    expect((await call('POST', `/${ID}/send-now`, {})).body.code).toBe('confirm_restored');
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('saving an edit of a message held while uncertain, or paused by a restore', async () => {
+    const token = '55555555-5555-4555-8555-555555555555';
+    const save = { ...createBody(), editToken: token, version: 1 };
+    owned({ status: 'editing', edit_token: token, status_before: 'uncertain' });
+    expect((await call('PUT', `/${ID}`, save)).body.code).toBe('confirm_uncertain');
+    owned({ status: 'editing', edit_token: token, status_before: 'paused', pause_reason: 'restored' });
+    expect((await call('PUT', `/${ID}`, save)).body.code).toBe('confirm_restored');
+    owned({ status: 'editing', edit_token: token, status_before: 'paused', pause_reason: 'overdue' });
+    // No confirmation needed: it goes on to the save (which has no database to finish on here).
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    expect((await call('PUT', `/${ID}`, save)).body?.code ?? '').not.toMatch(/^confirm_/);
+  });
+
+  it('sending anyway is only for uncertain messages', async () => {
+    owned({ status: 'failed' });
+    expect(await call('POST', `/${ID}/send-anyway`, { confirm: true })).toMatchObject({ status: 409, body: { status: 'failed' } });
+  });
+});
