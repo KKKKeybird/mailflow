@@ -661,14 +661,13 @@ describe('editing a scheduled message', () => {
 });
 
 describe('Send now while editing', () => {
-  test('without changes it releases the message, sends it now, and offers the 10 s Undo', async () => {
+  test('without changes one request sends it with the hold, and the toast offers the 10 s Undo', async () => {
     await mount(structuredClone(SCHEDULED));
     await click(chevron());
     await click(preset('sendNow'));
     await settle();
-    assert.deepEqual(callsTo('release')[0], ['release', ID, TOKEN], 'not due: released as scheduled');
-    assert.deepEqual(callsTo('sendNow')[0], ['sendNow', ID, false]);
-    assert.ok(calls.findIndex(c => c[0] === 'release') < calls.findIndex(c => c[0] === 'sendNow'), 'released first');
+    assert.deepEqual(callsTo('sendNow'), [['sendNow', ID, false, TOKEN]]);
+    assert.equal(callsTo('release').length, 0, 'never released and due in between');
     assert.equal(callsTo('update').length, 0);
     assert.equal(useStore.getState().composing, false);
     const [toast] = useStore.getState().notifications;
@@ -678,42 +677,43 @@ describe('Send now while editing', () => {
     await settle();
     assert.deepEqual(callsTo('undoSendNow')[0], ['undoSendNow', ID, 'undo-token']);
     assert.equal(useStore.getState().notifications[0].title, 'compose.scheduleSend.scheduledFor');
+    await mounted.pop()();
+    assert.equal(callsTo('release').length, 0, 'nothing to release on close');
   });
 
-  test('a message that is due is released paused, so the sender cannot take it before Send now', async () => {
+  test('a message that is due goes the same way: no release, so the sender cannot take it first', async () => {
     await mount({ ...structuredClone(SCHEDULED), scheduled: { ...SCHEDULED.scheduled, sendAt: new Date(Date.now() - 60_000).toISOString() } });
     await click(chevron());
     await click(preset('sendNow'));
     await settle();
-    assert.deepEqual(callsTo('release'), [['release', ID, TOKEN, { keepPaused: true }]]);
-    assert.deepEqual(callsTo('sendNow')[0], ['sendNow', ID, false]);
+    assert.deepEqual(callsTo('sendNow'), [['sendNow', ID, false, TOKEN]]);
+    assert.equal(callsTo('release').length, 0);
     assert.equal(useStore.getState().notifications[0].title, 'compose.undoSend.sending');
-    assert.ok(!document.body.textContent.includes('being sent'));
-
-    // One due within the minute too.
-    calls.length = 0;
-    await mounted.pop()();
-    await mount({ ...structuredClone(SCHEDULED), scheduled: { ...SCHEDULED.scheduled, sendAt: new Date(Date.now() + 30_000).toISOString() } });
-    await click(chevron());
-    await click(preset('sendNow'));
-    await settle();
-    assert.deepEqual(callsTo('release')[0], ['release', ID, TOKEN, { keepPaused: true }]);
   });
 
-  test('a release that fails on the way leaves the message held, so Send now can be tried again', async () => {
-    answers.release = [new TypeError('Failed to fetch'), { status: 'scheduled' }];
+  test('a Send now that fails on the way leaves the message held, so it can be tried again', async () => {
+    answers.sendNow = [new TypeError('Failed to fetch'), () => ({ status: 'scheduled', undoToken: 'u3' })];
     await mount(structuredClone(SCHEDULED));
     await click(chevron());
     await click(preset('sendNow'));
     await settle();
     assert.ok(document.body.textContent.includes('Failed to fetch'));
-    assert.equal(callsTo('sendNow').length, 0);
     assert.equal(chevron().disabled, false, 'still usable');
     await click(chevron());
     await click(preset('sendNow'));
     await settle();
-    assert.equal(callsTo('release').length, 2);
-    assert.equal(callsTo('sendNow').length, 1);
+    assert.deepEqual(callsTo('sendNow').map(c => c[3]), [TOKEN, TOKEN]);
+    assert.equal(useStore.getState().composing, false);
+  });
+
+  test('a hold lost meanwhile is said, and Update is off', async () => {
+    answers.sendNow = refusal(409, 'hold_lost', 'This message is no longer open for editing here.');
+    await mount(structuredClone(SCHEDULED));
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    assert.ok(document.body.textContent.includes('compose.scheduleSend.errors.holdLost'));
+    assert.equal(button('compose.scheduleSend.edit.update').disabled, true);
   });
 
   test('with changes it saves them first, at the time it had, then sends now', async () => {
@@ -725,8 +725,8 @@ describe('Send now while editing', () => {
     const [[, , body]] = callsTo('update');
     assert.equal(body.sendAt, SEND_AT);
     assert.match(body.body, /More\./);
-    assert.deepEqual(callsTo('sendNow')[0], ['sendNow', ID, false]);
-    assert.equal(callsTo('release').length, 0, 'the save ended the hold');
+    assert.deepEqual(callsTo('sendNow')[0], ['sendNow', ID, false, undefined], 'the save ended the hold');
+    assert.equal(callsTo('release').length, 0);
   });
 
   test('an Undo of Send now the server refuses says why', async () => {
@@ -742,7 +742,7 @@ describe('Send now while editing', () => {
     assert.equal(error.body, 'Too late to undo: the message is going out.');
   });
 
-  test('asks before sending one that may already have gone out; No closes, the message as it was', async () => {
+  test('asks before sending one that may already have gone out; No leaves it held and open', async () => {
     const message = 'This message may already have been delivered: MailFlow stopped while sending it. Check the Sent folder first. Send it again anyway?';
     answers.sendNow = [refusal(409, 'confirm_uncertain', message), () => ({ status: 'scheduled', undoToken: 'u2' })];
     const first = await mount(structuredClone(SCHEDULED));
@@ -752,7 +752,7 @@ describe('Send now while editing', () => {
     assert.ok(document.querySelector('[role="alertdialog"]'));
     await click(button('compose.scheduleSend.confirm.go'));
     await settle();
-    assert.deepEqual(callsTo('sendNow').map(c => c[2]), [false, true]);
+    assert.deepEqual(callsTo('sendNow').map(c => c.slice(2)), [[false, TOKEN], [true, TOKEN]]);
     assert.equal(useStore.getState().composing, false);
     await first();
 
@@ -763,8 +763,10 @@ describe('Send now while editing', () => {
     await click(preset('sendNow'));
     await settle();
     await click(button('common.cancel'));
-    assert.equal(useStore.getState().composing, false, 'released, so the composer closes');
+    assert.equal(useStore.getState().composing, true, 'still held, so the composer stays');
+    assert.equal(button('compose.scheduleSend.edit.update').disabled, false);
     assert.equal(callsTo('sendNow').length, 1);
+    assert.equal(callsTo('release').length, 0);
   });
 
   test('a time that has passed is saved a few minutes ahead first', async () => {
@@ -813,6 +815,23 @@ describe('closing a scheduled message that fell due while open (design 2.3)', ()
     assert.equal(useStore.getState().composing, false);
   });
 
+  test('Keep paused clicked twice releases once and says nothing is lost', async () => {
+    let answerRelease;
+    answers.release = () => new Promise(r => { answerRelease = r; });
+    await mount(DUE());
+    await click(closeButton());
+    const keep = button('compose.scheduleSend.edit.keepPaused');
+    await click(keep);
+    // The question is gone; a second Keep paused (from a second prompt) must not report a lost hold.
+    await click(closeButton());
+    const again = button('compose.scheduleSend.edit.keepPaused');
+    if (again) await click(again);
+    answerRelease({ status: 'paused' });
+    await settle();
+    assert.equal(callsTo('release').length, 1);
+    assert.ok(!document.body.textContent.includes('compose.scheduleSend.errors.notHeld'));
+  });
+
   test('a Keep paused the server refuses keeps the composer open and says why', async () => {
     answers.release = refusal(409, 'hold_lost', 'This message is no longer open for editing here.');
     const unmount = await mount(DUE());
@@ -841,8 +860,8 @@ describe('closing a scheduled message that fell due while open (design 2.3)', ()
     await click(closeButton());
     await click(button('compose.scheduleSend.edit.sendNow'));
     await settle();
-    assert.equal(callsTo('release').length, 1);
-    assert.equal(callsTo('sendNow').length, 1);
+    assert.equal(callsTo('release').length, 0);
+    assert.deepEqual(callsTo('sendNow'), [['sendNow', ID, false, TOKEN]]);
   });
 
   test('after Discard changes it offers no new time, which would save the discarded edits', async () => {
@@ -855,8 +874,8 @@ describe('closing a scheduled message that fell due while open (design 2.3)', ()
     await click(button('compose.scheduleSend.edit.sendNow'));
     await settle();
     assert.equal(callsTo('update').length, 0, 'the stored message is sent, not the edits');
-    assert.deepEqual(callsTo('release'), [['release', ID, TOKEN, { keepPaused: true }]], 'released paused, as it is due');
-    assert.equal(callsTo('sendNow').length, 1);
+    assert.equal(callsTo('release').length, 0);
+    assert.deepEqual(callsTo('sendNow'), [['sendNow', ID, false, TOKEN]], 'sent with the hold, in one request');
   });
 
   test('one that was paused before it was opened closes and is released without asking', async () => {

@@ -156,6 +156,37 @@ describe('createEditHold', () => {
     assert.equal(h.calls.filter(c => c[0] === 'release').length, 2, 'not released again on close');
   });
 
+  test('closed while a handBack is out, a failed one neither re-arms nor revives the hold', async () => {
+    let failRelease;
+    const h = harness({ release: () => new Promise((_, reject) => { failRelease = reject; }) });
+    const hold = createEditHold({ id: 'm1', version: 3 }, { ...h.deps, isDue: () => true });
+    await hold.start();
+    const out = hold.handBack({ keepPaused: true });
+    await settle();
+    await hold.release(); // the composer unmounts
+    assert.equal(h.calls.filter(c => c[0] === 'release').length, 1, 'no second release while one is out');
+    failRelease(new TypeError('Failed to fetch'));
+    await assert.rejects(out, /Failed to fetch/);
+    assert.equal(hold.isHeld(), false, 'not held again');
+    assert.equal(h.pending().length, 0, 'no renewal armed on a dead composer');
+    assert.deepEqual(h.calls.at(-1), ['releaseOnUnload', 'm1', 'tok-1'], 'one last release that outlives the page');
+  });
+
+  test('the last release of a closed composer keeps a due message paused', async () => {
+    let failRelease;
+    const h = harness({ hold: () => ({ editToken: 'tok-1', version: 3, statusBefore: 'scheduled' }),
+      release: () => new Promise((_, reject) => { failRelease = reject; }) });
+    h.api.releaseOnUnload = (id, token, options) => { h.calls.push(['releaseOnUnload', id, token, options]); };
+    const hold = createEditHold({ id: 'm1', version: 3 }, { ...h.deps, isDue: () => true });
+    await hold.start();
+    const out = hold.handBack();
+    await settle();
+    await hold.release();
+    failRelease(new TypeError('Failed to fetch'));
+    await assert.rejects(out);
+    assert.deepEqual(h.calls.at(-1), ['releaseOnUnload', 'm1', 'tok-1', { keepPaused: true }]);
+  });
+
   test('handBack the server refuses means the hold is gone', async () => {
     const h = harness({ release: () => { throw Object.assign(new Error('gone'), { status: 409, code: 'hold_lost' }); } });
     const hold = createEditHold({ id: 'm1', version: 3 }, h.deps);

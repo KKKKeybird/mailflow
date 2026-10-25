@@ -43,9 +43,9 @@ export const SCHEDULE_UNDO_MS = 10_000;
 // ahead. When the time the message had has passed, it is saved this far ahead: the 10 s Send now
 // sets comes long before, and an Undo of Send now leaves it there, said in its toast.
 export const SEND_NOW_SAVE_AHEAD_MS = 5 * 60_000;
-// A scheduled message whose time is less than this away is handed back paused when a release
-// must not send it (Send now, a hold given back on its own): released as scheduled it would be
-// due before the next request could reach the server, and the sender would claim it.
+// A scheduled message whose time is less than this away is handed back paused when a hold is
+// given back on its own (the message changed meanwhile, or the composer closed during a release):
+// released as scheduled it would be due at once, and go out unconfirmed.
 export const DUE_MARGIN_MS = 60_000;
 // Send now goes 10 s later (SEND_NOW_DELAY_MS in routes/scheduled.js), the window of its Undo.
 export const SEND_NOW_DELAY_MS = 10_000;
@@ -129,6 +129,8 @@ export function createEditHold({ id, version, editToken = null }, {
   let state = 'starting'; // 'held' | 'releasing' | 'lost' | 'done'
   let statusBefore = null;
   let timer = null;
+  // Set when the composer closes while a handBack is out: it must not come back to life.
+  let closing = false;
 
   const conflict = () => Object.assign(new Error('version_conflict'), { code: 'version_conflict' });
   const arm = () => { unschedule(timer); timer = schedule(renew, renewMs); };
@@ -211,11 +213,20 @@ export function createEditHold({ id, version, editToken = null }, {
         state = 'done';
       } catch (err) {
         if (err?.status === 404 || err?.status === 409) state = 'lost';
-        else { state = 'held'; arm(); }
+        else if (state === 'releasing' && !closing) { state = 'held'; arm(); }
+        else {
+          // The composer closed while this was out: one last try that outlives it, and no more
+          // renewals. Failing that too, the lease lapses on its own.
+          state = 'done';
+          const pause = keepPaused || (statusBefore === 'scheduled' && isDue());
+          api.releaseOnUnload?.(id, token, pause ? { keepPaused: true } : undefined);
+        }
         throw err;
       }
     },
     release({ unloading = false } = {}) {
+      // A handBack is out: it finishes the job (or its failure does), not this.
+      if (state === 'releasing') { closing = true; return Promise.resolve(); }
       const held = state === 'held';
       state = 'done';
       unschedule(timer);

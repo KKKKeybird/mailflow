@@ -480,16 +480,18 @@ export const api = {
     release: (id, editToken, { keepPaused = false } = {}) =>
       request('POST', `/mail/scheduled/${encodeURIComponent(id)}/release`, { editToken, ...(keepPaused ? { keepPaused: true } : {}) }),
     cancel:  (id)              => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/cancel`),
-    sendNow: (id, confirm)     => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/send-now`, confirm ? { confirm: true } : {}),
+    // editToken: send a message this composer holds for editing, in the same request.
+    sendNow: (id, confirm, editToken) => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/send-now`,
+      { ...(confirm ? { confirm: true } : {}), ...(editToken ? { editToken } : {}) }),
     undoSendNow: (id, undoToken) => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/send-now/undo`, { undoToken }),
     // For a page that is going away: keepalive lets the request outlive it, which a beacon
     // could too, but a beacon cannot carry the CSRF header.
-    releaseOnUnload: (id, editToken) => {
+    releaseOnUnload: (id, editToken, { keepPaused = false } = {}) => {
       try {
         fetch(`${BASE}/mail/scheduled/${encodeURIComponent(id)}/release`, {
           method: 'POST', credentials: 'include', keepalive: true,
           headers: { [CSRF_HEADER]: CSRF_VALUE, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ editToken }),
+          body: JSON.stringify({ editToken, ...(keepPaused ? { keepPaused: true } : {}) }),
         }).catch(() => {});
       } catch { /* the lease lapses on its own */ }
     },

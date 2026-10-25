@@ -1312,35 +1312,17 @@ export default function ComposeModal() {
   const updateRef = useRef(null);
   updateRef.current = handleUpdate;
 
-  // Send now (design 2.4, 5.1). The server's send-now takes a scheduled, paused, failed or
-  // uncertain message, never one held for editing, so this composer gives its hold up first:
-  // with changes it saves them (PUT leaves the message scheduled, at the time it had or, when
-  // that has passed, SEND_NOW_SAVE_AHEAD_MS ahead, never due before Send now moves it), and
-  // without, it releases the message: paused when its time has passed or comes within the minute,
-  // since released as scheduled it would be due, and the sender would claim it before Send now
-  // arrived, sending it with no Undo; send-now takes a paused message. Then Send now moves it to
-  // 10 s from now, with an Undo that puts back what it replaced. `stored` sends the message as
-  // stored, edits or not.
+  // Send now (design 2.4, 5.1). Unchanged (or `stored`, after Discard changes), the message is
+  // sent with this composer's hold token in one request: the server ends the hold and moves the
+  // message to 10 s from now in the same UPDATE, so it is never released and due in between, and
+  // the Undo puts back what it was before the hold. With changes they are saved first (PUT leaves
+  // it scheduled at its time, or SEND_NOW_SAVE_AHEAD_MS ahead when that is under a minute away,
+  // never due before Send now moves it), then it is sent now.
   const handleSendNow = async ({ stored = false, confirm = false, skipSubjectWarn = false, skipAttachWarn = false } = {}) => {
     const hold = holdRef.current;
     if (!hold?.isHeld()) { setError(t('compose.scheduleSend.errors.notHeld')); return; }
     if (sending || sendingRef.current) return;
-    if (stored || !isDirty()) {
-      sendingRef.current = true;
-      setSending(true);
-      setError('');
-      try {
-        await hold.handBack({ keepPaused: dueWhileHeldRef.current(DUE_MARGIN_MS) });
-      } catch (err) {
-        sendingRef.current = false;
-        setSending(false);
-        if (!hold.isHeld()) setHoldReady(false);
-        setError(scheduleErrorText(err, t));
-        return;
-      }
-      setHoldReady(false);
-      return sendNowRef.current(false);
-    }
+    if (stored || !isDirty()) return sendNowRef.current({ confirm, held: true });
     const due = new Date(scheduledAt);
     const at = checkSendAt(due) ? new Date(Date.now() + SEND_NOW_SAVE_AHEAD_MS) : due;
     const saved = await saveScheduled({
@@ -1348,14 +1330,16 @@ export default function ComposeModal() {
       resume: o => sendNowStartRef.current({ ...o, confirm }),
       retry: () => sendNowStartRef.current({ confirm: true, skipSubjectWarn: true, skipAttachWarn: true }),
     });
-    if (saved) return sendNowRef.current(false);
+    if (saved) return sendNowRef.current({ confirm: false, held: false });
   };
   const sendNowStartRef = useRef(null);
   sendNowStartRef.current = handleSendNow;
 
-  // Send now itself, once the message is no longer held. A question the server asks here comes
-  // after the hold is given up, so No closes the composer: the message is as it was.
-  const sendNowReleased = async (confirm) => {
+  // Send now itself: `held` with this composer's hold, else of a message a save just gave up.
+  // A question the server asks keeps a held message held (No leaves the composer as it was); after
+  // a save there is no hold left, so No closes the composer.
+  const sendNowFinish = async ({ confirm, held }) => {
+    const hold = holdRef.current;
     sendingRef.current = true;
     setSending(true);
     setError('');
@@ -1363,7 +1347,9 @@ export default function ComposeModal() {
     const id = scheduledEdit.id;
     const shownSubject = subject || t('common.noSubject');
     try {
-      const result = await api.scheduled.sendNow(id, confirm);
+      const result = await api.scheduled.sendNow(id, confirm, held ? hold.token() : undefined);
+      if (held) hold.settle();
+      setHoldReady(false);
       if (!closeIfStillOpen()) return;
       const owner = composeOwner;
       addNotification({
@@ -1382,14 +1368,18 @@ export default function ComposeModal() {
       sendingRef.current = false;
       setSending(false);
       if (needsConfirmation(err)) {
-        setScheduleQuestion({ kind: 'confirm', text: err.message, retry: () => sendNowRef.current(true), onCancel: () => closeCompose() });
+        setScheduleQuestion({
+          kind: 'confirm', text: err.message, retry: () => sendNowRef.current({ confirm: true, held }),
+          ...(held ? {} : { onCancel: () => closeCompose() }),
+        });
         return;
       }
+      if (held && err.code === 'hold_lost') { hold.markLost(); setHoldReady(false); }
       setError(scheduleErrorText(err, t));
     }
   };
   const sendNowRef = useRef(null);
-  sendNowRef.current = sendNowReleased;
+  sendNowRef.current = sendNowFinish;
 
   // Unschedule (design 2.4): back to Drafts as an ordinary draft. The server deletes the scheduled
   // copy only once the draft is stored, so there is always one. Drafts carry no attachments, so a
@@ -1430,10 +1420,10 @@ export default function ComposeModal() {
   };
 
   // Whether releasing the message now would send it at once: it was scheduled when the hold was
-  // taken, and its time has passed since, or comes within `marginMs`.
+  // taken, and its time has passed since.
   const dueWhileHeldRef = useRef(null);
-  dueWhileHeldRef.current = (marginMs = 0) => Boolean(holdRef.current?.isHeld() && statusBeforeRef.current === 'scheduled'
-    && scheduledAt && new Date(scheduledAt).getTime() <= Date.now() + marginMs);
+  dueWhileHeldRef.current = () => Boolean(holdRef.current?.isHeld() && statusBeforeRef.current === 'scheduled'
+    && scheduledAt && new Date(scheduledAt).getTime() <= Date.now());
 
   // Edit mode: take the hold, keep it while the composer is open, and hand the message back when
   // it closes without saving (unmount) or the page goes away. Started after the commit, so a mount
@@ -1762,10 +1752,16 @@ export default function ComposeModal() {
   // moment it is handed back, and goes on with Resume in the Scheduled view.
   const keepPaused = async () => {
     const hold = holdRef.current;
+    // A second click while the release is out is not a lost hold.
+    if (sending || sendingRef.current) return;
     if (!hold?.isHeld()) { closeCompose(); return; }
+    sendingRef.current = true;
+    setSending(true);
     try {
       await hold.handBack({ keepPaused: true });
     } catch (err) {
+      sendingRef.current = false;
+      setSending(false);
       // Still held (a failed request) it can be tried again; a hold the server says is gone has
       // nothing left to release.
       if (!hold.isHeld()) setHoldReady(false);
