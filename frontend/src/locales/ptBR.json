@@ -248,7 +248,8 @@
         "pickNewTime": "Escolher um novo horário",
         "keepPaused": "Manter pausada",
         "dueTitle": "Esta mensagem era para {{when}}.",
-        "dueBody": "Se fechar agora, ela fica pausada e nunca sai sem você."
+        "dueBody": "Se fechar agora, ela fica pausada e nunca sai sem você.",
+        "keptPaused": "Pausada. Retome-a em Agendados quando ela deve ser enviada."
       },
       "confirm": {
         "title": "Agendar de novo?",

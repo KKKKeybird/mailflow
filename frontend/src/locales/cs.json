@@ -619,7 +619,8 @@
         "pickNewTime": "Vybrat nový čas",
         "keepPaused": "Ponechat pozastavené",
         "dueTitle": "Tato zpráva měla odejít {{when}}.",
-        "dueBody": "Když ji teď zavřete, zůstane pozastavená a bez vás nikdy neodejde."
+        "dueBody": "Když ji teď zavřete, zůstane pozastavená a bez vás nikdy neodejde.",
+        "keptPaused": "Pozastaveno. Až má odejít, obnovte ji v Naplánovaných."
       },
       "confirm": {
         "title": "Naplánovat znovu?",

@@ -1446,9 +1446,10 @@ export default function ComposeModal() {
         setError(scheduleErrorText(r.error, t));
       }
     }, 0);
-    // A scheduled message that fell due while open would go out the moment it is released, so it
-    // is not: the server pauses it when the lease lapses (edit_abandoned), and it is never sent
-    // without the user confirming it (design 2.3).
+    // A scheduled message that fell due while open would go out the moment it is released, so a
+    // tab that goes away (or a composer replaced) does not release it: the server pauses it when
+    // the lease lapses (edit_abandoned), and it is never sent without the user confirming it
+    // (design 2.3). Closing asks first, and Keep paused releases it paused.
     const leave = (options) => { if (dueWhileHeldRef.current()) hold.settle(); else hold.release(options); };
     const onPageHide = () => leave({ unloading: true });
     window.addEventListener('pagehide', onPageHide);
@@ -1744,6 +1745,25 @@ export default function ComposeModal() {
     doSaveDraft({ closeAfter });
   };
 
+  // Keep paused: the message is released paused (pause_reason 'user'), so it does not go out the
+  // moment it is handed back, and goes on with Resume in the Scheduled view.
+  const keepPaused = async () => {
+    const hold = holdRef.current;
+    if (!hold?.isHeld()) { closeCompose(); return; }
+    const token = hold.token();
+    hold.settle();
+    setHoldReady(false);
+    try {
+      await api.scheduled.release(scheduledEdit.id, token, { keepPaused: true });
+    } catch (err) {
+      // Still held on the server: when the lease lapses it is paused all the same.
+      setError(scheduleErrorText(err, t));
+      return;
+    }
+    if (!closeIfStillOpen()) return;
+    addNotification({ title: t('compose.scheduleSend.edit.keptPaused'), body: subject || t('common.noSubject'), onAction: () => openScheduledView(useStore) });
+  };
+
   // Closing a scheduled message without saving. One that fell due while open asks first (design
   // 2.3): Send now, Pick a new time, or Keep paused. `discarded` drops Pick a new time, which would
   // save the edits just discarded.
@@ -1911,7 +1931,7 @@ export default function ComposeModal() {
           label: t('compose.scheduleSend.edit.pickNewTime'), kind: 'plain',
           onClick: () => { closeQuestion(); setSendLaterView('times'); setSendLaterOpen(true); },
         }]),
-        { label: t('compose.scheduleSend.edit.keepPaused'), kind: 'plain', onClick: () => { closeQuestion(); closeCompose(); } },
+        { label: t('compose.scheduleSend.edit.keepPaused'), kind: 'plain', onClick: () => { closeQuestion(); keepPaused(); } },
       ]}
     />
   ) : null;

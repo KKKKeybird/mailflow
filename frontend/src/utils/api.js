@@ -474,7 +474,9 @@ export const api = {
     create:  (data)            => request('POST', '/mail/scheduled', data),
     update:  (id, data)        => request('PUT',  `/mail/scheduled/${encodeURIComponent(id)}`, data),
     hold:    (id, editToken)   => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/hold`, editToken ? { editToken } : {}),
-    release: (id, editToken)   => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/release`, { editToken }),
+    // keepPaused: a message that fell due while open is paused (by the user) instead of going out.
+    release: (id, editToken, { keepPaused = false } = {}) =>
+      request('POST', `/mail/scheduled/${encodeURIComponent(id)}/release`, { editToken, ...(keepPaused ? { keepPaused: true } : {}) }),
     cancel:  (id)              => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/cancel`),
     sendNow: (id, confirm)     => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/send-now`, confirm ? { confirm: true } : {}),
     undoSendNow: (id, undoToken) => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/send-now/undo`, { undoToken }),

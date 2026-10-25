@@ -248,7 +248,8 @@
         "pickNewTime": "Neuen Zeitpunkt wählen",
         "keepPaused": "Pausiert lassen",
         "dueTitle": "Diese Nachricht war fällig: {{when}}.",
-        "dueBody": "Wird sie jetzt geschlossen, bleibt sie pausiert und geht nie ohne dich raus."
+        "dueBody": "Wird sie jetzt geschlossen, bleibt sie pausiert und geht nie ohne dich raus.",
+        "keptPaused": "Pausiert. Setze sie unter Geplant fort, wenn sie gesendet werden soll."
       },
       "confirm": {
         "title": "Erneut planen?",

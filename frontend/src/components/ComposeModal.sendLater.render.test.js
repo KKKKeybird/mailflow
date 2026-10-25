@@ -678,7 +678,7 @@ describe('closing a scheduled message that fell due while open (design 2.3)', ()
   const DUE = () => ({ ...structuredClone(SCHEDULED), scheduled: { ...SCHEDULED.scheduled, sendAt: new Date(Date.now() - 60_000).toISOString() } });
   const closeButton = () => document.querySelector('button[title="compose.toolbar.close"]');
 
-  test('asks: Send now, Pick a new time, or Keep paused, which closes without releasing it', async () => {
+  test('asks: Send now, Pick a new time, or Keep paused, which releases it paused at once', async () => {
     const unmount = await mount(DUE());
     await click(closeButton());
     const dialog = document.querySelector('[role="alertdialog"]');
@@ -686,11 +686,31 @@ describe('closing a scheduled message that fell due while open (design 2.3)', ()
     assert.ok(button('compose.scheduleSend.edit.sendNow'));
     assert.ok(button('compose.scheduleSend.edit.pickNewTime'));
     await click(button('compose.scheduleSend.edit.keepPaused'));
+    await settle();
+    assert.deepEqual(callsTo('release'), [['release', ID, TOKEN, { keepPaused: true }]]);
     assert.equal(useStore.getState().composing, false);
+    assert.equal(useStore.getState().notifications[0].title, 'compose.scheduleSend.edit.keptPaused');
+    await unmount();
+    assert.equal(callsTo('release').length, 1, 'released once, paused');
+  });
+
+  test('a Keep paused the server refuses keeps the composer open and says why', async () => {
+    answers.release = refusal(409, 'hold_lost', 'This message is no longer open for editing here.');
+    const unmount = await mount(DUE());
+    await click(closeButton());
+    await click(button('compose.scheduleSend.edit.keepPaused'));
+    await settle();
+    assert.equal(useStore.getState().composing, true);
+    assert.ok(document.body.textContent.includes('compose.scheduleSend.errors.holdLost'));
+    await unmount();
+    assert.equal(callsTo('release').length, 1, 'not tried again on close');
+  });
+
+  test('a page going away with a due message does not release it; the lapsed lease pauses it', async () => {
+    const unmount = await mount(DUE());
     await React.act(async () => { window.dispatchEvent(new window.Event('pagehide')); });
     await unmount();
-    assert.equal(callsTo('release').length + callsTo('releaseOnUnload').length, 0,
-      'released, it would go out at once; the lapsed lease pauses it instead');
+    assert.equal(callsTo('release').length + callsTo('releaseOnUnload').length, 0);
   });
 
   test('Pick a new time opens the times, and Send now sends it', async () => {

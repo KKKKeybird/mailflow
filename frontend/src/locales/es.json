@@ -248,7 +248,8 @@
         "pickNewTime": "Elegir una nueva hora",
         "keepPaused": "Dejar en pausa",
         "dueTitle": "Este mensaje debía enviarse el {{when}}.",
-        "dueBody": "Si lo cierras ahora, queda en pausa y nunca se envía sin ti."
+        "dueBody": "Si lo cierras ahora, queda en pausa y nunca se envía sin ti.",
+        "keptPaused": "En pausa. Reanúdalo desde Programados cuando deba enviarse."
       },
       "confirm": {
         "title": "¿Programarlo de nuevo?",

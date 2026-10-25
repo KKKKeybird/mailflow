@@ -248,7 +248,8 @@
         "pickNewTime": "Pick a new time",
         "keepPaused": "Keep paused",
         "dueTitle": "This was due {{when}}.",
-        "dueBody": "Closed now, it stays paused, so it never goes out without you."
+        "dueBody": "Closed now, it stays paused, so it never goes out without you.",
+        "keptPaused": "Paused. Resume it from Scheduled when it should go."
       },
       "confirm": {
         "title": "Schedule it again?",

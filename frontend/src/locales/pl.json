@@ -248,7 +248,8 @@
         "pickNewTime": "Wybierz nowy czas",
         "keepPaused": "Pozostaw wstrzymaną",
         "dueTitle": "Ta wiadomość miała wyjść {{when}}.",
-        "dueBody": "Zamknięta teraz pozostanie wstrzymana i nigdy nie wyjdzie bez Ciebie."
+        "dueBody": "Zamknięta teraz pozostanie wstrzymana i nigdy nie wyjdzie bez Ciebie.",
+        "keptPaused": "Wstrzymano. Wznów ją w Zaplanowanych, gdy ma zostać wysłana."
       },
       "confirm": {
         "title": "Zaplanować ponownie?",

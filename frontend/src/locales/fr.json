@@ -248,7 +248,8 @@
         "pickNewTime": "Choisir une nouvelle heure",
         "keepPaused": "Laisser en pause",
         "dueTitle": "Ce message était prévu pour le {{when}}.",
-        "dueBody": "Fermé maintenant, il reste en pause et ne part jamais sans vous."
+        "dueBody": "Fermé maintenant, il reste en pause et ne part jamais sans vous.",
+        "keptPaused": "En pause. Reprenez-le depuis Programmés quand il doit partir."
       },
       "confirm": {
         "title": "Le programmer à nouveau ?",
