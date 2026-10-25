@@ -166,9 +166,12 @@ export function createEditHold({ id, version, editToken = null }, {
   }
 
   return {
-    async start() {
+    // `takeover` takes the message from the window that holds it, when the user asked to edit it
+    // here instead (after a held_elsewhere); start() can be called again for that.
+    async start({ takeover = false } = {}) {
+      if (state === 'lost') state = 'starting';
       try {
-        const r = await api.hold(id, token);
+        const r = await (takeover ? api.hold(id, null, { takeover: true }) : api.hold(id, token));
         token = r.editToken;
         statusBefore = r.statusBefore ?? null;
         // Closed while the hold was being taken: hand it straight back.
@@ -230,6 +233,8 @@ export function scheduleErrorText(err, t, { now = Date.now(), locale } = {}) {
   switch (err?.code) {
     case 'hold_lost':
       return t('compose.scheduleSend.errors.holdLost');
+    case 'held_elsewhere':
+      return t('compose.scheduleSend.errors.heldElsewhere');
     case 'version_conflict':
       return t('compose.scheduleSend.errors.versionConflict');
     case 'too_soon':

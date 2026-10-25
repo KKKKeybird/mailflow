@@ -225,11 +225,12 @@
         "tooFar": "Choisissez un moment dans les 366 prochains jours.",
         "clockBehind": "L'horloge de cet appareil retarde de {{minutes}} min sur celle du serveur, pour qui il est {{time}}.",
         "clockAhead": "L'horloge de cet appareil avance de {{minutes}} min sur celle du serveur, pour qui il est {{time}}.",
-        "holdLost": "Ce message n'est plus ouvert en modification ici, vos changements n'ont donc pas été enregistrés. Il est peut-être ouvert dans une autre fenêtre. Fermez-le et rouvrez-le depuis Programmés.",
+        "holdLost": "Ce message a été ouvert dans une autre fenêtre et ne peut plus être enregistré ici. Votre texte reste ici pour être copié.",
         "versionConflict": "Ce message a été modifié ailleurs. Fermez-le et rouvrez-le depuis Programmés pour voir la dernière version.",
         "notHeld": "Ce message n'est pas ouvert en modification ici. Fermez-le et rouvrez-le depuis Programmés.",
         "pickNewTime": "L'heure prévue est passée. Choisissez-en une nouvelle.",
-        "failed": "Le message n'a pas pu être programmé."
+        "failed": "Le message n'a pas pu être programmé.",
+        "heldElsewhere": "Ce message est ouvert dans une autre fenêtre."
       },
       "edit": {
         "update": "Mettre à jour",
@@ -249,7 +250,10 @@
         "keepPaused": "Laisser en pause",
         "dueTitle": "Ce message était prévu pour le {{when}}.",
         "dueBody": "Fermé maintenant, il reste en pause et ne part jamais sans vous.",
-        "keptPaused": "En pause. Reprenez-le depuis Programmés quand il doit partir."
+        "keptPaused": "En pause. Reprenez-le depuis Programmés quand il doit partir.",
+        "heldElsewhereBody": "Modifiez-le plutôt ici, et l'autre fenêtre ne pourra plus l'enregistrer.",
+        "takeOver": "Modifier ici plutôt",
+        "close": "Fermer"
       },
       "confirm": {
         "title": "Le programmer à nouveau ?",

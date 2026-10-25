@@ -225,11 +225,12 @@
         "tooFar": "Escolha um horário dentro dos próximos 366 dias.",
         "clockBehind": "O relógio deste dispositivo está {{minutes}} min atrasado em relação ao do servidor, que diz que são {{time}}.",
         "clockAhead": "O relógio deste dispositivo está {{minutes}} min adiantado em relação ao do servidor, que diz que são {{time}}.",
-        "holdLost": "Esta mensagem não está mais aberta para edição aqui, então suas alterações não foram salvas. Talvez ela esteja aberta em outra janela. Feche-a e abra de novo em Agendados.",
+        "holdLost": "Esta mensagem foi aberta em outra janela e não pode mais ser salva aqui. Seu texto continua aqui para copiar.",
         "versionConflict": "Esta mensagem foi alterada em outro lugar. Feche-a e abra de novo em Agendados para ver a versão mais recente.",
         "notHeld": "Esta mensagem não está aberta para edição aqui. Feche-a e abra de novo em Agendados.",
         "pickNewTime": "O horário agendado já passou. Escolha um novo.",
-        "failed": "Não foi possível agendar a mensagem."
+        "failed": "Não foi possível agendar a mensagem.",
+        "heldElsewhere": "Esta mensagem está aberta em outra janela."
       },
       "edit": {
         "update": "Atualizar",
@@ -249,7 +250,10 @@
         "keepPaused": "Manter pausada",
         "dueTitle": "Esta mensagem era para {{when}}.",
         "dueBody": "Se fechar agora, ela fica pausada e nunca sai sem você.",
-        "keptPaused": "Pausada. Retome-a em Agendados quando ela deve ser enviada."
+        "keptPaused": "Pausada. Retome-a em Agendados quando ela deve ser enviada.",
+        "heldElsewhereBody": "Edite-a aqui em vez disso, e a outra janela não poderá mais salvá-la.",
+        "takeOver": "Editar aqui em vez disso",
+        "close": "Fechar"
       },
       "confirm": {
         "title": "Agendar de novo?",

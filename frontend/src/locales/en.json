@@ -225,11 +225,12 @@
         "tooFar": "Pick a time within the next 366 days.",
         "clockBehind": "This device's clock is {{minutes}} min behind the server's, which says it is {{time}}.",
         "clockAhead": "This device's clock is {{minutes}} min ahead of the server's, which says it is {{time}}.",
-        "holdLost": "This message is no longer open for editing here, so your changes were not saved. It may be open in another window. Close it and open it again from Scheduled.",
+        "holdLost": "This message was opened in another window, so it can no longer be saved here. Your text is still here to copy.",
         "versionConflict": "This message was changed somewhere else. Close it and open it again from Scheduled to see the latest version.",
         "notHeld": "This message is not open for editing here. Close it and open it again from Scheduled.",
         "pickNewTime": "Its scheduled time has passed. Pick a new time.",
-        "failed": "The message could not be scheduled."
+        "failed": "The message could not be scheduled.",
+        "heldElsewhere": "This message is open in another window."
       },
       "edit": {
         "update": "Update",
@@ -249,7 +250,10 @@
         "keepPaused": "Keep paused",
         "dueTitle": "This was due {{when}}.",
         "dueBody": "Closed now, it stays paused, so it never goes out without you.",
-        "keptPaused": "Paused. Resume it from Scheduled when it should go."
+        "keptPaused": "Paused. Resume it from Scheduled when it should go.",
+        "heldElsewhereBody": "Edit it here instead, and the other window can no longer save it.",
+        "takeOver": "Edit here instead",
+        "close": "Close"
       },
       "confirm": {
         "title": "Schedule it again?",

@@ -546,6 +546,38 @@ describe('editing a scheduled message', () => {
     await close();
   });
 
+  test('open in another window: Edit here instead takes it over, Close closes', async () => {
+    answers.hold = [refusal(409, 'held_elsewhere', 'This message is open for editing somewhere else.'), { editToken: TOKEN, version: 3, statusBefore: 'scheduled' }];
+    const unmount = await mount(structuredClone(SCHEDULED));
+    const dialog = document.querySelector('[role="alertdialog"]');
+    assert.equal(document.getElementById(dialog.getAttribute('aria-labelledby')).textContent, 'compose.scheduleSend.errors.heldElsewhere');
+    assert.equal(button('compose.scheduleSend.edit.update').disabled, true);
+    await click(button('compose.scheduleSend.edit.takeOver'));
+    await settle();
+    assert.deepEqual(callsTo('hold').map(c => c.slice(2)), [[null], [null, { takeover: true }]]);
+    assert.equal(button('compose.scheduleSend.edit.update').disabled, false, 'held here now');
+    assert.ok(!document.body.textContent.includes('compose.scheduleSend.errors.heldElsewhere'));
+    await unmount();
+    assert.deepEqual(callsTo('release')[0], ['release', ID, TOKEN]);
+
+    calls.length = 0;
+    answers.hold = refusal(409, 'held_elsewhere', 'This message is open for editing somewhere else.');
+    await mount(structuredClone(SCHEDULED));
+    await click(button('compose.scheduleSend.edit.close'));
+    assert.equal(useStore.getState().composing, false);
+  });
+
+  test('the window that lost the hold keeps its text and cannot save', async () => {
+    answers.update = refusal(409, 'hold_lost', 'This message is no longer open for editing here.');
+    await mount(structuredClone(SCHEDULED));
+    await editBody(' Typed here.');
+    await click(button('compose.scheduleSend.edit.update'));
+    await settle();
+    assert.ok(document.body.textContent.includes('compose.scheduleSend.errors.holdLost'));
+    assert.equal(button('compose.scheduleSend.edit.update').disabled, true);
+    assert.match(document.querySelector('.ProseMirror').textContent, /Typed here\./, 'the text is still there to copy');
+  });
+
   test('a hold the server refuses shows why and disables Update', async () => {
     answers.hold = refusal(409, undefined, 'This message is being sent now.');
     const close = await mount(structuredClone(SCHEDULED));

@@ -473,7 +473,9 @@ export const api = {
   scheduled: {
     create:  (data)            => request('POST', '/mail/scheduled', data),
     update:  (id, data)        => request('PUT',  `/mail/scheduled/${encodeURIComponent(id)}`, data),
-    hold:    (id, editToken)   => request('POST', `/mail/scheduled/${encodeURIComponent(id)}/hold`, editToken ? { editToken } : {}),
+    // takeover: edit it here although another window holds it (that one then has lost it).
+    hold:    (id, editToken, { takeover = false } = {}) =>
+      request('POST', `/mail/scheduled/${encodeURIComponent(id)}/hold`, editToken ? { editToken } : takeover ? { takeover: true } : {}),
     // keepPaused: a message that fell due while open is paused (by the user) instead of going out.
     release: (id, editToken, { keepPaused = false } = {}) =>
       request('POST', `/mail/scheduled/${encodeURIComponent(id)}/release`, { editToken, ...(keepPaused ? { keepPaused: true } : {}) }),

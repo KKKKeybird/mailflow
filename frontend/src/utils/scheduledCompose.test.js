@@ -204,6 +204,24 @@ describe('createEditHold', () => {
     assert.equal(h.calls.filter(c => c[0] === 'release').length, 0);
   });
 
+  test('after held_elsewhere, start({ takeover }) takes the hold from the other window', async () => {
+    let n = 0;
+    const h = harness({ hold: () => {
+      if (n++ === 0) throw Object.assign(new Error('open elsewhere'), { status: 409, code: 'held_elsewhere' });
+      return { editToken: 'tok-9', version: 3, statusBefore: 'scheduled' };
+    } });
+    const hold = createEditHold({ id: 'm1', version: 3 }, h.deps);
+    const first = await hold.start();
+    assert.equal(first.ok, false);
+    assert.equal(first.error.code, 'held_elsewhere');
+    const second = await hold.start({ takeover: true });
+    assert.equal(second.ok, true);
+    assert.deepEqual(h.calls[1], ['hold', 'm1', null]);
+    assert.equal(hold.token(), 'tok-9');
+    assert.equal(hold.isHeld(), true);
+    assert.equal(h.pending().length, 1, 'renewed from then on');
+  });
+
   test('a page going away releases with keepalive', async () => {
     const h = harness();
     const hold = createEditHold({ id: 'm1', version: 3 }, h.deps);
@@ -250,6 +268,7 @@ describe('scheduleErrorText', () => {
 
   test('a lost hold and a newer version are told in the composer text', () => {
     assert.equal(scheduleErrorText({ code: 'hold_lost', message: 'x' }, t), 'compose.scheduleSend.errors.holdLost');
+    assert.equal(scheduleErrorText({ code: 'held_elsewhere', message: 'x' }, t), 'compose.scheduleSend.errors.heldElsewhere');
     assert.equal(scheduleErrorText({ code: 'version_conflict', message: 'x' }, t), 'compose.scheduleSend.errors.versionConflict');
   });
 

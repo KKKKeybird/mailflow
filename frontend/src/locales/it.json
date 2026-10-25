@@ -225,11 +225,12 @@
         "tooFar": "Scegli un momento entro i prossimi 366 giorni.",
         "clockBehind": "L'orologio di questo dispositivo è indietro di {{minutes}} min rispetto a quello del server, secondo cui sono le {{time}}.",
         "clockAhead": "L'orologio di questo dispositivo è avanti di {{minutes}} min rispetto a quello del server, secondo cui sono le {{time}}.",
-        "holdLost": "Questo messaggio non è più aperto per la modifica qui, quindi le modifiche non sono state salvate. Potrebbe essere aperto in un'altra finestra. Chiudilo e riaprilo da Programmati.",
+        "holdLost": "Questo messaggio è stato aperto in un'altra finestra e non può più essere salvato qui. Il tuo testo resta qui da copiare.",
         "versionConflict": "Questo messaggio è stato modificato altrove. Chiudilo e riaprilo da Programmati per vedere la versione più recente.",
         "notHeld": "Questo messaggio non è aperto per la modifica qui. Chiudilo e riaprilo da Programmati.",
         "pickNewTime": "L'orario programmato è passato. Scegline uno nuovo.",
-        "failed": "Impossibile programmare il messaggio."
+        "failed": "Impossibile programmare il messaggio.",
+        "heldElsewhere": "Questo messaggio è aperto in un'altra finestra."
       },
       "edit": {
         "update": "Aggiorna",
@@ -249,7 +250,10 @@
         "keepPaused": "Lascia in pausa",
         "dueTitle": "Questo messaggio era previsto per {{when}}.",
         "dueBody": "Se lo chiudi ora resta in pausa e non parte mai senza di te.",
-        "keptPaused": "In pausa. Riprendilo da Programmati quando deve partire."
+        "keptPaused": "In pausa. Riprendilo da Programmati quando deve partire.",
+        "heldElsewhereBody": "Modificalo qui invece, e l'altra finestra non potrà più salvarlo.",
+        "takeOver": "Modifica qui invece",
+        "close": "Chiudi"
       },
       "confirm": {
         "title": "Programmarlo di nuovo?",

@@ -1455,6 +1455,8 @@ export default function ComposeModal() {
         setHoldReady(true);
       } else if (!r.closed) {
         setError(scheduleErrorText(r.error, t));
+        // Open in another window (a stale tab, another device): the user may edit it here instead.
+        if (r.error?.code === 'held_elsewhere') setScheduleQuestion({ kind: 'heldElsewhere' });
       }
     }, 0);
     // A scheduled message that fell due while open would go out the moment it is released, so a
@@ -1775,6 +1777,21 @@ export default function ComposeModal() {
     addNotification({ title: t('compose.scheduleSend.edit.keptPaused'), body: subject || t('common.noSubject'), onAction: () => openScheduledView(useStore) });
   };
 
+  // "Edit here instead": takes the hold from the window that has it. That one finds out at its
+  // next renewal or save (hold_lost), keeping its text to copy.
+  const takeOver = async () => {
+    const hold = holdRef.current;
+    if (!hold) return;
+    setError('');
+    const r = await hold.start({ takeover: true });
+    if (r.ok) {
+      statusBeforeRef.current = r.statusBefore;
+      setHoldReady(true);
+    } else if (!r.closed) {
+      setError(scheduleErrorText(r.error, t));
+    }
+  };
+
   // Closing a scheduled message without saving. One that fell due while open asks first (design
   // 2.3): Send now, Pick a new time, or Keep paused. `discarded` drops Pick a new time, which would
   // save the edits just discarded.
@@ -1985,6 +2002,18 @@ export default function ComposeModal() {
         />
       )}
       {sendLaterDue}
+      {scheduleQuestion?.kind === 'heldElsewhere' && (
+        <ComposeQuestion
+          mobile={isMobile}
+          title={t('compose.scheduleSend.errors.heldElsewhere')}
+          body={t('compose.scheduleSend.edit.heldElsewhereBody')}
+          onCancel={closeQuestion}
+          actions={[
+            { label: t('compose.scheduleSend.edit.takeOver'), kind: 'primary', onClick: () => { closeQuestion(); takeOver(); } },
+            { label: t('compose.scheduleSend.edit.close'), kind: 'plain', onClick: () => { closeQuestion(); closeCompose(); } },
+          ]}
+        />
+      )}
       {scheduleQuestion?.kind === 'closeEdit' && (
         <ComposeQuestion
           mobile={isMobile}

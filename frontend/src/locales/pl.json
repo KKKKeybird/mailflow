@@ -225,11 +225,12 @@
         "tooFar": "Wybierz czas w ciągu najbliższych 366 dni.",
         "clockBehind": "Zegar tego urządzenia spóźnia się o {{minutes}} min względem serwera, według którego jest {{time}}.",
         "clockAhead": "Zegar tego urządzenia spieszy się o {{minutes}} min względem serwera, według którego jest {{time}}.",
-        "holdLost": "Ta wiadomość nie jest już tu otwarta do edycji, więc zmiany nie zostały zapisane. Może jest otwarta w innym oknie. Zamknij ją i otwórz ponownie z Zaplanowanych.",
+        "holdLost": "Ta wiadomość została otwarta w innym oknie, więc nie można jej tu już zapisać. Twój tekst zostaje tu do skopiowania.",
         "versionConflict": "Ta wiadomość została zmieniona gdzie indziej. Zamknij ją i otwórz ponownie z Zaplanowanych, aby zobaczyć najnowszą wersję.",
         "notHeld": "Ta wiadomość nie jest tu otwarta do edycji. Zamknij ją i otwórz ponownie z Zaplanowanych.",
         "pickNewTime": "Zaplanowany czas już minął. Wybierz nowy.",
-        "failed": "Nie udało się zaplanować wiadomości."
+        "failed": "Nie udało się zaplanować wiadomości.",
+        "heldElsewhere": "Ta wiadomość jest otwarta w innym oknie."
       },
       "edit": {
         "update": "Zaktualizuj",
@@ -249,7 +250,10 @@
         "keepPaused": "Pozostaw wstrzymaną",
         "dueTitle": "Ta wiadomość miała wyjść {{when}}.",
         "dueBody": "Zamknięta teraz pozostanie wstrzymana i nigdy nie wyjdzie bez Ciebie.",
-        "keptPaused": "Wstrzymano. Wznów ją w Zaplanowanych, gdy ma zostać wysłana."
+        "keptPaused": "Wstrzymano. Wznów ją w Zaplanowanych, gdy ma zostać wysłana.",
+        "heldElsewhereBody": "Edytuj ją tutaj, a drugie okno nie będzie już mogło jej zapisać.",
+        "takeOver": "Edytuj tutaj",
+        "close": "Zamknij"
       },
       "confirm": {
         "title": "Zaplanować ponownie?",

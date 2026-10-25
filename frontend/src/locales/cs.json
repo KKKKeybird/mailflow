@@ -596,11 +596,12 @@
         "tooFar": "Vyberte čas během příštích 366 dní.",
         "clockBehind": "Hodiny tohoto zařízení se opožďují o {{minutes}} min oproti serveru, podle kterého je {{time}}.",
         "clockAhead": "Hodiny tohoto zařízení se předbíhají o {{minutes}} min oproti serveru, podle kterého je {{time}}.",
-        "holdLost": "Tato zpráva už tu není otevřená k úpravám, takže změny nebyly uloženy. Možná je otevřená v jiném okně. Zavřete ji a otevřete znovu z Naplánovaných.",
+        "holdLost": "Tato zpráva byla otevřena v jiném okně, takže ji tu už nelze uložit. Váš text tu zůstává ke zkopírování.",
         "versionConflict": "Tato zpráva byla změněna jinde. Zavřete ji a otevřete znovu z Naplánovaných, abyste viděli nejnovější verzi.",
         "notHeld": "Tato zpráva tu není otevřená k úpravám. Zavřete ji a otevřete znovu z Naplánovaných.",
         "pickNewTime": "Naplánovaný čas už uplynul. Vyberte nový.",
-        "failed": "Zprávu se nepodařilo naplánovat."
+        "failed": "Zprávu se nepodařilo naplánovat.",
+        "heldElsewhere": "Tato zpráva je otevřená v jiném okně."
       },
       "edit": {
         "update": "Aktualizovat",
@@ -620,7 +621,10 @@
         "keepPaused": "Ponechat pozastavené",
         "dueTitle": "Tato zpráva měla odejít {{when}}.",
         "dueBody": "Když ji teď zavřete, zůstane pozastavená a bez vás nikdy neodejde.",
-        "keptPaused": "Pozastaveno. Až má odejít, obnovte ji v Naplánovaných."
+        "keptPaused": "Pozastaveno. Až má odejít, obnovte ji v Naplánovaných.",
+        "heldElsewhereBody": "Upravte ji raději tady a druhé okno ji už nebude moci uložit.",
+        "takeOver": "Upravit raději tady",
+        "close": "Zavřít"
       },
       "confirm": {
         "title": "Naplánovat znovu?",

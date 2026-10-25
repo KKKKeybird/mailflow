@@ -225,11 +225,12 @@
         "tooFar": "Wähle einen Zeitpunkt innerhalb der nächsten 366 Tage.",
         "clockBehind": "Die Uhr dieses Geräts geht {{minutes}} Min. nach gegenüber dem Server, laut dem es {{time}} ist.",
         "clockAhead": "Die Uhr dieses Geräts geht {{minutes}} Min. vor gegenüber dem Server, laut dem es {{time}} ist.",
-        "holdLost": "Diese Nachricht ist hier nicht mehr zum Bearbeiten geöffnet, deine Änderungen wurden nicht gespeichert. Vielleicht ist sie in einem anderen Fenster offen. Schließe sie und öffne sie erneut unter Geplant.",
+        "holdLost": "Diese Nachricht wurde in einem anderen Fenster geöffnet und kann hier nicht mehr gespeichert werden. Dein Text bleibt hier zum Kopieren.",
         "versionConflict": "Diese Nachricht wurde an anderer Stelle geändert. Schließe sie und öffne sie erneut unter Geplant, um die neueste Fassung zu sehen.",
         "notHeld": "Diese Nachricht ist hier nicht zum Bearbeiten geöffnet. Schließe sie und öffne sie erneut unter Geplant.",
         "pickNewTime": "Der geplante Zeitpunkt ist vorbei. Wähle einen neuen.",
-        "failed": "Die Nachricht konnte nicht geplant werden."
+        "failed": "Die Nachricht konnte nicht geplant werden.",
+        "heldElsewhere": "Diese Nachricht ist in einem anderen Fenster geöffnet."
       },
       "edit": {
         "update": "Aktualisieren",
@@ -249,7 +250,10 @@
         "keepPaused": "Pausiert lassen",
         "dueTitle": "Diese Nachricht war fällig: {{when}}.",
         "dueBody": "Wird sie jetzt geschlossen, bleibt sie pausiert und geht nie ohne dich raus.",
-        "keptPaused": "Pausiert. Setze sie unter Geplant fort, wenn sie gesendet werden soll."
+        "keptPaused": "Pausiert. Setze sie unter Geplant fort, wenn sie gesendet werden soll.",
+        "heldElsewhereBody": "Bearbeite sie stattdessen hier, dann kann das andere Fenster sie nicht mehr speichern.",
+        "takeOver": "Stattdessen hier bearbeiten",
+        "close": "Schließen"
       },
       "confirm": {
         "title": "Erneut planen?",
