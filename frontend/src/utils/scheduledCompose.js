@@ -94,17 +94,20 @@ export async function undoSchedule({ id, restoreData }, { cancel, reopen, notify
   return false;
 }
 
-// Undo of Send now: puts back what Send now replaced. Says when the message goes now, or that it
-// is back as it was (paused or failed), or why it could not be undone.
+// Undo of Send now: puts back what Send now replaced. Says when the message goes now, that it is
+// paused because its time passed meanwhile, that it is back as it was (paused or failed), or why it
+// could not be undone (too late, or opened in another window).
 export async function undoSendNow({ id, undoToken, subject }, { undo, notify, t, locale }) {
   try {
     const r = await undo(id, undoToken);
-    notify(r?.status === 'scheduled'
-      ? { title: t('compose.scheduleSend.scheduledFor', { when: formatSendAt(r.sendAt, locale) }), body: subject }
-      : { title: t('compose.scheduleSend.sendNow.undone'), body: subject });
+    // Its time passed meanwhile: the server put it back paused, as scheduled it would go at once.
+    if (r?.status === 'paused' && r.pauseReason === 'user') notify({ title: t('compose.scheduleSend.edit.keptPaused'), body: subject });
+    else if (r?.status === 'scheduled') notify({ title: t('compose.scheduleSend.scheduledFor', { when: formatSendAt(r.sendAt, locale) }), body: subject });
+    else notify({ title: t('compose.scheduleSend.sendNow.undone'), body: subject });
     return true;
   } catch (err) {
-    notify({ type: 'error', title: t('compose.scheduleSend.sendNow.undoFailed'), body: err.message, allowWrap: true, persistent: true });
+    const body = err?.code === 'held_elsewhere' ? t('compose.scheduleSend.errors.heldElsewhere') : err.message;
+    notify({ type: 'error', title: t('compose.scheduleSend.sendNow.undoFailed'), body, allowWrap: true, persistent: true });
     return false;
   }
 }
@@ -131,6 +134,14 @@ export function createEditHold({ id, version, editToken = null }, {
   let timer = null;
   // Set when the composer closes while a handBack is out: it must not come back to life.
   let closing = false;
+  // What the handBack out asked for, and whether the page's last release already went.
+  let releasingPaused = false;
+  let finalSent = false;
+  const finalRelease = (pause) => {
+    if (finalSent) return;
+    finalSent = true;
+    api.releaseOnUnload?.(id, token, pause ? { keepPaused: true } : undefined);
+  };
 
   const conflict = () => Object.assign(new Error('version_conflict'), { code: 'version_conflict' });
   const arm = () => { unschedule(timer); timer = schedule(renew, renewMs); };
@@ -207,6 +218,7 @@ export function createEditHold({ id, version, editToken = null }, {
     async handBack({ keepPaused = false } = {}) {
       if (state !== 'held') throw Object.assign(new Error('hold_lost'), { code: 'hold_lost', status: 409 });
       state = 'releasing';
+      releasingPaused = keepPaused;
       unschedule(timer);
       try {
         await (keepPaused ? api.release(id, token, { keepPaused: true }) : api.release(id, token));
@@ -218,15 +230,19 @@ export function createEditHold({ id, version, editToken = null }, {
           // The composer closed while this was out: one last try that outlives it, and no more
           // renewals. Failing that too, the lease lapses on its own.
           state = 'done';
-          const pause = keepPaused || (statusBefore === 'scheduled' && isDue());
-          api.releaseOnUnload?.(id, token, pause ? { keepPaused: true } : undefined);
+          finalRelease(keepPaused || (statusBefore === 'scheduled' && isDue()));
         }
         throw err;
       }
     },
     release({ unloading = false } = {}) {
-      // A handBack is out: it finishes the job (or its failure does), not this.
-      if (state === 'releasing') { closing = true; return Promise.resolve(); }
+      // A handBack is out: it finishes the job (or its failure does), not this. A page going away
+      // may not see it finish, so its keepalive release goes now, as the handBack asked.
+      if (state === 'releasing') {
+        closing = true;
+        if (unloading) finalRelease(releasingPaused || (statusBefore === 'scheduled' && isDue()));
+        return Promise.resolve();
+      }
       const held = state === 'held';
       state = 'done';
       unschedule(timer);

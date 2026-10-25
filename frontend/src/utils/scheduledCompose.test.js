@@ -172,6 +172,22 @@ describe('createEditHold', () => {
     assert.deepEqual(h.calls.at(-1), ['releaseOnUnload', 'm1', 'tok-1'], 'one last release that outlives the page');
   });
 
+  test('a page going away while Keep paused is out sends its keepalive release paused, once', async () => {
+    let failRelease;
+    const h = harness({ release: () => new Promise((_, reject) => { failRelease = reject; }) });
+    h.api.releaseOnUnload = (id, token, options) => { h.calls.push(['releaseOnUnload', id, token, options]); };
+    const hold = createEditHold({ id: 'm1', version: 3 }, h.deps);
+    await hold.start();
+    const out = hold.handBack({ keepPaused: true });
+    await settle();
+    await hold.release({ unloading: true });
+    assert.deepEqual(h.calls.at(-1), ['releaseOnUnload', 'm1', 'tok-1', { keepPaused: true }]);
+    failRelease(new TypeError('Failed to fetch'));
+    await assert.rejects(out);
+    assert.equal(h.calls.filter(c => c[0] === 'releaseOnUnload').length, 1, 'not sent twice');
+    assert.equal(h.pending().length, 0);
+  });
+
   test('the last release of a closed composer keeps a due message paused', async () => {
     let failRelease;
     const h = harness({ hold: () => ({ editToken: 'tok-1', version: 3, statusBefore: 'scheduled' }),
@@ -424,6 +440,23 @@ describe('undoing Send now', () => {
       undo: async () => ({ status: 'paused', sendAt: null }), notify: n => seen.push(n), t,
     });
     assert.equal(seen[1].title, 'compose.scheduleSend.sendNow.undone');
+  });
+
+  test('a message whose time passed comes back paused, and says so', async () => {
+    const seen = [];
+    await undoSendNow({ id: 'm1', undoToken: 'tok', subject: 'Hi' }, {
+      undo: async () => ({ status: 'paused', pauseReason: 'user', sendAt: '2026-10-24T07:00:00.000Z' }), notify: n => seen.push(n), t,
+    });
+    assert.equal(seen[0].title, 'compose.scheduleSend.edit.keptPaused');
+  });
+
+  test('an undo refused because the message is open in another window says that', async () => {
+    const seen = [];
+    await undoSendNow({ id: 'm1', undoToken: 'tok', subject: 'Hi' }, {
+      undo: async () => { throw Object.assign(new Error('This message is open in another window.'), { status: 409, code: 'held_elsewhere' }); },
+      notify: n => seen.push(n), t,
+    });
+    assert.equal(seen[0].body, 'compose.scheduleSend.errors.heldElsewhere');
   });
 
   test('a refused undo says the server message', async () => {
