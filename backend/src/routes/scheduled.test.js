@@ -128,6 +128,25 @@ describe('a message that is not the user\'s', () => {
   });
 });
 
+describe('hold', () => {
+  it('with a token only renews: a token that names no hold is 409 hold_lost, never a takeover', async () => {
+    findOwnedScheduledMessage.mockResolvedValue({ id: ID, status: 'editing' });
+    const token = randomUUID();
+    expect(await call('POST', `/${ID}/hold`, { editToken: token })).toMatchObject({ status: 409, body: { code: 'hold_lost', status: 'editing' } });
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).not.toMatch(/status = 'editing'/);
+    expect(sql).toMatch(/status = ANY\(\$3\)\s+AND edit_token = \$4::uuid/);
+    expect(params.slice(0, 4)).toEqual([ID, 'u1', ['editing'], token]);
+    expect((await call('POST', `/${ID}/hold`, { editToken: 'x' })).status).toBe(400);
+  });
+
+  it('without one takes only a message nobody holds, or whose lease lapsed', async () => {
+    findOwnedScheduledMessage.mockResolvedValue({ id: ID, status: 'editing' });
+    expect(await call('POST', `/${ID}/hold`, {})).toMatchObject({ status: 409, body: { code: 'held_elsewhere', status: 'editing' } });
+    expect(query.mock.calls[0][0]).toMatch(/edit_lease_until < NOW\(\)/);
+  });
+});
+
 describe('release', () => {
   beforeEach(() => { query.mockResolvedValue({ rows: [{ id: ID, status: 'paused' }] }); });
 

@@ -295,7 +295,7 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
   });
 
   describe('edit', () => {
-    it('holds, renews, hands the hold to another composer, and releases to what it was', async () => {
+    it('holds, renews only with its token, and releases to what it was', async () => {
       const id = await create();
       await set(id, { status: 'failed', failure_code: 'smtp_rejected' });
       const held = await call('POST', `/${id}/hold`, {});
@@ -303,12 +303,31 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
       expect(await rowOf(id)).toMatchObject({ status: 'editing', status_before: 'failed' });
       const renewed = await call('POST', `/${id}/hold`, { editToken: held.body.editToken });
       expect(renewed.body.editToken).toBe(held.body.editToken);
-      const other = await call('POST', `/${id}/hold`, {});
-      expect(other.body.editToken).not.toBe(held.body.editToken);
-      expect((await rowOf(id)).status_before).toBe('failed');
-      expect((await call('POST', `/${id}/release`, { editToken: held.body.editToken })).body.code).toBe('hold_lost');
-      expect((await call('POST', `/${id}/release`, { editToken: other.body.editToken })).body).toEqual({ status: 'failed' });
+      // Held by a live lease: another composer cannot take it, and a wrong token renews nothing.
+      expect(await call('POST', `/${id}/hold`, {})).toMatchObject({ status: 409, body: { code: 'held_elsewhere', status: 'editing' } });
+      expect(await call('POST', `/${id}/hold`, { editToken: randomUUID() })).toMatchObject({ status: 409, body: { code: 'hold_lost', status: 'editing' } });
+      expect((await rowOf(id)).edit_token).toBe(held.body.editToken);
+      expect((await call('POST', `/${id}/release`, { editToken: held.body.editToken })).body).toEqual({ status: 'failed' });
       expect(await rowOf(id)).toMatchObject({ status: 'failed', status_before: null, edit_token: null });
+      // A renewal that arrives after the hold ended does not take the message back.
+      expect(await call('POST', `/${id}/hold`, { editToken: held.body.editToken })).toMatchObject({ status: 409, body: { code: 'hold_lost', status: 'failed' } });
+      expect(await rowOf(id)).toMatchObject({ status: 'failed', edit_token: null });
+      expect((await call('POST', `/${id}/hold`, { editToken: 'nope' })).status).toBe(400);
+    });
+
+    it('lets a new composer take a hold whose lease lapsed, and the old one then has lost it', async () => {
+      const id = await create();
+      const first = await call('POST', `/${id}/hold`, {});
+      await set(id, { edit_lease_until: new Date(Date.now() - 1000) });
+      const second = await call('POST', `/${id}/hold`, {});
+      expect(second.status).toBe(200);
+      expect(second.body.editToken).not.toBe(first.body.editToken);
+      expect(second.body.statusBefore).toBe('scheduled');
+      expect(await rowOf(id)).toMatchObject({ status: 'editing', status_before: 'scheduled', edit_token: second.body.editToken });
+      expect((await rowOf(id)).edit_lease_until.getTime()).toBeGreaterThan(Date.now());
+      expect((await call('POST', `/${id}/hold`, { editToken: first.body.editToken })).body.code).toBe('hold_lost');
+      expect((await call('PUT', `/${id}`, { ...draftBody(), editToken: first.body.editToken, version: 1 })).body.code).toBe('hold_lost');
+      expect((await call('POST', `/${id}/release`, { editToken: second.body.editToken })).body).toEqual({ status: 'scheduled' });
     });
 
     it('keeps a message paused on release when asked (Keep paused), by the user, without a push', async () => {

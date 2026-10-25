@@ -387,18 +387,35 @@ router.get('/scheduled/:id/attachments/:index', validId, async (req, res) => {
 
 // --- Edit (design 2.3) -------------------------------------------------------------------------
 
-// Takes or renews the edit hold. The same token renews it; without it, the hold moves to this
-// composer, and a save from the one that had it answers 409.
+// Takes or renews the edit hold. With an editToken it only renews: the token must name the hold,
+// or the answer is 409 hold_lost, so a composer whose hold ended (a save, a release, another tab's
+// takeover of a lapsed lease) can never take the message back unnoticed. Without one it takes a
+// free message: one that is not being edited, or whose edit lease has lapsed (its composer went
+// away before the sweep released it). One another composer holds is 409 held_elsewhere.
 router.post('/scheduled/:id/hold', validId, async (req, res) => {
-  const editToken = typeof req.body?.editToken === 'string' && UUID_RE.test(req.body.editToken) ? req.body.editToken : null;
-  const row = await update(req.session.userId, req.params.id, [...MOVABLE, 'editing'],
+  const userId = req.session.userId;
+  const given = req.body?.editToken;
+  if (given !== undefined && given !== null) {
+    if (typeof given !== 'string' || !UUID_RE.test(given)) return fail(res, 400, 'editToken must be a UUID');
+    const row = await update(userId, req.params.id, ['editing'],
+      'edit_lease_until = NOW() + $5::interval', [given, EDIT_LEASE], 'AND edit_token = $4::uuid');
+    if (!row) return lostHold(res, userId, req.params.id);
+    return res.json({ editToken: row.edit_token, editLeaseUntil: row.edit_lease_until, version: row.version, statusBefore: row.status_before });
+  }
+  const row = await update(userId, req.params.id, [...MOVABLE, 'editing'],
     `status = 'editing',
      status_before = CASE WHEN status = 'editing' THEN status_before ELSE status END,
-     edit_token = CASE WHEN status = 'editing' AND edit_token = $4::uuid THEN edit_token ELSE $5::uuid END,
-     edit_lease_until = NOW() + $6::interval`,
-    [editToken, randomUUID(), EDIT_LEASE]);
-  if (!row) return noChange(res, req.session.userId, req.params.id);
-  changed(req.session.userId, row.id, 'editing');
+     edit_token = $4::uuid,
+     edit_lease_until = NOW() + $5::interval`,
+    [randomUUID(), EDIT_LEASE], "AND (status <> 'editing' OR edit_lease_until IS NULL OR edit_lease_until < NOW())");
+  if (!row) {
+    const current = await findOwnedScheduledMessage(userId, req.params.id, { columns: 'id, status' });
+    if (current?.status === 'editing') {
+      return fail(res, 409, 'This message is open for editing somewhere else.', { code: 'held_elsewhere', status: 'editing' });
+    }
+    return noChange(res, userId, req.params.id);
+  }
+  changed(userId, row.id, 'editing');
   res.json({ editToken: row.edit_token, editLeaseUntil: row.edit_lease_until, version: row.version, statusBefore: row.status_before });
 });
 
