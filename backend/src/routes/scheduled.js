@@ -391,7 +391,10 @@ router.get('/scheduled/:id/attachments/:index', validId, async (req, res) => {
 // or the answer is 409 hold_lost, so a composer whose hold ended (a save, a release, another tab's
 // takeover of a lapsed lease) can never take the message back unnoticed. Without one it takes a
 // free message: one that is not being edited, or whose edit lease has lapsed (its composer went
-// away before the sweep released it). One another composer holds is 409 held_elsewhere.
+// away before the sweep released it). One another composer holds is 409 held_elsewhere, unless
+// the request says takeover: the user chose to edit it here instead (a stale tab, another
+// device), and the hold moves to this composer with a new token, so the other one's next
+// renewal or save is hold_lost.
 router.post('/scheduled/:id/hold', validId, async (req, res) => {
   const userId = req.session.userId;
   const given = req.body?.editToken;
@@ -402,12 +405,13 @@ router.post('/scheduled/:id/hold', validId, async (req, res) => {
     if (!row) return lostHold(res, userId, req.params.id);
     return res.json({ editToken: row.edit_token, editLeaseUntil: row.edit_lease_until, version: row.version, statusBefore: row.status_before });
   }
+  const takeover = req.body?.takeover === true;
   const row = await update(userId, req.params.id, [...MOVABLE, 'editing'],
     `status = 'editing',
      status_before = CASE WHEN status = 'editing' THEN status_before ELSE status END,
      edit_token = $4::uuid,
      edit_lease_until = NOW() + $5::interval`,
-    [randomUUID(), EDIT_LEASE], "AND (status <> 'editing' OR edit_lease_until IS NULL OR edit_lease_until < NOW())");
+    [randomUUID(), EDIT_LEASE], takeover ? '' : "AND (status <> 'editing' OR edit_lease_until IS NULL OR edit_lease_until < NOW())");
   if (!row) {
     const current = await findOwnedScheduledMessage(userId, req.params.id, { columns: 'id, status' });
     if (current?.status === 'editing') {

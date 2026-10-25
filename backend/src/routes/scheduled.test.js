@@ -147,6 +147,23 @@ describe('hold', () => {
   });
 });
 
+describe('hold takeover', () => {
+  it('drops only the lease condition: the user, the id and the statuses still guard it', async () => {
+    query.mockResolvedValue({ rows: [{ id: ID, edit_token: ID, version: 1, status_before: 'scheduled' }] });
+    expect(await call('POST', `/${ID}/hold`, { takeover: true })).toMatchObject({ status: 200, body: { statusBefore: 'scheduled' } });
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).not.toMatch(/edit_lease_until < NOW\(\)/);
+    expect(sql).toMatch(/WHERE id = \$1 AND user_id = \$2 AND status = ANY\(\$3\)/);
+    expect(sql).toMatch(/status_before = CASE WHEN status = 'editing' THEN status_before ELSE status END/);
+    expect(params.slice(0, 3)).toEqual([ID, 'u1', ['scheduled', 'paused', 'failed', 'uncertain', 'editing']]);
+  });
+
+  it('takeover anything but true is an ordinary hold', async () => {
+    findOwnedScheduledMessage.mockResolvedValue({ id: ID, status: 'editing' });
+    expect((await call('POST', `/${ID}/hold`, { takeover: 'yes' })).body.code).toBe('held_elsewhere');
+  });
+});
+
 describe('release', () => {
   beforeEach(() => { query.mockResolvedValue({ rows: [{ id: ID, status: 'paused' }] }); });
 

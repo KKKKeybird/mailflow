@@ -315,6 +315,31 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
       expect((await call('POST', `/${id}/hold`, { editToken: 'nope' })).status).toBe(400);
     });
 
+    it('takes a held message over when asked, keeping status_before and ending the old token', async () => {
+      const id = await create();
+      await set(id, { status: 'paused', pause_reason: 'overdue' });
+      const first = await call('POST', `/${id}/hold`, {});
+      expect((await call('POST', `/${id}/hold`, {})).body.code).toBe('held_elsewhere');
+      expect((await call('POST', `/${id}/hold`, { takeover: true }, stranger.id)).status).toBe(404);
+      const taken = await call('POST', `/${id}/hold`, { takeover: true });
+      expect(taken.status).toBe(200);
+      expect(taken.body).toMatchObject({ statusBefore: 'paused', version: 1 });
+      expect(taken.body.editToken).not.toBe(first.body.editToken);
+      expect(await rowOf(id)).toMatchObject({ status: 'editing', status_before: 'paused', pause_reason: 'overdue', edit_token: taken.body.editToken });
+      expect(await call('POST', `/${id}/hold`, { editToken: first.body.editToken })).toMatchObject({ status: 409, body: { code: 'hold_lost' } });
+      expect((await call('PUT', `/${id}`, { ...draftBody(), editToken: first.body.editToken, version: 1 })).body.code).toBe('hold_lost');
+      expect((await call('POST', `/${id}/hold`, { editToken: taken.body.editToken })).status).toBe(200);
+      expect((await call('POST', `/${id}/release`, { editToken: taken.body.editToken })).body).toEqual({ status: 'paused' });
+      // Not being edited any more: a takeover is an ordinary hold.
+      const again = await call('POST', `/${id}/hold`, { takeover: true });
+      expect(again.body).toMatchObject({ statusBefore: 'paused' });
+      expect(await rowOf(id)).toMatchObject({ status: 'editing', status_before: 'paused' });
+      // A message being sent cannot be taken over.
+      const busy = await create();
+      await set(busy, { status: 'sending', claim_token: randomUUID(), claimed_at: new Date() });
+      expect(await call('POST', `/${busy}/hold`, { takeover: true })).toMatchObject({ status: 409, body: { status: 'sending' } });
+    });
+
     it('lets a new composer take a hold whose lease lapsed, and the old one then has lost it', async () => {
       const id = await create();
       const first = await call('POST', `/${id}/hold`, {});
