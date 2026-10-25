@@ -63,6 +63,19 @@ const LAG_BATCH = 100;
 // 20 s (93 s), then one APPEND bounded at 20 s, plus decrypting and rendering. It holds its
 // account's next claim that long, and the heartbeat keeps its lease.
 const QUIESCE_MS = 150 * 1000;
+// Recovery after a restore can run before the first sync has stored the account's folders again
+// (a restore does not carry the folders table), and a sync stores them one by one, so INBOX can be
+// there before Sent. "No Sent folder" is only concluded when the Sent folder still cannot be
+// resolved at the end of the recovery's budget: from its claim, the claim cap less the time a
+// stop may take and a margin, so a recovery that waits can never outlast its claim. It checks
+// every FOLDER_WAIT_STEP_MS. The account's other scheduled messages wait that long too (one send
+// per account at a time); other accounts do not, since recoveries have slots of their own.
+const FOLDER_WAIT_STEP_MS = 5000;
+const RECOVERY_MARGIN_MS = 60 * 1000;
+const RECOVERY_BUDGET_MS = CLAIM_CAP_MS - QUIESCE_MS - RECOVERY_MARGIN_MS;
+// Recoveries in flight at once, apart from the sends (MAX_IN_FLIGHT): a recovery waiting for
+// folders never takes a send's slot.
+const MAX_RECOVERING = 5;
 
 const ms = n => `${Math.round(n)} milliseconds`;
 // A column set to the database's clock plus a delay, for settle(). Every due time comes from
@@ -248,7 +261,17 @@ export class ScheduledSender {
     sleep = delay => new Promise(resolve => setTimeout(resolve, delay)),
     sentLookupDelaysMs = SENT_LOOKUP_DELAYS_MS,
     maxInFlight = MAX_IN_FLIGHT,
+    folderWaitStepMs = FOLDER_WAIT_STEP_MS,
+    recoveryBudgetMs = RECOVERY_BUDGET_MS,
+    maxRecovering = MAX_RECOVERING,
+    clock = () => Date.now(),
   } = {}) {
+    this.folderWaitStepMs = folderWaitStepMs;
+    this.recoveryBudgetMs = recoveryBudgetMs;
+    this.maxRecovering = maxRecovering;
+    this.clock = clock;
+    // claim token -> promise: the recoveries in flight, kept apart from the sends' slots.
+    this.recovering = new Map();
     this.db = db;
     this.imap = imap;
     this.push = push;
@@ -291,7 +314,7 @@ export class ScheduledSender {
       await Promise.race([
         (async () => {
           await this.ticking;
-          await Promise.allSettled([...this.inFlight.values()]);
+          await this.idle();
         })(),
         timeout,
       ]);
@@ -319,6 +342,7 @@ export class ScheduledSender {
       if (now - lease.at <= CLAIM_CAP_MS) continue;
       this.leases.delete(token);
       this.inFlight.delete(token);
+      this.recovering.delete(token);
       console.error(`[scheduledSend] message ${lease.id} has been in flight for more than ${CLAIM_CAP_MS / 60000} min; its claim is left to lapse for recovery`);
     }
     const tokens = [...this.leases.keys()];
@@ -424,18 +448,29 @@ export class ScheduledSender {
     return nextTickDelay(nextDue, now);
   }
 
-  track(token, promise, id = null) {
+  // A send (in one of the maxInFlight slots) or, with `recovery`, a recovery (in recovering, which
+  // the sends' slots do not count). The heartbeat refreshes the claim of either, and stop()
+  // waits for both.
+  track(token, promise, id = null, { recovery = false } = {}) {
+    const slots = recovery ? this.recovering : this.inFlight;
     const tracked = promise
       .catch(err => console.error('[scheduledSend] send failed unexpectedly:', err.message))
       .finally(() => {
-        this.inFlight.delete(token);
+        slots.delete(token);
         this.leases.delete(token);
         // A slot is free, and an account may be free again.
         this.nudge();
       });
-    this.inFlight.set(token, tracked);
+    slots.set(token, tracked);
     this.leases.set(token, { id, at: Date.now() });
     return tracked;
+  }
+
+  // Resolves once no send and no recovery of this process is in flight.
+  async idle() {
+    while (this.inFlight.size || this.recovering.size) {
+      await Promise.allSettled([...this.inFlight.values(), ...this.recovering.values()]);
+    }
   }
 
   // Claims the next due message of an account with no send in flight, or null. Two schedulers
@@ -705,6 +740,8 @@ export class ScheduledSender {
     );
     let rescheduled = 0;
     for (const stale of rows) {
+      // Recoveries have slots of their own; the rest wait for a later tick, still stale.
+      if (this.recovering.size >= this.maxRecovering) break;
       const token = randomUUID();
       const { rows: [row] } = await this.db.query(
         `UPDATE scheduled_messages SET claim_token = $3, claimed_at = NOW(), updated_at = NOW()
@@ -725,7 +762,9 @@ export class ScheduledSender {
           rescheduled++;
         }
       } else {
-        this.track(token, action === 'finish_accepted' ? this.finishAccepted(row) : this.checkSent(row), row.id);
+        // Its budget runs from this claim (awaitSentFolder).
+        row.recoveryClaimedAt = this.clock();
+        this.track(token, action === 'finish_accepted' ? this.finishAccepted(row) : this.checkSent(row), row.id, { recovery: true });
       }
     }
     return rescheduled;
@@ -743,6 +782,38 @@ export class ScheduledSender {
     return null;
   }
 
+  // The account's Sent folder, waited for (see RECOVERY_BUDGET_MS): right after a restore, or
+  // during a sync that stored INBOX but not Sent yet, it cannot be resolved although it exists.
+  // Says so once. Resolves { path } (null once the budget, counted from the recovery's claim, is
+  // spent: then there is no Sent folder), or { stopped: true } when the sender is stopping: the row
+  // is left as it is, its claim lapses, and the next process recovers it.
+  async awaitSentFolder(row, account) {
+    const deadline = (row.recoveryClaimedAt ?? this.clock()) + this.recoveryBudgetMs;
+    let waited = false;
+    for (;;) {
+      const path = await resolveSentFolder(account.id, account.folder_mappings);
+      if (path) return { path };
+      if (this.clock() + this.folderWaitStepMs > deadline) {
+        if (waited) console.warn(`[scheduledSend] message ${row.id}: still no Sent folder for its account; recovering without one`);
+        return { path: null };
+      }
+      if (!this.running) return { stopped: true };
+      if (!waited) {
+        console.warn(`[scheduledSend] message ${row.id}: its account's Sent folder is not known yet (folders not synced); waiting for it`);
+        waited = true;
+      }
+      await this.sleep(this.folderWaitStepMs);
+    }
+  }
+
+  // Whether this recovery still holds its claim: a long wait may have outlived it, and another
+  // claimant then decides. Checked right before the APPEND, which cannot be taken back.
+  async stillClaimed(row) {
+    const { rows } = await this.db.query(
+      "SELECT 1 FROM scheduled_messages WHERE id = $1 AND claim_token = $2 AND status = 'sending'", [row.id, row.claim_token]);
+    return rows.length > 0;
+  }
+
   // SMTP accepted it, and the process stopped during the bookkeeping. This always ends 'sent':
   // when the Sent copy cannot be checked or made (IMAP down, the account turned off or needing
   // a new sign-in), sentCopySaved is false and the reason is in the result. It is never sent again.
@@ -754,7 +825,10 @@ export class ScheduledSender {
       if (!account.enabled) throw new ScheduledSendError('account_disabled');
       const built = await this.build(row, account);
       result.messageId = built.payload.messageId;
-      const sentFolder = await resolveSentFolder(account.id, account.folder_mappings);
+      const found = await this.awaitSentFolder(row, account);
+      // Stopping while it waits: left to the next process, which waits again.
+      if (found.stopped) return false;
+      const sentFolder = found.path;
       if (!sentFolder) throw new ScheduledSendError('no_sent_folder');
       result.sentFolder = sentFolder;
       const uid = await this.findInSent(account, sentFolder, built.payload.messageId);
@@ -767,6 +841,11 @@ export class ScheduledSender {
           messageId: built.payload.messageId, date: new Date(row.smtp_started_at),
         });
         const raw = await renderRawMessage(mailOptions);
+        // Not ours any more (taken over after a long wait): the new claimant makes the copy.
+        if (!(await this.stillClaimed(row))) {
+          console.warn(`[scheduledSend] message ${row.id} lost its claim during recovery; its Sent copy is left to the new claimant`);
+          return false;
+        }
         // Exactly once, as for any send: APPEND is not idempotent, so it is not retried.
         await withTimeout(this.imap().appendToSent(account, sentFolder, raw), APPEND_TIMEOUT_MS, 'Sent APPEND timed out');
         result.sentCopySaved = true;
@@ -788,7 +867,10 @@ export class ScheduledSender {
       const payload = openJson(row.payload_enc, aad.payload(row));
       const account = await findOwnedAccount(row.user_id, row.account_id, { client: this.db });
       if (payload?.messageId && account?.enabled) {
-        const sentFolder = await resolveSentFolder(account.id, account.folder_mappings);
+        // A copy a lookup would find must not end uncertain because Sent was not known yet.
+        const waited = await this.awaitSentFolder(row, account);
+        if (waited.stopped) return false;
+        const sentFolder = waited.path;
         if (sentFolder && await this.findInSent(account, sentFolder, payload.messageId)) {
           found = { sentFolder, messageId: payload.messageId };
         }

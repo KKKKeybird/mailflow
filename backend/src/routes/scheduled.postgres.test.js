@@ -120,7 +120,7 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
     sender.running = true;
     sender.arm = () => {};
     await sender.runTick();
-    while (sender.inFlight.size) await Promise.allSettled([...sender.inFlight.values()]);
+    await sender.idle();
   };
 
   describe('create', () => {
@@ -276,6 +276,27 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
       expect((await call('GET', `/count?accountId=${strangerAccount.id}`)).status).toBe(404);
       expect((await call('GET', '')).body.messages).toEqual([]);
       expect(await rowOf(id)).toMatchObject({ status: 'scheduled' });
+    });
+
+    it('says the mail server\'s reply when there is one, and never "try again" for an uncertain message', async () => {
+      const cases = [
+        ['failed', { code: 'smtp_rejected', error: 'Message was rejected by the mail server.', smtpResponse: '550 5.1.1 <x@y>: Recipient\r\n address rejected', command: 'RCPT TO' }, '550 5.1.1 <x@y>: Recipient address rejected'],
+        ['failed', { code: 'tls', error: 'Secure connection to the mail server failed. Check your TLS settings.' }, 'Secure connection to the mail server failed. Check your TLS settings.'],
+        ['failed', { code: 'alias_missing', error: 'The alias no longer exists.' }, 'The alias no longer exists.'],
+        ['failed', { code: 'gave_up', lastCode: 'connection_failed', error: 'Failed to send message. Please try again.' }, null],
+        ['uncertain', { code: 'connection_lost', error: 'Failed to send message. Please try again.', command: 'CONN' }, null],
+        ['uncertain', { code: 'interrupted' }, null],
+        ['paused', { code: 'needs_reauth', error: 'Authentication failed. Check your email account credentials.', smtpResponse: '535 5.7.8 Bad credentials' }, '535 5.7.8 Bad credentials'],
+        ['paused', { code: 'overdue', offline: true }, null],
+      ];
+      for (const [status, result, expected] of cases) {
+        const id = await create();
+        const row = await rowOf(id);
+        await set(id, { status, failure_code: result.code, result_enc: sealJson(result, aad.result(row)) });
+        const item = (await call('GET', '')).body.messages.find(m => m.id === id);
+        expect([result.code, item.failureDetail]).toEqual([result.code, expected]);
+        await h.pool.query('DELETE FROM scheduled_messages WHERE id = $1', [id]);
+      }
     });
 
     it('lists the 50 most recent sent messages, and says there are more', async () => {

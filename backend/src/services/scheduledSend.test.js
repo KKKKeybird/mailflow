@@ -6,8 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 vi.mock('../index.js', () => ({ imapManager: { broadcast: vi.fn() } }));
 vi.mock('./db.js', () => ({ query: vi.fn(), pool: { connect: vi.fn() } }));
 vi.mock('./pushNotifications.js', () => ({ sendPushToUser: vi.fn() }));
+vi.mock('../utils/mailUtils.js', () => ({ resolveSentFolder: vi.fn() }));
 
 import { ScheduledSender } from './scheduledSend.js';
+import { resolveSentFolder } from '../utils/mailUtils.js';
 import { MAX_TICK_MS } from './scheduledSendRules.js';
 
 const emptyState = { now: new Date('2026-10-25T07:00:00Z'), next_due: null, stale: false, lapsed: false, purgeable: false };
@@ -162,6 +164,56 @@ describe('recovery', () => {
     const [sql, params] = db.query.mock.calls[1];
     expect(sql).toMatch(/claim_token IS NOT DISTINCT FROM \$2\s+AND \(claimed_at IS NULL OR claimed_at < NOW\(\) - \$4::interval\)/);
     expect(params).toEqual(['m1', 'old', expect.any(String), '180000 milliseconds']);
+  });
+});
+
+describe('waiting for the Sent folder after a restore', () => {
+  const account = { id: 'a1', folder_mappings: { sent: null } };
+  const clocked = () => {
+    const clock = { now: 0 };
+    const sleep = vi.fn(async ms => { clock.now += ms; });
+    return { clock, sleep };
+  };
+
+  it('looks again each step until the Sent folder resolves', async () => {
+    resolveSentFolder.mockResolvedValueOnce(null).mockResolvedValueOnce(null).mockResolvedValueOnce('Sent');
+    const { clock, sleep } = clocked();
+    sender = new ScheduledSender({ db: fakeDb(), sleep, clock: () => clock.now, folderWaitStepMs: 5000, recoveryBudgetMs: 60_000 });
+    sender.running = true;
+    expect(await sender.awaitSentFolder({ id: 'm1', recoveryClaimedAt: 0 }, account)).toEqual({ path: 'Sent' });
+    expect(sleep.mock.calls).toEqual([[5000], [5000]]);
+    expect(resolveSentFolder).toHaveBeenCalledWith('a1', { sent: null });
+    expect(console.warn).toHaveBeenCalledTimes(1);
+  });
+
+  it('stops at the deadline counted from the claim, or when the sender stops', async () => {
+    resolveSentFolder.mockResolvedValue(null);
+    const { clock, sleep } = clocked();
+    sender = new ScheduledSender({ db: fakeDb(), sleep, clock: () => clock.now, folderWaitStepMs: 5000, recoveryBudgetMs: 20_000 });
+    sender.running = true;
+    // Claimed 10 s before the wait began: 10 s of the budget are left.
+    clock.now = 10_000;
+    expect(await sender.awaitSentFolder({ id: 'm1', recoveryClaimedAt: 0 }, account)).toEqual({ path: null });
+    expect(sleep).toHaveBeenCalledTimes(2);
+    sender.running = false;
+    expect(await sender.awaitSentFolder({ id: 'm1', recoveryClaimedAt: clock.now }, account)).toEqual({ stopped: true });
+    resolveSentFolder.mockReset();
+  });
+
+  it('keeps recoveries out of the send slots, and stop waits for both', async () => {
+    sender = new ScheduledSender({ db: fakeDb(), maxInFlight: 2 });
+    let finish;
+    sender.track('r1', new Promise(resolve => { finish = resolve; }), 'm1', { recovery: true });
+    expect(sender.inFlightCount).toBe(0);
+    expect(sender.recovering.size).toBe(1);
+    expect(sender.leases.has('r1')).toBe(true);
+    let stopped = false;
+    const stopping = sender.stop(5000).then(() => { stopped = true; });
+    await new Promise(resolve => setTimeout(resolve, 20));
+    expect(stopped).toBe(false);
+    finish();
+    await stopping;
+    expect(sender.recovering.size).toBe(0);
   });
 });
 

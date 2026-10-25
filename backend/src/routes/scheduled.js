@@ -208,6 +208,19 @@ async function checkUserLimits(client, userId, { adding, addingBytes, exceptId =
 const bytesOf = (payload, attachments) => Buffer.byteLength(JSON.stringify(payload), 'utf8')
   + attachments.reduce((sum, a) => sum + a.content.length, 0);
 
+// What the row says the server answered, for its owner: the mail server's own reply line when it
+// gave one (a refusal, a deferral, a failed sign-in); otherwise MailFlow's explanation, except the
+// catch-all "Please try again", which says nothing, and which an uncertain message must never say:
+// it may have been delivered, and must not be sent again blindly. A pause (overdue, account off)
+// has no detail.
+function failureDetailOf(status, result) {
+  const reply = typeof result?.smtpResponse === 'string' ? result.smtpResponse.replace(/\s+/g, ' ').trim() : '';
+  if (reply) return reply;
+  const error = typeof result?.error === 'string' ? result.error.trim() : '';
+  if (!error || status === 'uncertain' || /try again/i.test(error)) return null;
+  return error;
+}
+
 // One message as the list and the reader show it: its summary and outcome decrypted, for the
 // owner only (every caller found the row through the user).
 function present(row) {
@@ -228,7 +241,7 @@ function present(row) {
     sentLate: row.sent_late,
     pauseReason: row.pause_reason,
     failureCode: row.failure_code,
-    failureDetail: row.status === 'sent' ? null : (typeof result?.error === 'string' ? result.error : null),
+    failureDetail: row.status === 'sent' ? null : failureDetailOf(row.status, result),
     summary,
     // What the sent notice shows: where the copy is, and who did not get it (refused) or not
     // yet (deferred).

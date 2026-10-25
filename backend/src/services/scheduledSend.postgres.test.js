@@ -23,7 +23,11 @@ vi.mock('../index.js', () => ({
 vi.mock('./smtpTransport.js', () => ({
   createAccountSmtpTransport: vi.fn(async account => ({ account, transport: { sendMail: opts => h.sendMail(opts) } })),
 }));
-vi.mock('../utils/mailUtils.js', () => ({ resolveSentFolder: vi.fn(async () => 'Sent') }));
+// The Sent folder as the folders table has it, as mailUtils resolves it without a mapping.
+vi.mock('../utils/mailUtils.js', () => ({
+  resolveSentFolder: vi.fn(async accountId => (await h.pool.query(
+    "SELECT path FROM folders WHERE account_id = $1 AND special_use = '\\Sent' LIMIT 1", [accountId])).rows[0]?.path ?? null),
+}));
 vi.mock('./pushNotifications.js', () => ({ sendPushToUser: vi.fn(async () => {}) }));
 vi.mock('../plugins/registry.js', () => ({ pluginRegistry: { runHook: vi.fn(async () => {}) } }));
 
@@ -87,6 +91,9 @@ describe.skipIf(!ADMIN_URL)('scheduled sender on PostgreSQL (#543)', () => {
     imapManager.findUidByMessageId.mockResolvedValue(null);
   });
 
+  const addFolders = (account, { sent = true } = {}) => h.pool.query(
+    `INSERT INTO folders (account_id, path, name, special_use) VALUES ($1, 'INBOX', 'INBOX', NULL)
+     ${sent ? ", ($1, 'Sent', 'Sent', '\\Sent')" : ''} ON CONFLICT DO NOTHING`, [account.id]);
   const newAccount = async (extra = {}) => {
     accountCount++;
     const { rows: [account] } = await h.pool.query(
@@ -94,6 +101,9 @@ describe.skipIf(!ADMIN_URL)('scheduled sender on PostgreSQL (#543)', () => {
        VALUES ($1, $2, $3, 'imap.example.com', 'smtp.example.com', $4) RETURNING *`,
       [user.id, `Ann ${accountCount}`, `ann${accountCount}@example.com`, extra.enabled ?? true],
     );
+    // As after a sync; a restored account has none until its first one (folders: false).
+    // 'inbox': a sync that stored INBOX but not Sent yet.
+    if (extra.folders !== false) await addFolders(account, { sent: extra.folders !== 'inbox' });
     return account;
   };
 
@@ -124,7 +134,7 @@ describe.skipIf(!ADMIN_URL)('scheduled sender on PostgreSQL (#543)', () => {
   };
   const tick = async sender => {
     await sender.runTick();
-    while (sender.inFlight.size) await Promise.allSettled([...sender.inFlight.values()]);
+    await sender.idle();
   };
 
   describe('the claim', () => {
@@ -416,13 +426,118 @@ describe.skipIf(!ADMIN_URL)('scheduled sender on PostgreSQL (#543)', () => {
       await owner.heartbeat();
       expect(errors.mock.calls.some(c => String(c[0]).includes(`message ${msg.id} lost its claim`))).toBe(true);
       release();
-      while (owner.inFlight.size) await Promise.allSettled([...owner.inFlight.values()]);
+      await owner.idle();
       const row = await rowOf(msg.id);
       // Handed to SMTP, not found in Sent by the new claimant: uncertain, never sent again.
       expect(row).toMatchObject({ status: 'uncertain', failure_code: 'interrupted', smtp_accepted_at: null });
       expect(h.sendMail).toHaveBeenCalledTimes(1);
       expect(errors.mock.calls.some(c => String(c[0]).includes(`message ${msg.id} was delivered after its claim was taken over`))).toBe(true);
       errors.mockRestore();
+    });
+
+    // A fake clock the sender's sleeps move on, so a wait of minutes takes no time.
+    const clocked = (opts = {}) => {
+      const clock = { now: 1_000_000 };
+      const onSleep = opts.onSleep || (() => {});
+      const sender = newSender({
+        clock: () => clock.now,
+        sleep: async ms => { clock.now += ms; await onSleep(clock.now - 1_000_000); },
+        sentLookupDelaysMs: [0], folderWaitStepMs: 5000, ...opts.sender,
+      });
+      return { sender, clock };
+    };
+
+    it('after a restore, waits for the Sent folder (INBOX alone is not enough), then appends the copy once', async () => {
+      const account = await newAccount({ folders: 'inbox' });
+      const msg = await schedule({ account, state: left({ smtp_started_at: started, smtp_accepted_at: accepted }) });
+      const waiting = await schedule({ account });
+      let sleeps = 0;
+      const { sender } = clocked({ onSleep: async () => { sleeps++; if (sleeps === 3) await addFolders(account); } });
+      await tick(sender);
+      const row = await rowOf(msg.id);
+      expect(row.status).toBe('sent');
+      expect(resultOf(row)).toMatchObject({ sentFolder: 'Sent', sentCopySaved: true });
+      expect(resultOf(row).sentCopyReason).toBeUndefined();
+      expect(imapManager.appendToSent.mock.calls.filter(c => messageIdHeader(c[2]) === msg.messageId)).toHaveLength(1);
+      // Three waits for Sent, then the Sent lookup's own.
+      expect(sleeps).toBe(4);
+      // The account's next message waited, and goes out once the recovery is done.
+      await tick(sender);
+      expect(await rowOf(waiting.id)).toMatchObject({ status: 'sent' });
+    });
+
+    it('concludes there is no Sent folder only when its budget from the claim is spent', async () => {
+      const account = await newAccount({ folders: 'inbox' });
+      const msg = await schedule({ account, state: left({ smtp_started_at: started, smtp_accepted_at: accepted }) });
+      let waitedMs = 0;
+      const { sender } = clocked({ onSleep: ms => { waitedMs = ms; }, sender: { recoveryBudgetMs: 60_000 } });
+      await tick(sender);
+      expect(waitedMs).toBe(60_000);
+      const row = await rowOf(msg.id);
+      expect(row.status).toBe('sent');
+      expect(resultOf(row)).toMatchObject({ sentCopySaved: false, sentCopyReason: 'no_sent_folder' });
+      expect(console.warn.mock.calls.filter(c => String(c[0]).includes(`message ${msg.id}: its account's Sent folder is not known yet`))).toHaveLength(1);
+      // The default budget ends well inside the claim cap, with a stop's time to spare.
+      const plain = new ScheduledSender();
+      expect(plain.recoveryBudgetMs).toBe(15 * 60_000 - 150_000 - 60_000);
+    });
+
+    it('a message handed to SMTP is looked for in Sent once Sent is known, not left uncertain', async () => {
+      const account = await newAccount({ folders: 'inbox' });
+      const msg = await schedule({ account, state: left({ smtp_started_at: started }) });
+      let synced = false;
+      imapManager.findUidByMessageId.mockImplementation(async () => (synced ? 9 : null));
+      const { sender } = clocked({ onSleep: async () => { if (!synced) { synced = true; await addFolders(account); } } });
+      await tick(sender);
+      expect(await rowOf(msg.id)).toMatchObject({ status: 'sent' });
+      expect(resultOf(await rowOf(msg.id))).toMatchObject({ sentCopySaved: true, recovered: true });
+    });
+
+    it('recoveries waiting for Sent do not take the slots of other accounts\' sends', async () => {
+      const a = await newAccount({ folders: false });
+      const b = await newAccount({ folders: false });
+      const one = await schedule({ account: a, state: left({ smtp_started_at: started, smtp_accepted_at: accepted }) });
+      const two = await schedule({ account: b, state: left({ smtp_started_at: started, smtp_accepted_at: accepted }) });
+      const due = await schedule();
+      let release;
+      const gate = new Promise(resolve => { release = resolve; });
+      const sender = newSender({ maxInFlight: 2, sleep: () => gate, sentLookupDelaysMs: [0] });
+      await sender.runTick();
+      expect(sender.recovering.size).toBe(2);
+      // The third account's due message is claimed and sent while both recoveries wait.
+      while (sender.inFlight.size) await Promise.allSettled([...sender.inFlight.values()]);
+      expect(await rowOf(due.id)).toMatchObject({ status: 'sent' });
+      expect((await rowOf(one.id)).status).toBe('sending');
+      await addFolders(a);
+      await addFolders(b);
+      release();
+      await sender.idle();
+      expect((await rowOf(one.id)).status).toBe('sent');
+      expect((await rowOf(two.id)).status).toBe('sent');
+    });
+
+    it('a recovery whose claim was taken over during its wait makes no Sent copy', async () => {
+      const account = await newAccount({ folders: 'inbox' });
+      const msg = await schedule({ account, state: left({ smtp_started_at: started, smtp_accepted_at: accepted }) });
+      const other = randomUUID();
+      const { sender } = clocked({
+        onSleep: async () => {
+          await addFolders(account);
+          await h.pool.query('UPDATE scheduled_messages SET claim_token = $2 WHERE id = $1', [msg.id, other]);
+        },
+      });
+      await tick(sender);
+      expect(imapManager.appendToSent).not.toHaveBeenCalled();
+      expect(await rowOf(msg.id)).toMatchObject({ status: 'sending', claim_token: other, sent_at: null });
+    });
+
+    it('stopping while it waits for Sent leaves the message to the next process', async () => {
+      const account = await newAccount({ folders: false });
+      const msg = await schedule({ account, state: left({ smtp_started_at: started, smtp_accepted_at: accepted }) });
+      const sender = newSender({ sleep: async () => { sender.running = false; } });
+      await tick(sender);
+      expect(await rowOf(msg.id)).toMatchObject({ status: 'sending', sent_at: null });
+      expect(imapManager.appendToSent).not.toHaveBeenCalled();
     });
 
     it('fails a message whose sends keep stopping their process, instead of claiming it for ever', async () => {
