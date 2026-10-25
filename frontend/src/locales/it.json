@@ -260,7 +260,9 @@
       "sendNow": {
         "undone": "Non inviato. È di nuovo in Programmati come prima.",
         "undoFailed": "Impossibile annullare l'invio immediato"
-      }
+      },
+      "scheduleAnyway": "Programma lo stesso",
+      "undoFailedOpen": "Annullamento non riuscito. Aprilo da Programmati."
     },
     "selectAccount": "Scegli un account da cui inviare"
   },

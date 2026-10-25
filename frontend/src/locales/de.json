@@ -260,7 +260,9 @@
       "sendNow": {
         "undone": "Nicht gesendet. Sie ist wieder unter Geplant, wie zuvor.",
         "undoFailed": "Jetzt senden konnte nicht rückgängig gemacht werden"
-      }
+      },
+      "scheduleAnyway": "Trotzdem planen",
+      "undoFailedOpen": "Rückgängig fehlgeschlagen. Öffne sie unter Geplant."
     },
     "selectAccount": "Wähle ein Konto zum Senden"
   },

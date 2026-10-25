@@ -260,7 +260,9 @@
       "sendNow": {
         "undone": "Não enviada. Ela voltou para Agendados como estava.",
         "undoFailed": "Não foi possível desfazer o envio imediato"
-      }
+      },
+      "scheduleAnyway": "Agendar assim mesmo",
+      "undoFailedOpen": "Não foi possível desfazer. Abra-a em Agendados."
     },
     "selectAccount": "Escolha uma conta para enviar"
   },

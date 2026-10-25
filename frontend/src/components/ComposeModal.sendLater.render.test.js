@@ -88,6 +88,8 @@ before(() => {
   api.scheduled.releaseOnUnload = (...a) => { calls.push(['releaseOnUnload', ...a]); };
   api.saveDraft = (...a) => answer('saveDraft', a);
   api.post = (...a) => answer('post', a);
+  // A held send (Send in these tests) is over at once, so nothing polls on after a test.
+  api.getSendStatus = async () => ({ status: 'sent', result: { sentCopySaved: true } });
 });
 beforeEach(() => {
   calls.length = 0;
@@ -239,6 +241,20 @@ describe('Send later on desktop', () => {
     assert.equal(state.composeData.draftUid, null, 'the server deleted the old draft');
   });
 
+  test('Undo clicked twice cancels and reopens once', async () => {
+    await click(chevron());
+    await click(preset('tomorrowMorning'));
+    await settle();
+    const [toast] = useStore.getState().notifications;
+    await React.act(async () => { toast.onUndo(); toast.onUndo(); });
+    await settle();
+    assert.equal(callsTo('cancel').length, 1);
+    const session = useStore.getState().composeSession;
+    await React.act(async () => { toast.onUndo(); });
+    await settle();
+    assert.equal(useStore.getState().composeSession, session, 'not reopened again');
+  });
+
   test('an Undo the server refuses says why', async () => {
     answers.cancel = refusal(409, undefined, 'This message is being sent now.');
     await click(chevron());
@@ -331,16 +347,37 @@ describe('Send later on desktop', () => {
 });
 
 describe('Send later passes the same warnings as Send', () => {
-  test('an empty subject asks first, and Send anyway schedules', async () => {
+  test('an empty subject asks first, and Schedule anyway schedules', async () => {
     const close = await mount({ ...NEW_MESSAGE, subject: '' });
     await click(chevron());
     await click(preset('tomorrowMorning'));
     assert.equal(callsTo('create').length, 0);
-    await click(button('compose.emptySubject.sendAnyway'));
+    assert.equal(button('compose.emptySubject.sendAnyway'), undefined, 'it says what it will do');
+    await click(button('compose.scheduleSend.scheduleAnyway'));
     await settle();
     assert.equal(callsTo('create').length, 1);
     assert.equal(callsTo('post').length, 0, 'it carried on with Send later, not Send');
     await close();
+  });
+
+  test('a schedule warning dismissed, Send raises its own, which says Send anyway and sends', async () => {
+    answers.post = { pending: true, pendingId: 'p1', remainingMs: 10_000 };
+    await mount({ ...NEW_MESSAGE, subject: '' });
+    await click(chevron());
+    await click(preset('tomorrowMorning'));
+    await click(button('compose.emptySubject.cancel'));
+    await click(button('compose.send'));
+    await click(button('compose.emptySubject.sendAnyway'));
+    await settle();
+    assert.equal(callsTo('post').length, 1);
+    assert.equal(callsTo('create').length, 0);
+  });
+
+  test('Ctrl+Shift+Enter with nothing to schedule does what Send does', async () => {
+    await mount({ ...NEW_MESSAGE, to: [] });
+    await key(document.querySelector('.ProseMirror'), 'Enter', { ctrlKey: true, shiftKey: true });
+    assert.equal(document.querySelector('[role="menu"]'), null, 'no menu that could do nothing');
+    assert.equal(callsTo('create').length + callsTo('post').length, 0);
   });
 });
 
@@ -597,7 +634,7 @@ describe('Send now while editing', () => {
     await click(chevron());
     await click(preset('sendNow'));
     await settle();
-    assert.deepEqual(callsTo('release')[0], ['release', ID, TOKEN]);
+    assert.deepEqual(callsTo('release')[0], ['release', ID, TOKEN], 'not due: released as scheduled');
     assert.deepEqual(callsTo('sendNow')[0], ['sendNow', ID, false]);
     assert.ok(calls.findIndex(c => c[0] === 'release') < calls.findIndex(c => c[0] === 'sendNow'), 'released first');
     assert.equal(callsTo('update').length, 0);
@@ -609,6 +646,42 @@ describe('Send now while editing', () => {
     await settle();
     assert.deepEqual(callsTo('undoSendNow')[0], ['undoSendNow', ID, 'undo-token']);
     assert.equal(useStore.getState().notifications[0].title, 'compose.scheduleSend.scheduledFor');
+  });
+
+  test('a message that is due is released paused, so the sender cannot take it before Send now', async () => {
+    await mount({ ...structuredClone(SCHEDULED), scheduled: { ...SCHEDULED.scheduled, sendAt: new Date(Date.now() - 60_000).toISOString() } });
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    assert.deepEqual(callsTo('release'), [['release', ID, TOKEN, { keepPaused: true }]]);
+    assert.deepEqual(callsTo('sendNow')[0], ['sendNow', ID, false]);
+    assert.equal(useStore.getState().notifications[0].title, 'compose.undoSend.sending');
+    assert.ok(!document.body.textContent.includes('being sent'));
+
+    // One due within the minute too.
+    calls.length = 0;
+    await mounted.pop()();
+    await mount({ ...structuredClone(SCHEDULED), scheduled: { ...SCHEDULED.scheduled, sendAt: new Date(Date.now() + 30_000).toISOString() } });
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    assert.deepEqual(callsTo('release')[0], ['release', ID, TOKEN, { keepPaused: true }]);
+  });
+
+  test('a release that fails on the way leaves the message held, so Send now can be tried again', async () => {
+    answers.release = [new TypeError('Failed to fetch'), { status: 'scheduled' }];
+    await mount(structuredClone(SCHEDULED));
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    assert.ok(document.body.textContent.includes('Failed to fetch'));
+    assert.equal(callsTo('sendNow').length, 0);
+    assert.equal(chevron().disabled, false, 'still usable');
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    assert.equal(callsTo('release').length, 2);
+    assert.equal(callsTo('sendNow').length, 1);
   });
 
   test('with changes it saves them first, at the time it had, then sends now', async () => {
@@ -694,6 +767,20 @@ describe('closing a scheduled message that fell due while open (design 2.3)', ()
     assert.equal(callsTo('release').length, 1, 'released once, paused');
   });
 
+  test('a Keep paused that fails on the way can be tried again', async () => {
+    answers.release = [new TypeError('Failed to fetch'), { status: 'paused' }];
+    await mount(DUE());
+    await click(closeButton());
+    await click(button('compose.scheduleSend.edit.keepPaused'));
+    await settle();
+    assert.equal(useStore.getState().composing, true);
+    await click(closeButton());
+    await click(button('compose.scheduleSend.edit.keepPaused'));
+    await settle();
+    assert.equal(callsTo('release').length, 2);
+    assert.equal(useStore.getState().composing, false);
+  });
+
   test('a Keep paused the server refuses keeps the composer open and says why', async () => {
     answers.release = refusal(409, 'hold_lost', 'This message is no longer open for editing here.');
     const unmount = await mount(DUE());
@@ -736,6 +823,7 @@ describe('closing a scheduled message that fell due while open (design 2.3)', ()
     await click(button('compose.scheduleSend.edit.sendNow'));
     await settle();
     assert.equal(callsTo('update').length, 0, 'the stored message is sent, not the edits');
+    assert.deepEqual(callsTo('release'), [['release', ID, TOKEN, { keepPaused: true }]], 'released paused, as it is due');
     assert.equal(callsTo('sendNow').length, 1);
   });
 
@@ -746,5 +834,34 @@ describe('closing a scheduled message that fell due while open (design 2.3)', ()
     assert.equal(document.querySelector('[role="alertdialog"]'), null);
     await unmount();
     assert.equal(callsTo('release').length, 1);
+  });
+});
+
+describe('modals keep focus inside', () => {
+  test('Tab and Shift+Tab wrap inside a question dialog', async () => {
+    const DUE = { ...structuredClone(SCHEDULED), scheduled: { ...SCHEDULED.scheduled, sendAt: new Date(Date.now() - 60_000).toISOString() } };
+    await mount(DUE);
+    await click(document.querySelector('button[title="compose.toolbar.close"]'));
+    const dialog = document.querySelector('[role="alertdialog"]');
+    const actions = [...dialog.querySelectorAll('button')];
+    assert.equal(document.activeElement, actions[0]);
+    await key(actions[0], 'Tab', { shiftKey: true });
+    assert.equal(document.activeElement, actions.at(-1), 'Shift+Tab from the first wraps to the last');
+    await key(actions.at(-1), 'Tab');
+    assert.equal(document.activeElement, actions[0], 'Tab from the last wraps to the first');
+  });
+
+  test('Tab wraps inside the phone sheet, and Change opens it at the times', async () => {
+    await mount(structuredClone(SCHEDULED), { mobile: true });
+    await click(document.querySelector('[data-scheduled-strip] button'));
+    const sheet = document.querySelector('[role="dialog"][aria-modal="true"]');
+    assert.equal(document.getElementById(sheet.getAttribute('aria-labelledby')).textContent, 'compose.scheduleSend.changeTime');
+    assert.equal(sheet.querySelector('[data-preset="sendNow"]'), null);
+    assert.equal(sheet.querySelector('[data-preset="unschedule"]'), null);
+    const all = [...sheet.querySelectorAll('button')];
+    await key(all.at(-1), 'Tab');
+    assert.equal(document.activeElement, all[0]);
+    await key(all[0], 'Tab', { shiftKey: true });
+    assert.equal(document.activeElement, all.at(-1));
   });
 });

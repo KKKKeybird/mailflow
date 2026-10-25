@@ -631,7 +631,9 @@
       "sendNow": {
         "undone": "Neodesláno. Je zpět v Naplánovaných jako předtím.",
         "undoFailed": "Okamžité odeslání se nepodařilo vrátit"
-      }
+      },
+      "scheduleAnyway": "Přesto naplánovat odeslání",
+      "undoFailedOpen": "Vrácení se nepodařilo. Otevřete ji v Naplánovaných."
     },
     "selectAccount": "Vyberte účet, ze kterého odeslat"
   },

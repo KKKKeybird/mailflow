@@ -260,7 +260,9 @@
       "sendNow": {
         "undone": "未发送。它已按原样回到“定时”。",
         "undoFailed": "无法撤销立即发送"
-      }
+      },
+      "scheduleAnyway": "仍要定时发送",
+      "undoFailedOpen": "撤销失败。请在“定时”中打开。"
     },
     "selectAccount": "请选择用于发送的账户"
   },

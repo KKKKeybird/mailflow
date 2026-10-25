@@ -43,6 +43,10 @@ export const SCHEDULE_UNDO_MS = 10_000;
 // ahead. When the time the message had has passed, it is saved this far ahead: the 10 s Send now
 // sets comes long before, and an Undo of Send now leaves it there, said in its toast.
 export const SEND_NOW_SAVE_AHEAD_MS = 5 * 60_000;
+// A scheduled message whose time is less than this away is handed back paused when a release
+// must not send it (Send now, a hold given back on its own): released as scheduled it would be
+// due before the next request could reach the server, and the sender would claim it.
+export const DUE_MARGIN_MS = 60_000;
 // Send now goes 10 s later (SEND_NOW_DELAY_MS in routes/scheduled.js), the window of its Undo.
 export const SEND_NOW_DELAY_MS = 10_000;
 
@@ -52,18 +56,42 @@ export function sendNowUndoMs(startedAt, now = Date.now()) {
   return Math.max(0, Math.min(SEND_NOW_DELAY_MS, SEND_NOW_DELAY_MS - (now - startedAt)));
 }
 
+// Runs `fn` once: a second call (a double click on Undo while its toast fades out) does nothing
+// and resolves what the first did.
+export function once(fn) {
+  let result = null;
+  return (...args) => {
+    if (!result) result = Promise.resolve().then(() => fn(...args));
+    return result;
+  };
+}
+
 // Undo of a schedule (design 2.2): cancel the message, then reopen the composer with it, as undo
-// send does. A cancel the server refuses (the message already went out) is said, with its words.
-// Resolves whether the message came back.
-export async function undoSchedule({ id, restoreData }, { cancel, reopen, notify, t }) {
-  try {
-    await cancel(id);
-  } catch (err) {
-    notify({ type: 'error', title: t('compose.scheduleSend.undoFailed'), body: err.message, allowWrap: true, persistent: true });
-    return false;
+// send does. Cancel is idempotent, so a failure that is not the server's refusal (a lost answer,
+// a dropped connection) is tried once more. A refusal is said in the server's words. One that
+// still fails points to the Scheduled view, where a cancelled message can be restored for
+// minutes. Resolves whether the message came back.
+export async function undoSchedule({ id, restoreData }, { cancel, reopen, notify, openView, t }) {
+  let err = null;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    try {
+      await cancel(id);
+      reopen(restoreData);
+      return true;
+    } catch (e) {
+      err = e;
+      if (e?.status === 409 || e?.status === 404) break;
+    }
   }
-  reopen(restoreData);
-  return true;
+  if (err?.status === 409 || err?.status === 404) {
+    notify({ type: 'error', title: t('compose.scheduleSend.undoFailed'), body: err.message, allowWrap: true, persistent: true });
+  } else {
+    notify({
+      type: 'error', title: t('compose.scheduleSend.undoFailedOpen'), body: err?.message || '', allowWrap: true, persistent: true,
+      ...(openView ? { onAction: openView } : {}),
+    });
+  }
+  return false;
 }
 
 // Undo of Send now: puts back what Send now replaced. Says when the message goes now, or that it
@@ -88,20 +116,33 @@ export const needsConfirmation = err => err?.code === 'confirm_uncertain' || err
 // The edit hold of one scheduled message while the composer has it open. `api` is
 // api.scheduled. start() takes the hold (or renews the one the opener took), renewals keep it
 // every HOLD_RENEW_MS, settle() ends it after a save or an unschedule (the server cleared it),
-// release() hands the message back when the composer closes without saving. `onLost(err)` is
-// told when a renewal finds the message is no longer this composer's.
+// handBack() releases it and resolves once the server took it back (throwing, and still holding
+// it, when a request failed on the way), and release() hands it back without waiting when the
+// composer closes. `onLost(err)` is told when a renewal finds the message is no longer this
+// composer's. `isDue()` says whether the message's time has passed, or is about to: a hold given
+// back on its own (the message changed meanwhile) then leaves it paused, as one that fell due
+// while open is never sent unconfirmed.
 export function createEditHold({ id, version, editToken = null }, {
-  api, onLost = () => {}, schedule = setTimeout, unschedule = clearTimeout, renewMs = HOLD_RENEW_MS,
+  api, onLost = () => {}, isDue = () => false, schedule = setTimeout, unschedule = clearTimeout, renewMs = HOLD_RENEW_MS,
 }) {
   let token = editToken;
-  let state = 'starting'; // 'held' | 'lost' | 'done'
+  let state = 'starting'; // 'held' | 'releasing' | 'lost' | 'done'
+  let statusBefore = null;
   let timer = null;
 
+  const conflict = () => Object.assign(new Error('version_conflict'), { code: 'version_conflict' });
   const arm = () => { unschedule(timer); timer = schedule(renew, renewMs); };
-  const lose = err => {
-    if (state === 'done' || state === 'lost') return;
+  // The content this composer opened is not the server's any more, so it gives the message back at
+  // once rather than leave it held, unsendable, until the lease lapses.
+  const giveBack = () => {
+    const keepPaused = statusBefore === 'scheduled' && isDue();
+    (keepPaused ? api.release(id, token, { keepPaused: true }) : api.release(id, token)).catch(() => {});
+  };
+  const lose = (err, { release = false } = {}) => {
+    if (state !== 'held') return;
     state = 'lost';
     unschedule(timer);
+    if (release) giveBack();
     onLost(err);
   };
 
@@ -109,15 +150,15 @@ export function createEditHold({ id, version, editToken = null }, {
     if (state !== 'held') return;
     try {
       const r = await api.hold(id, token);
+      // Saved, released or closed meanwhile: the server refuses a renewal of a hold that ended,
+      // so nothing was taken back, and there is nothing to do.
       if (state !== 'held') return;
-      // A different token means the hold had lapsed and this took it again; the content is still
-      // what this composer opened only if nobody saved it meanwhile.
-      token = r.editToken;
-      if (r.version !== version) return lose(Object.assign(new Error('version_conflict'), { code: 'version_conflict' }));
+      if (r.version !== version) return lose(conflict(), { release: true });
       arm();
     } catch (err) {
       if (state !== 'held') return;
-      // The server says the message is not this composer's to edit (being sent, deleted).
+      // The server says the message is not this composer's to edit (taken over after a lapsed
+      // lease, being sent, deleted).
       if (err?.status === 404 || err?.status === 409) return lose(Object.assign(err, { code: err.code || 'hold_lost' }));
       // Offline or a server error: the lease has 25 more minutes, so the next renewal tries again.
       arm();
@@ -129,14 +170,21 @@ export function createEditHold({ id, version, editToken = null }, {
       try {
         const r = await api.hold(id, token);
         token = r.editToken;
+        statusBefore = r.statusBefore ?? null;
         // Closed while the hold was being taken: hand it straight back.
         if (state === 'done') {
           api.release(id, token).catch(() => {});
           return { ok: false, closed: true };
         }
+        // A newer version than the one opened: given back at once, nothing to save over.
+        if (r.version !== version) {
+          state = 'held';
+          lose(conflict(), { release: true });
+          return { ok: false, stale: true, error: conflict() };
+        }
         state = 'held';
         arm();
-        return { ok: true, version: r.version, statusBefore: r.statusBefore ?? null, stale: r.version !== version };
+        return { ok: true, version: r.version, statusBefore };
       } catch (err) {
         if (state !== 'done') state = 'lost';
         return { ok: false, error: err };
@@ -144,9 +192,26 @@ export function createEditHold({ id, version, editToken = null }, {
     },
     token: () => token,
     isHeld: () => state === 'held',
+    statusBefore: () => statusBefore,
     // The server said this composer no longer holds it (hold_lost on a save).
     markLost() { if (state === 'held') { state = 'lost'; unschedule(timer); } },
     settle() { state = 'done'; unschedule(timer); },
+    // Releases it and waits for the server. Only a release that went through ends the hold: one
+    // that failed on the way leaves it held and renewed, so the user can try again; one the
+    // server refused (409, 404) means the hold was already gone.
+    async handBack({ keepPaused = false } = {}) {
+      if (state !== 'held') throw Object.assign(new Error('hold_lost'), { code: 'hold_lost', status: 409 });
+      state = 'releasing';
+      unschedule(timer);
+      try {
+        await (keepPaused ? api.release(id, token, { keepPaused: true }) : api.release(id, token));
+        state = 'done';
+      } catch (err) {
+        if (err?.status === 404 || err?.status === 409) state = 'lost';
+        else { state = 'held'; arm(); }
+        throw err;
+      }
+    },
     release({ unloading = false } = {}) {
       const held = state === 'held';
       state = 'done';

@@ -260,7 +260,9 @@
       "sendNow": {
         "undone": "Non envoyé. Il est de retour dans Programmés, comme avant.",
         "undoFailed": "Impossible d'annuler l'envoi immédiat"
-      }
+      },
+      "scheduleAnyway": "Programmer malgré tout",
+      "undoFailedOpen": "L'annulation a échoué. Ouvrez-le depuis Programmés."
     },
     "selectAccount": "Choisissez un compte d'envoi"
   },

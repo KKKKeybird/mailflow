@@ -260,7 +260,9 @@
       "sendNow": {
         "undone": "Not sent. It is back in Scheduled as it was.",
         "undoFailed": "Could not undo Send now"
-      }
+      },
+      "scheduleAnyway": "Schedule anyway",
+      "undoFailedOpen": "Undo failed. Open it from Scheduled."
     },
     "selectAccount": "Choose an account to send from"
   },

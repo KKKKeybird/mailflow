@@ -4,7 +4,7 @@ import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   HOLD_RENEW_MS, SCHEDULED_VIEW, createEditHold, isScheduledEdit, needsConfirmation, newClientKey,
-  openScheduledView, scheduleErrorText, sendNowUndoMs, undoSchedule, undoSendNow,
+  once, openScheduledView, scheduleErrorText, sendNowUndoMs, undoSchedule, undoSendNow,
 } from './scheduledCompose.js';
 
 const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
@@ -12,7 +12,7 @@ const settle = () => new Promise(r => setTimeout(r, 0));
 const t = (key, opts) => (opts ? `${key}:${JSON.stringify(opts)}` : key);
 
 // A fake api.scheduled and a timer the test fires by hand.
-function harness({ hold } = {}) {
+function harness({ hold, release } = {}) {
   const calls = [];
   const timers = [];
   const api = {
@@ -20,7 +20,11 @@ function harness({ hold } = {}) {
       calls.push(['hold', id, token]);
       return hold ? hold(token, calls) : { editToken: token || 'tok-1', version: 3, statusBefore: 'scheduled' };
     },
-    release: async (id, token) => { calls.push(['release', id, token]); return { status: 'scheduled' }; },
+    release: async (id, token, options) => {
+      calls.push(options ? ['release', id, token, options] : ['release', id, token]);
+      if (release) return release(token, options);
+      return { status: 'scheduled' };
+    },
     releaseOnUnload: (id, token) => { calls.push(['releaseOnUnload', id, token]); },
   };
   const deps = {
@@ -42,7 +46,7 @@ describe('createEditHold', () => {
     const h = harness();
     const hold = createEditHold({ id: 'm1', version: 3 }, h.deps);
     const r = await hold.start();
-    assert.deepEqual(r, { ok: true, version: 3, statusBefore: 'scheduled', stale: false });
+    assert.deepEqual(r, { ok: true, version: 3, statusBefore: 'scheduled' });
     assert.equal(hold.isHeld(), true);
     assert.equal(hold.token(), 'tok-1');
     assert.equal(h.pending()[0].ms, HOLD_RENEW_MS);
@@ -62,11 +66,23 @@ describe('createEditHold', () => {
     assert.deepEqual(h.calls[0], ['hold', 'm1', 'given']);
   });
 
-  test('says when the message it opened is older than what the server has', async () => {
-    const h = harness({ hold: () => ({ editToken: 'tok-1', version: 5 }) });
-    const r = await createEditHold({ id: 'm1', version: 3 }, h.deps).start();
-    assert.equal(r.ok, true);
+  test('gives back at once a message newer than the one it opened, paused when it is due', async () => {
+    const h = harness({ hold: () => ({ editToken: 'tok-1', version: 5, statusBefore: 'scheduled' }) });
+    const lost = [];
+    const hold = createEditHold({ id: 'm1', version: 3 }, { ...h.deps, onLost: err => lost.push(err.code) });
+    const r = await hold.start();
+    await settle();
+    assert.equal(r.ok, false);
     assert.equal(r.stale, true);
+    assert.deepEqual(lost, ['version_conflict']);
+    assert.deepEqual(h.calls.at(-1), ['release', 'm1', 'tok-1']);
+    assert.equal(hold.isHeld(), false);
+    assert.equal(h.pending().length, 0, 'no renewals');
+
+    const due = harness({ hold: () => ({ editToken: 'tok-2', version: 5, statusBefore: 'scheduled' }) });
+    await createEditHold({ id: 'm1', version: 3 }, { ...due.deps, isDue: () => true }).start();
+    await settle();
+    assert.deepEqual(due.calls.at(-1), ['release', 'm1', 'tok-2', { keepPaused: true }]);
   });
 
   test('a refused hold is not held, and nothing is released', async () => {
@@ -93,14 +109,60 @@ describe('createEditHold', () => {
     assert.equal(h.calls.filter(c => c[0] === 'release').length, 0, 'a lost hold is not released');
   });
 
-  test('a renewal that finds a newer version is a conflict', async () => {
+  test('a renewal that finds a newer version is a conflict, and gives the hold back', async () => {
     let n = 0;
     const h = harness({ hold: () => ({ editToken: 'tok-2', version: n++ === 0 ? 3 : 4 }) });
     const lost = [];
     const hold = createEditHold({ id: 'm1', version: 3 }, { ...h.deps, onLost: err => lost.push(err.code) });
     await hold.start();
     await h.fire();
+    await settle();
     assert.deepEqual(lost, ['version_conflict']);
+    assert.deepEqual(h.calls.at(-1), ['release', 'm1', 'tok-2']);
+  });
+
+  test('a renewal still out when the hold ends changes nothing', async () => {
+    let answerRenewal;
+    let n = 0;
+    const h = harness({ hold: () => (n++ === 0 ? { editToken: 'tok-1', version: 3 } : new Promise(r => { answerRenewal = r; })) });
+    const lost = [];
+    const hold = createEditHold({ id: 'm1', version: 3 }, { ...h.deps, onLost: err => lost.push(err) });
+    await hold.start();
+    const renewing = h.fire();
+    await settle();
+    hold.settle();
+    answerRenewal({ editToken: 'tok-1', version: 4 });
+    await renewing;
+    await settle();
+    assert.equal(lost.length, 0);
+    assert.equal(h.pending().length, 0, 'not armed again');
+    assert.equal(h.calls.filter(c => c[0] === 'release').length, 0);
+  });
+
+  test('handBack ends the hold only once the server took it back', async () => {
+    let fail = true;
+    const h = harness({ release: () => { if (fail) throw new TypeError('Failed to fetch'); return { status: 'paused' }; } });
+    const hold = createEditHold({ id: 'm1', version: 3 }, h.deps);
+    await hold.start();
+    await assert.rejects(hold.handBack({ keepPaused: true }), /Failed to fetch/);
+    assert.equal(hold.isHeld(), true, 'still held after a failed request, so it can be tried again');
+    assert.equal(h.pending().length, 1, 'and still renewed');
+    fail = false;
+    await hold.handBack({ keepPaused: true });
+    assert.deepEqual(h.calls.at(-1), ['release', 'm1', 'tok-1', { keepPaused: true }]);
+    assert.equal(hold.isHeld(), false);
+    assert.equal(h.pending().length, 0);
+    await hold.release();
+    assert.equal(h.calls.filter(c => c[0] === 'release').length, 2, 'not released again on close');
+  });
+
+  test('handBack the server refuses means the hold is gone', async () => {
+    const h = harness({ release: () => { throw Object.assign(new Error('gone'), { status: 409, code: 'hold_lost' }); } });
+    const hold = createEditHold({ id: 'm1', version: 3 }, h.deps);
+    await hold.start();
+    await assert.rejects(hold.handBack());
+    assert.equal(hold.isHeld(), false);
+    assert.equal(h.pending().length, 0);
   });
 
   test('a renewal that fails on the network tries again at the next one', async () => {
@@ -237,7 +299,7 @@ describe('undoing a schedule', () => {
   test('a refused cancel says the server message and reopens nothing', async () => {
     const seen = [];
     const ok = await undoSchedule({ id: 's1', restoreData: {} }, {
-      cancel: async () => { throw new Error('This message has already been sent.'); },
+      cancel: async () => { throw Object.assign(new Error('This message has already been sent.'), { status: 409 }); },
       reopen: () => seen.push('reopen'),
       notify: n => seen.push(n),
       t,
@@ -246,6 +308,49 @@ describe('undoing a schedule', () => {
     assert.equal(seen.length, 1);
     assert.equal(seen[0].type, 'error');
     assert.equal(seen[0].body, 'This message has already been sent.');
+  });
+});
+
+describe('undoing a schedule when the answer is lost', () => {
+  test('tries the cancel once more, and reopens when it went through', async () => {
+    const seen = [];
+    let n = 0;
+    const ok = await undoSchedule({ id: 's1', restoreData: { subject: 'Hi' } }, {
+      cancel: async () => { if (n++ === 0) throw new TypeError('Failed to fetch'); return { status: 'cancelled' }; },
+      reopen: data => seen.push(['reopen', data.subject]),
+      notify: n2 => seen.push(n2), t,
+    });
+    assert.equal(ok, true);
+    assert.equal(n, 2);
+    assert.deepEqual(seen, [['reopen', 'Hi']]);
+  });
+
+  test('one that still fails points to the Scheduled view', async () => {
+    const seen = [];
+    let opened = 0;
+    let tries = 0;
+    const ok = await undoSchedule({ id: 's1', restoreData: {} }, {
+      cancel: async () => { tries++; throw new TypeError('Failed to fetch'); },
+      reopen: () => seen.push('reopen'), notify: n => seen.push(n), openView: () => { opened++; }, t,
+    });
+    assert.equal(ok, false);
+    assert.equal(tries, 2);
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0].title, 'compose.scheduleSend.undoFailedOpen');
+    assert.equal(seen[0].persistent, true);
+    seen[0].onAction();
+    assert.equal(opened, 1);
+  });
+});
+
+describe('once', () => {
+  test('runs its function a single time, however often it is called', async () => {
+    let runs = 0;
+    const undo = once(async () => { runs++; return 'done'; });
+    const [a, b] = await Promise.all([undo(), undo()]);
+    assert.equal(runs, 1);
+    assert.equal(a, 'done');
+    assert.equal(b, 'done');
   });
 });
 

@@ -260,7 +260,9 @@
       "sendNow": {
         "undone": "Nie wysłano. Wróciła do Zaplanowanych bez zmian.",
         "undoFailed": "Nie udało się cofnąć natychmiastowej wysyłki"
-      }
+      },
+      "scheduleAnyway": "Zaplanuj mimo wszystko",
+      "undoFailedOpen": "Nie udało się cofnąć. Otwórz ją w Zaplanowanych."
     },
     "selectAccount": "Wybierz konto do wysyłki"
   },

@@ -260,7 +260,9 @@
       "sendNow": {
         "undone": "No enviado. Ha vuelto a Programados como estaba.",
         "undoFailed": "No se pudo deshacer el envío inmediato"
-      }
+      },
+      "scheduleAnyway": "Programar igualmente",
+      "undoFailedOpen": "No se pudo deshacer. Ábrelo desde Programados."
     },
     "selectAccount": "Elige una cuenta desde la que enviar"
   },

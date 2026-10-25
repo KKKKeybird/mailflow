@@ -113,6 +113,18 @@ export function SchedulePicker({ variant = 'split', now, onSubmit, submitLabel, 
   );
 }
 
+// Keeps Tab and Shift+Tab inside a modal (`box`), wrapping at either end, as aria-modal promises.
+export function trapTab(e, box) {
+  if (e.key !== 'Tab' || !box) return;
+  const focusable = [...box.querySelectorAll('button, input, select, textarea, [href], [tabindex]:not([tabindex="-1"])')]
+    .filter(el => !el.disabled && el.getAttribute('aria-hidden') !== 'true');
+  if (!focusable.length) { e.preventDefault(); return; }
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (e.shiftKey && (document.activeElement === first || !box.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && (document.activeElement === last || !box.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+}
+
 const menuItemStyle = {
   display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '8px 14px',
   background: 'transparent', border: 'none', textAlign: 'left', cursor: 'pointer',
@@ -138,7 +150,8 @@ const calendarIcon = (
 //
 // Editing a scheduled message (`editing`), its first level is Send now, Change time and
 // Unschedule (design 5.1); Change time opens the times, as `initialView` 'times' does (the strip's
-// Change). Escape goes back one level, and from the first one shown it closes.
+// Change). Escape goes back one level, and from the first one shown it closes. Choosing an item
+// gives focus back to the chevron, so a choice that fails leaves it somewhere sensible.
 export function SendLaterMenu({
   triggerRef, onClose, onPick, editing = false, onUnschedule, onSendNow, initialView = 'root', now: nowProp, busy = false,
 }) {
@@ -227,16 +240,16 @@ export function SendLaterMenu({
     >
       {view === 'root' && (
         <div role="menu" aria-label={t('compose.scheduleSend.edit.options')} onKeyDown={onMenuKeyDown}>
-          {item('sendNow', t('compose.scheduleSend.edit.sendNow'), () => { onClose(); onSendNow?.(); }, { icon: <SendNowIcon /> })}
+          {item('sendNow', t('compose.scheduleSend.edit.sendNow'), () => { close(); onSendNow?.(); }, { icon: <SendNowIcon /> })}
           {item('changeTime', t('compose.scheduleSend.changeTime'), () => setView('times'), { icon: clockIcon(), more: 'menu' })}
           {separator}
-          {item('unschedule', t('compose.scheduleSend.edit.unschedule'), () => { onClose(); onUnschedule?.(); })}
+          {item('unschedule', t('compose.scheduleSend.edit.unschedule'), () => { close(); onUnschedule?.(); })}
         </div>
       )}
       {view === 'times' && (
         <div role="menu" aria-label={editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title')} onKeyDown={onMenuKeyDown}>
           {heading(editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title'))}
-          {items.map(p => item(p.id, t(PRESET_LABELS[p.id]), () => { onClose(); onPick(p.at); },
+          {items.map(p => item(p.id, t(PRESET_LABELS[p.id]), () => { close(); onPick(p.at); },
             { icon: clockIcon(), detail: formatSendAt(p.at, undefined, now) }))}
           {separator}
           {item('pick', t('compose.scheduleSend.pick'), () => setView('pick'), { icon: calendarIcon, more: 'dialog' })}
@@ -251,7 +264,7 @@ export function SendLaterMenu({
           </button>
           <SchedulePicker variant="split" now={nowProp} busy={busy}
             submitLabel={editing ? t('compose.scheduleSend.edit.update') : t('compose.scheduleSend.schedule')}
-            onSubmit={at => { onClose(); onPick(at); }} />
+            onSubmit={at => { close(); onPick(at); }} />
         </div>
       )}
     </div>
@@ -273,13 +286,17 @@ const sheetButton = {
 // The phone sheet behind the composer's clock button: the same presets and picker, as a modal
 // dialog, and for a scheduled message being edited Send now and Unschedule too. Focus goes to its
 // first option and back to `returnFocusRef` when it closes.
-export function SendLaterSheet({ onClose, onPick, editing = false, onUnschedule, onSendNow, returnFocusRef, now: nowProp, busy = false }) {
+export function SendLaterSheet({
+  onClose, onPick, editing = false, onUnschedule, onSendNow, initialView = 'root', returnFocusRef, now: nowProp, busy = false,
+}) {
   const { t } = useTranslation();
   const titleId = useId();
   const now = useMemo(() => nowProp ?? new Date(), [nowProp]);
   const [picking, setPicking] = useState(false);
   const sheetRef = useRef(null);
   const items = presets(now);
+  // Editing, the strip's Change and "Pick a new time" open it at the times alone.
+  const actions = editing && initialView !== 'times';
 
   useEffect(() => {
     if (!picking) sheetRef.current?.querySelector('button')?.focus();
@@ -296,7 +313,9 @@ export function SendLaterSheet({ onClose, onPick, editing = false, onUnschedule,
       <div onClick={onClose} style={{ position: 'fixed', inset: 0, zIndex: 2100, background: 'rgba(0,0,0,0.4)' }} />
       <div
         ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby={titleId}
-        onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } }}
+        onKeyDown={e => {
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } else trapTab(e, sheetRef.current);
+        }}
         style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 2101, background: 'var(--bg-elevated)',
           borderRadius: '16px 16px 0 0', paddingBottom: 'calc(var(--sab) + 8px)', boxShadow: 'var(--shadow-modal)',
@@ -304,7 +323,7 @@ export function SendLaterSheet({ onClose, onPick, editing = false, onUnschedule,
         }}
       >
         <div id={titleId} style={{ padding: '16px 20px 8px', fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', borderBottom: '1px solid var(--border-subtle)' }}>
-          {editing ? t('compose.scheduleSend.edit.options') : t('compose.scheduleSend.title')}
+          {actions ? t('compose.scheduleSend.edit.options') : editing ? t('compose.scheduleSend.changeTime') : t('compose.scheduleSend.title')}
         </div>
         {picking ? (
           <SchedulePicker variant="single" now={nowProp} busy={busy}
@@ -312,7 +331,7 @@ export function SendLaterSheet({ onClose, onPick, editing = false, onUnschedule,
             onSubmit={choose} />
         ) : (
           <>
-            {editing && (
+            {actions && (
               <>
                 <button type="button" data-preset="sendNow" disabled={busy} onClick={() => { onClose(); onSendNow?.(); }} style={sheetButton}>
                   <span style={{ color: 'var(--text-tertiary)', display: 'flex' }}><SendNowIcon /></span>
@@ -333,7 +352,7 @@ export function SendLaterSheet({ onClose, onPick, editing = false, onUnschedule,
             <button type="button" data-preset="pick" disabled={busy} onClick={() => setPicking(true)} style={sheetButton}>
               <span style={{ flex: 1 }}>{t('compose.scheduleSend.pick')}</span>
             </button>
-            {editing && (
+            {actions && (
               <button type="button" data-preset="unschedule" disabled={busy} onClick={() => { onClose(); onUnschedule?.(); }} style={sheetButton}>
                 <span style={{ flex: 1 }}>{t('compose.scheduleSend.edit.unschedule')}</span>
               </button>
@@ -369,7 +388,7 @@ export function ScheduledStrip({ sendAt, onChange, mobile = false }) {
 
 // A question scheduling has to ask, as the composer's other dialogs look: centered on desktop, a
 // bottom sheet on phones. `actions` are { label, onClick, kind: 'primary' | 'danger' | 'plain' };
-// Escape and the backdrop are `onCancel`. Focus starts on the first action.
+// Escape and the backdrop are `onCancel`. Focus starts on the first action and Tab stays inside.
 export function ComposeQuestion({ mobile = false, title, body, actions, onCancel }) {
   const titleId = useId();
   const bodyId = useId();
@@ -385,7 +404,9 @@ export function ComposeQuestion({ mobile = false, title, body, actions, onCancel
       <div onClick={onCancel} style={{ position: 'fixed', inset: 0, zIndex: 2100, background: 'rgba(0,0,0,0.4)' }} />
       <div
         ref={boxRef} role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={body ? bodyId : undefined}
-        onKeyDown={e => { if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onCancel(); } }}
+        onKeyDown={e => {
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onCancel(); } else trapTab(e, boxRef.current);
+        }}
         style={mobile ? {
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 2101, background: 'var(--bg-elevated)',
           borderRadius: '16px 16px 0 0', paddingBottom: 'calc(var(--sab) + 8px)', boxShadow: 'var(--shadow-modal)',

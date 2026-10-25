@@ -36,7 +36,7 @@ import { stripTags } from '../utils/stripTags.js';
 import { aiTextToHtml } from '../utils/aiText.js';
 import { browserTimeZone, checkSendAt, formatSendAt } from '../utils/scheduleTimes.js';
 import {
-  SCHEDULE_UNDO_MS, SEND_NOW_SAVE_AHEAD_MS, createEditHold, isScheduledEdit, needsConfirmation, newClientKey,
+  DUE_MARGIN_MS, SCHEDULE_UNDO_MS, SEND_NOW_SAVE_AHEAD_MS, createEditHold, isScheduledEdit, needsConfirmation, newClientKey, once,
   openScheduledView, scheduleErrorText, sendNowUndoMs, undoSchedule, undoSendNow,
 } from '../utils/scheduledCompose.js';
 import { ComposeQuestion, ScheduledStrip, SendLaterIcon, SendLaterMenu, SendLaterSheet } from './SendLater.jsx';
@@ -304,6 +304,8 @@ export default function ComposeModal() {
   // Send, Send later and Update all pass the empty-subject and forgotten-attachment warnings; the
   // warning's "Send anyway" carries on with whichever raised it.
   const warnContinueRef = useRef(null);
+  // Whether the warning showing was raised by scheduling: its button then says Schedule anyway.
+  const [warnSchedules, setWarnSchedules] = useState(false);
 
   // Baseline values captured at open time — updated after each successful keep-open save
   // so isDirty() reflects changes since the last save, not since the modal opened.
@@ -826,7 +828,10 @@ export default function ComposeModal() {
     } else if (isSendLaterShortcut(e)) {
       e.preventDefault();
       e.stopPropagation();
-      if (!sending) { setSendLaterView('root'); setSendLaterOpen(true); }
+      // With nothing to schedule yet (no recipient, or the hold not taken), it does what Send
+      // would, so the same checks speak, rather than open a menu that can do nothing.
+      if (noRecipients || (scheduledEdit && !holdReady)) handleSend();
+      else if (!sending) { setSendLaterView('root'); setSendLaterOpen(true); }
     }
   };
 
@@ -903,7 +908,7 @@ export default function ComposeModal() {
   // The checks Send, Send later and Update share, in this order. Resolves the sender, or null when
   // the message cannot go yet. `resume(opts)` carries on later: once a draft save in progress is
   // done, or from a warning's "Send anyway".
-  const readyToSubmit = async ({ skipSubjectWarn = false, skipAttachWarn = false } = {}, resume) => {
+  const readyToSubmit = async ({ skipSubjectWarn = false, skipAttachWarn = false } = {}, resume, { scheduling = false } = {}) => {
     if (useStore.getState().user?.id !== composeOwner) return null;
     if (sending || sendingRef.current || sendWaitingRef.current) return null;
     if (composeSwitchRef.current?.isSaving()) {
@@ -925,6 +930,7 @@ export default function ComposeModal() {
 
     if (!skipSubjectWarn && subject.trim() === '') {
       warnContinueRef.current = resume;
+      setWarnSchedules(scheduling);
       setShowEmptySubjectWarn(true);
       return null;
     }
@@ -939,6 +945,7 @@ export default function ComposeModal() {
       const hasNoAttachment = attachments.length === 0 && fwdAttachments.length === 0 && scheduledAttachments.length === 0;
       if (hasAttachmentWord && hasNoAttachment) {
         warnContinueRef.current = resume;
+        setWarnSchedules(scheduling);
         setShowForgottenAttachWarn(true);
         return null;
       }
@@ -1180,15 +1187,17 @@ export default function ComposeModal() {
       onAction: () => openScheduledView(useStore),
       ...(undo ? {
         undoMs: SCHEDULE_UNDO_MS,
-        onUndo: () => {
+        // Once only: a second click while the toast fades out must not reopen it twice.
+        onUndo: once(() => {
           if (useStore.getState().user?.id !== owner) return;
-          undoSchedule(undo, {
+          return undoSchedule(undo, {
             cancel: api.scheduled.cancel,
             reopen: data => reopenCompose(useStore, data),
             notify: n => useStore.getState().addNotification(n),
+            openView: () => openScheduledView(useStore),
             t,
           });
-        },
+        }),
       } : {}),
     });
   };
@@ -1203,7 +1212,7 @@ export default function ComposeModal() {
   // draft it was written in. The create key makes a retry find the message the first try made.
   const handleSchedule = async (sendAt, opts = {}) => {
     if (scheduledEdit) return updateRef.current({ ...opts, sendAt });
-    const from = await readyToSubmit(opts, o => scheduleRef.current(sendAt, o));
+    const from = await readyToSubmit(opts, o => scheduleRef.current(sendAt, o), { scheduling: true });
     if (!from) return;
     const { accountId, aliasId } = from;
 
@@ -1242,9 +1251,9 @@ export default function ComposeModal() {
   // Saves the edit (PUT) under the version this composer opened, to go at `at`. Resolves the
   // server's answer, or null when it did not save: a warning to answer first, a question
   // (`retry` is how its yes carries on), or a refusal, which is shown.
-  const saveScheduled = async ({ at, confirm, skipSubjectWarn, skipAttachWarn, resume, retry }) => {
+  const saveScheduled = async ({ at, confirm, skipSubjectWarn, skipAttachWarn, resume, retry, scheduling = true }) => {
     const hold = holdRef.current;
-    const from = await readyToSubmit({ skipSubjectWarn, skipAttachWarn }, resume);
+    const from = await readyToSubmit({ skipSubjectWarn, skipAttachWarn }, resume, { scheduling });
     if (!from) return null;
     const { accountId, aliasId } = from;
 
@@ -1307,8 +1316,11 @@ export default function ComposeModal() {
   // uncertain message, never one held for editing, so this composer gives its hold up first:
   // with changes it saves them (PUT leaves the message scheduled, at the time it had or, when
   // that has passed, SEND_NOW_SAVE_AHEAD_MS ahead, never due before Send now moves it), and
-  // without, it releases the message as it was. Then Send now moves it to 10 s from now, with an
-  // Undo that puts back what it replaced. `stored` sends the message as stored, edits or not.
+  // without, it releases the message: paused when its time has passed or comes within the minute,
+  // since released as scheduled it would be due, and the sender would claim it before Send now
+  // arrived, sending it with no Undo; send-now takes a paused message. Then Send now moves it to
+  // 10 s from now, with an Undo that puts back what it replaced. `stored` sends the message as
+  // stored, edits or not.
   const handleSendNow = async ({ stored = false, confirm = false, skipSubjectWarn = false, skipAttachWarn = false } = {}) => {
     const hold = holdRef.current;
     if (!hold?.isHeld()) { setError(t('compose.scheduleSend.errors.notHeld')); return; }
@@ -1317,23 +1329,22 @@ export default function ComposeModal() {
       sendingRef.current = true;
       setSending(true);
       setError('');
-      const token = hold.token();
-      hold.settle();
-      setHoldReady(false);
       try {
-        await api.scheduled.release(scheduledEdit.id, token);
+        await hold.handBack({ keepPaused: dueWhileHeldRef.current(DUE_MARGIN_MS) });
       } catch (err) {
         sendingRef.current = false;
         setSending(false);
+        if (!hold.isHeld()) setHoldReady(false);
         setError(scheduleErrorText(err, t));
         return;
       }
+      setHoldReady(false);
       return sendNowRef.current(false);
     }
     const due = new Date(scheduledAt);
     const at = checkSendAt(due) ? new Date(Date.now() + SEND_NOW_SAVE_AHEAD_MS) : due;
     const saved = await saveScheduled({
-      at, confirm, skipSubjectWarn, skipAttachWarn,
+      at, confirm, skipSubjectWarn, skipAttachWarn, scheduling: false,
       resume: o => sendNowStartRef.current({ ...o, confirm }),
       retry: () => sendNowStartRef.current({ confirm: true, skipSubjectWarn: true, skipAttachWarn: true }),
     });
@@ -1358,14 +1369,14 @@ export default function ComposeModal() {
       addNotification({
         title: t('compose.undoSend.sending', { subject: shownSubject }),
         undoMs: sendNowUndoMs(started),
-        onUndo: () => {
+        onUndo: once(() => {
           if (useStore.getState().user?.id !== owner) return;
-          undoSendNow({ id, undoToken: result.undoToken, subject: shownSubject }, {
+          return undoSendNow({ id, undoToken: result.undoToken, subject: shownSubject }, {
             undo: api.scheduled.undoSendNow,
             notify: n => useStore.getState().addNotification(n),
             t,
           });
-        },
+        }),
       });
     } catch (err) {
       sendingRef.current = false;
@@ -1419,10 +1430,10 @@ export default function ComposeModal() {
   };
 
   // Whether releasing the message now would send it at once: it was scheduled when the hold was
-  // taken, and its time has passed since.
+  // taken, and its time has passed since, or comes within `marginMs`.
   const dueWhileHeldRef = useRef(null);
-  dueWhileHeldRef.current = () => Boolean(holdRef.current?.isHeld() && statusBeforeRef.current === 'scheduled'
-    && scheduledAt && new Date(scheduledAt).getTime() <= Date.now());
+  dueWhileHeldRef.current = (marginMs = 0) => Boolean(holdRef.current?.isHeld() && statusBeforeRef.current === 'scheduled'
+    && scheduledAt && new Date(scheduledAt).getTime() <= Date.now() + marginMs);
 
   // Edit mode: take the hold, keep it while the composer is open, and hand the message back when
   // it closes without saving (unmount) or the page goes away. Started after the commit, so a mount
@@ -1433,6 +1444,7 @@ export default function ComposeModal() {
     const hold = createEditHold(scheduledEdit, {
       api: api.scheduled,
       onLost: (err) => { if (!live) return; setHoldReady(false); setError(scheduleErrorText(err, t)); },
+      isDue: () => Boolean(scheduledEdit.sendAt) && new Date(scheduledEdit.sendAt).getTime() <= Date.now() + DUE_MARGIN_MS,
     });
     holdRef.current = hold;
     const starting = setTimeout(async () => {
@@ -1441,7 +1453,6 @@ export default function ComposeModal() {
       if (r.ok) {
         statusBeforeRef.current = r.statusBefore;
         setHoldReady(true);
-        if (r.stale) setError(t('compose.scheduleSend.errors.versionConflict'));
       } else if (!r.closed) {
         setError(scheduleErrorText(r.error, t));
       }
@@ -1750,16 +1761,16 @@ export default function ComposeModal() {
   const keepPaused = async () => {
     const hold = holdRef.current;
     if (!hold?.isHeld()) { closeCompose(); return; }
-    const token = hold.token();
-    hold.settle();
-    setHoldReady(false);
     try {
-      await api.scheduled.release(scheduledEdit.id, token, { keepPaused: true });
+      await hold.handBack({ keepPaused: true });
     } catch (err) {
-      // Still held on the server: when the lease lapses it is paused all the same.
+      // Still held (a failed request) it can be tried again; a hold the server says is gone has
+      // nothing left to release.
+      if (!hold.isHeld()) setHoldReady(false);
       setError(scheduleErrorText(err, t));
       return;
     }
+    setHoldReady(false);
     if (!closeIfStillOpen()) return;
     addNotification({ title: t('compose.scheduleSend.edit.keptPaused'), body: subject || t('common.noSubject'), onAction: () => openScheduledView(useStore) });
   };
@@ -1944,6 +1955,7 @@ export default function ComposeModal() {
           editing={Boolean(scheduledEdit)}
           onUnschedule={() => handleUnschedule()}
           onSendNow={() => handleSendNow()}
+          initialView={sendLaterView}
           returnFocusRef={sendLaterBtnRef}
           busy={sending}
         />
@@ -2121,7 +2133,7 @@ export default function ComposeModal() {
             <button
               ref={sendLaterBtnRef}
               type="button"
-              onClick={() => setSendLaterOpen(true)}
+              onClick={() => { setSendLaterView('root'); setSendLaterOpen(true); }}
               disabled={sendDisabled}
               aria-label={scheduledEdit ? t('compose.scheduleSend.edit.options') : t('compose.scheduleSend.title')}
               aria-haspopup="dialog"
@@ -2588,7 +2600,7 @@ export default function ComposeModal() {
               onClick={() => { setShowEmptySubjectWarn(false); continueAfterWarning({ skipSubjectWarn: true }); }}
               style={{ width: '100%', padding: '16px 20px', textAlign: 'left', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 16, fontWeight: 500, cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', WebkitTapHighlightColor: 'transparent' }}
             >
-              {t('compose.emptySubject.sendAnyway')}
+              {warnSchedules ? t('compose.scheduleSend.scheduleAnyway') : t('compose.emptySubject.sendAnyway')}
             </button>
             <button
               onClick={() => setShowEmptySubjectWarn(false)}
@@ -2625,7 +2637,7 @@ export default function ComposeModal() {
               onClick={() => { setShowForgottenAttachWarn(false); continueAfterWarning({ skipSubjectWarn: true, skipAttachWarn: true }); }}
               style={{ width: '100%', padding: '16px 20px', textAlign: 'left', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 16, fontWeight: 500, cursor: 'pointer', borderBottom: '1px solid var(--border-subtle)', WebkitTapHighlightColor: 'transparent' }}
             >
-              {t('compose.forgottenAttachment.sendAnyway')}
+              {warnSchedules ? t('compose.scheduleSend.scheduleAnyway') : t('compose.forgottenAttachment.sendAnyway')}
             </button>
             <button
               onClick={() => setShowForgottenAttachWarn(false)}
@@ -3260,7 +3272,7 @@ export default function ComposeModal() {
               onClick={() => { setShowEmptySubjectWarn(false); continueAfterWarning({ skipSubjectWarn: true }); }}
               style={{ padding: '7px 14px', background: 'var(--accent)', border: 'none', borderRadius: 6, color: 'var(--accent-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
-              {t('compose.emptySubject.sendAnyway')}
+              {warnSchedules ? t('compose.scheduleSend.scheduleAnyway') : t('compose.emptySubject.sendAnyway')}
             </button>
           </div>
         </div>
@@ -3297,7 +3309,7 @@ export default function ComposeModal() {
               onClick={() => { setShowForgottenAttachWarn(false); continueAfterWarning({ skipSubjectWarn: true, skipAttachWarn: true }); }}
               style={{ padding: '7px 14px', background: 'var(--accent)', border: 'none', borderRadius: 6, color: 'var(--accent-text)', fontSize: 13, fontWeight: 600, cursor: 'pointer' }}
             >
-              {t('compose.forgottenAttachment.sendAnyway')}
+              {warnSchedules ? t('compose.scheduleSend.scheduleAnyway') : t('compose.forgottenAttachment.sendAnyway')}
             </button>
           </div>
         </div>

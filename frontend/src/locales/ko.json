@@ -260,7 +260,9 @@
       "sendNow": {
         "undone": "보내지 않았습니다. 예약됨에 그대로 돌아왔습니다.",
         "undoFailed": "지금 보내기를 취소하지 못했습니다"
-      }
+      },
+      "scheduleAnyway": "그래도 예약하기",
+      "undoFailedOpen": "실행 취소하지 못했습니다. 예약됨에서 여세요."
     },
     "selectAccount": "보낼 계정을 선택하세요"
   },
