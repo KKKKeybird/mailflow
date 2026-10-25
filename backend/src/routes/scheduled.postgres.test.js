@@ -41,7 +41,7 @@ import { imapManager } from '../index.js';
 import { deleteSentDraft } from '../services/draftCopies.js';
 import { consume } from '../services/rateLimiter.js';
 import { sendPushToUser } from '../services/pushNotifications.js';
-import { aad, openJson, sealJson } from '../services/scheduledSend.js';
+import { ScheduledSender, aad, openJson, sealJson } from '../services/scheduledSend.js';
 
 const ADMIN_URL = process.env.MAILFLOW_TEST_DATABASE_URL;
 const MiB = 1024 * 1024;
@@ -533,6 +533,56 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
       expect(await rowOf(id)).toMatchObject({
         status: 'failed', failure_code: 'smtp_rejected', attempts: 2, send_at: before.send_at, due_at: before.due_at, version: before.version,
       });
+    });
+
+    // A sender as the process runs one, for one tick, without timers.
+    const tickSender = async () => {
+      const sender = new ScheduledSender({ sleep: async () => {}, sentLookupDelaysMs: [0] });
+      sender.running = true;
+      sender.arm = () => {};
+      await sender.runTick();
+      while (sender.inFlight.size) await Promise.allSettled([...sender.inFlight.values()]);
+    };
+
+    it('an Undo of Send now on a message that is due leaves it paused by the user, and the sender does not take it', async () => {
+      const id = await create();
+      const past = new Date(Date.now() - 60_000);
+      await set(id, { send_at: past, due_at: past });
+      const { body: { editToken } } = await call('POST', `/${id}/hold`, {});
+      const now = await call('POST', `/${id}/send-now`, { editToken });
+      imapManager.broadcast.mockClear();
+      const undo = await call('POST', `/${id}/send-now/undo`, { undoToken: now.body.undoToken });
+      expect(undo.body).toMatchObject({ status: 'paused', pauseReason: 'user' });
+      expect(await rowOf(id)).toMatchObject({ status: 'paused', pause_reason: 'user', send_at: past, due_at: past });
+      expect(broadcasts()).toEqual([{ type: 'scheduled_changed', id, status: 'paused' }]);
+      await tickSender();
+      expect(await rowOf(id)).toMatchObject({ status: 'paused', claim_token: null, smtp_started_at: null, sent_at: null });
+
+      // The plain Send now of a scheduled message whose time passes before the Undo, the same.
+      const plain = await create();
+      await set(plain, { send_at: past, due_at: past });
+      const sent = await call('POST', `/${plain}/send-now`, {});
+      expect((await call('POST', `/${plain}/send-now/undo`, { undoToken: sent.body.undoToken })).body.status).toBe('paused');
+      expect(await rowOf(plain)).toMatchObject({ status: 'paused', pause_reason: 'user' });
+    });
+
+    it('an Undo of Send now on a message not yet due puts it back scheduled at its time', async () => {
+      const id = await create();
+      const before = await rowOf(id);
+      const { body: { editToken } } = await call('POST', `/${id}/hold`, {});
+      const now = await call('POST', `/${id}/send-now`, { editToken });
+      const undo = await call('POST', `/${id}/send-now/undo`, { undoToken: now.body.undoToken });
+      expect(undo.body).toMatchObject({ status: 'scheduled' });
+      expect(undo.body.pauseReason).toBeUndefined();
+      expect(await rowOf(id)).toMatchObject({ status: 'scheduled', pause_reason: null, send_at: before.send_at, due_at: before.due_at });
+    });
+
+    it('an Undo of Send now on a message opened in another window says so', async () => {
+      const id = await create();
+      const now = await call('POST', `/${id}/send-now`, {});
+      await call('POST', `/${id}/hold`, {});
+      expect(await call('POST', `/${id}/send-now/undo`, { undoToken: now.body.undoToken }))
+        .toMatchObject({ status: 409, body: { code: 'held_elsewhere', error: 'This message is open in another window.' } });
     });
 
     it('a held message keeps its confirmations, and its Undo puts back a pause the user chose', async () => {

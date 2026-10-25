@@ -615,22 +615,33 @@ router.post('/scheduled/:id/send-now', validId, async (req, res) => {
 });
 
 // Puts back what Send now replaced, while the message still waits (it has not been claimed) and
-// nothing else changed it since.
+// nothing else changed it since. A message that would come back scheduled at a time that has
+// passed (by the database's clock) comes back paused by the user instead, its times kept:
+// scheduled and due, the sender would claim it at once, and Undo would have sent it. One opened
+// in another window meanwhile is said as such, not as too late.
 router.post('/scheduled/:id/send-now/undo', validId, async (req, res) => {
   const row = await findOwnedScheduledMessage(req.session.userId, req.params.id, { columns: 'id, user_id, status, version, send_at' });
   if (!row) return fail(res, 404, 'Scheduled message not found');
+  const elsewhere = () => fail(res, 409, 'This message is open in another window.', { code: 'held_elsewhere', status: 'editing' });
+  if (row.status === 'editing') return elsewhere();
   let token = null;
   try { token = openJson(Buffer.from(String(req.body?.undoToken || ''), 'base64url'), undoAad(row)); } catch { /* not a token */ }
   if (!token?.previous) return fail(res, 409, 'This can no longer be undone.', { code: 'undo_expired', status: row.status });
   if (Date.now() >= token.until) return fail(res, 409, 'Too late to undo: the message is going out.', { code: 'undo_expired', status: row.status });
   const p = token.previous;
+  const due = "$4::text = 'scheduled' AND $5::timestamptz <= NOW()";
   const updated = await update(req.session.userId, row.id, ['scheduled'],
-    'status = $4, send_at = $5, due_at = $6, attempts = $7, failure_code = $8, pause_reason = $9',
+    `status = CASE WHEN ${due} THEN 'paused' ELSE $4::text END, send_at = $5, due_at = $6, attempts = $7,
+     failure_code = $8, pause_reason = CASE WHEN ${due} THEN 'user' ELSE $9::text END`,
     [p.status, p.sendAt, p.dueAt, p.attempts, p.failureCode, p.pauseReason, token.sendAt, row.version],
     'AND send_at = $10 AND version = $11');
-  if (!updated) return fail(res, 409, 'Too late to undo: the message is going out.', { code: 'undo_expired' });
+  if (!updated) {
+    const now = await findOwnedScheduledMessage(req.session.userId, row.id, { columns: 'id, status' });
+    if (now?.status === 'editing') return elsewhere();
+    return fail(res, 409, 'Too late to undo: the message is going out.', { code: 'undo_expired' });
+  }
   changed(req.session.userId, row.id, updated.status);
-  res.json({ status: updated.status, sendAt: updated.send_at });
+  res.json({ status: updated.status, sendAt: updated.send_at, ...(updated.pause_reason ? { pauseReason: updated.pause_reason } : {}) });
 });
 
 router.post('/scheduled/:id/resume', validId, async (req, res) => {
