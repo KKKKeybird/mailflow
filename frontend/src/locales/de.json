@@ -632,7 +632,8 @@
     "sections": {
       "attention": "Braucht Aufmerksamkeit",
       "scheduled": "Geplant",
-      "sent": "Gesendet"
+      "sent": "Gesendet",
+      "deleted": "Gelöscht"
     },
     "when": {
       "today": "Heute {{time}}",
@@ -647,7 +648,8 @@
       "uncertain": "Zustellung prüfen",
       "sent": "Gesendet",
       "sentLate": "Verspätet gesendet",
-      "retrying": "Neuer Versuch"
+      "retrying": "Neuer Versuch",
+      "deleted": "Gelöscht"
     },
     "reason": {
       "overdue": "Sie war über 6 Stunden zu spät, deshalb hat MailFlow sie zurückgehalten. Sende sie jetzt oder wähle eine neue Zeit.",
@@ -668,7 +670,8 @@
       "gaveUp": "Der Mailserver ist immer wieder ausgefallen, deshalb hat MailFlow aufgegeben.",
       "failed": "Sie konnte nicht gesendet werden.",
       "uncertain": "MailFlow wurde während des Sendens beendet. Sie wurde vielleicht zugestellt, vielleicht nicht. Sieh im Ordner „Gesendet“ nach.",
-      "retrying": "Der letzte Versuch ist fehlgeschlagen. Nächster Versuch: {{when}}."
+      "retrying": "Der letzte Versuch ist fehlgeschlagen. Nächster Versuch: {{when}}.",
+      "deleted": "Kann bis {{when}} wiederhergestellt werden."
     },
     "sent": {
       "markedSent": "Du hast sie als gesendet markiert.",
@@ -699,7 +702,8 @@
       "viewSent": "In „Gesendet“ ansehen",
       "remove": "Aus der Liste entfernen",
       "more": "Weitere Aktionen",
-      "menu": "Aktionen für die geplante Nachricht"
+      "menu": "Aktionen für die geplante Nachricht",
+      "restore": "Wiederherstellen"
     },
     "confirm": {
       "uncertainTitle": "Sie wurde vielleicht schon zugestellt",
@@ -721,10 +725,10 @@
       "deleted": "Geplante Nachricht gelöscht",
       "deletedForGood": "Endgültig gelöscht",
       "restored": "Wiederhergestellt",
-      "restoredSending": "Wiederhergestellt. Ihre Zeit ist vorbei, deshalb wird sie jetzt gesendet.",
       "sent": "Geplante Nachricht gesendet",
       "notSent": "Nicht gesendet: {{reason}}",
-      "open": "Öffnen"
+      "open": "Öffnen",
+      "restoredPaused": "Wiederhergestellt und pausiert. Setze sie fort, wenn sie gesendet werden soll."
     },
     "errors": {
       "needsReauth": "Melde dich zuerst erneut beim Konto an und setze sie dann fort.",
@@ -737,7 +741,8 @@
       "editing": "Sie ist in einem anderen Fenster zum Bearbeiten geöffnet.",
       "failed": "Die geplante Nachricht konnte nicht geändert werden.",
       "restoreFailed": "Konnte nicht wiederhergestellt werden",
-      "restoreExpired": "Sie lässt sich nicht mehr wiederherstellen."
+      "restoreExpired": "Sie lässt sich nicht mehr wiederherstellen.",
+      "linkNotFound": "Diese geplante Nachricht wurde nicht gefunden."
     }
   },
   "contextMenu": {
@@ -1117,7 +1122,10 @@
       "trustedAuthservWarn": "Vertrauen Sie nur einer ID, die Sie als empfangenden Server Ihres Anbieters erkennen.",
       "enabledGlobally": "Global aktiviert",
       "microsoftImapNoteSignIn": "Microsoft akzeptiert für Postfächer von Outlook.com, Hotmail, Live und MSN keine Passwörter mehr. Melden Sie sich stattdessen mit Microsoft an: Ein App-Passwort ist nicht nötig.",
-      "deleteScheduled": "Geplante, noch nicht gesendete Nachrichten, die mit ihm gelöscht werden: {{n}}."
+      "deleteScheduled": "Geplante, noch nicht gesendete Nachrichten, die mit ihm gelöscht werden: {{n}}.",
+      "deleteTitle": "Konto entfernen?",
+      "deleteBody": "Alle synchronisierten Nachrichten dieses Kontos werden gelöscht. Das lässt sich nicht rückgängig machen.",
+      "deleteConfirm": "Entfernen"
     },
     "folderMappings": {
       "title": "Ordnerzuordnungen",

@@ -632,7 +632,8 @@
     "sections": {
       "attention": "需要处理",
       "scheduled": "已定时",
-      "sent": "已发送"
+      "sent": "已发送",
+      "deleted": "已删除"
     },
     "when": {
       "today": "今天 {{time}}",
@@ -647,7 +648,8 @@
       "uncertain": "请检查投递",
       "sent": "已发送",
       "sentLate": "延迟发送",
-      "retrying": "正在重试"
+      "retrying": "正在重试",
+      "deleted": "已删除"
     },
     "reason": {
       "overdue": "已延迟超过 6 小时，因此 MailFlow 暂未发送。请立即发送或选择新时间。",
@@ -668,7 +670,8 @@
       "gaveUp": "邮件服务器一直出错，MailFlow 已停止重试。",
       "failed": "无法发送。",
       "uncertain": "MailFlow 在发送过程中停止，邮件可能已送达，也可能没有。请检查“已发送”文件夹。",
-      "retrying": "上次尝试失败。下次尝试：{{when}}。"
+      "retrying": "上次尝试失败。下次尝试：{{when}}。",
+      "deleted": "可在 {{when}} 前恢复。"
     },
     "sent": {
       "markedSent": "你已将其标记为已发送。",
@@ -699,7 +702,8 @@
       "viewSent": "在“已发送”中查看",
       "remove": "从列表中移除",
       "more": "更多操作",
-      "menu": "定时邮件操作"
+      "menu": "定时邮件操作",
+      "restore": "恢复邮件"
     },
     "confirm": {
       "uncertainTitle": "可能已经送达",
@@ -721,10 +725,10 @@
       "deleted": "已删除定时邮件",
       "deletedForGood": "已永久删除",
       "restored": "已恢复",
-      "restoredSending": "已恢复。原定时间已过，现在正在发送。",
       "sent": "定时邮件已发送",
       "notSent": "未发送：{{reason}}",
-      "open": "打开"
+      "open": "打开",
+      "restoredPaused": "已恢复并暂停。需要发送时请恢复发送。"
     },
     "errors": {
       "needsReauth": "请先重新登录该账户，然后再恢复。",
@@ -737,7 +741,8 @@
       "editing": "它正在另一个窗口中编辑。",
       "failed": "无法更改定时邮件。",
       "restoreFailed": "无法恢复",
-      "restoreExpired": "已无法恢复。"
+      "restoreExpired": "已无法恢复。",
+      "linkNotFound": "未找到该定时邮件。"
     }
   },
   "contextMenu": {
@@ -1192,7 +1197,10 @@
       "trustedAuthservWarn": "只信任您确认为邮件服务商接收服务器的 ID。",
       "enabledGlobally": "已全局启用",
       "microsoftImapNoteSignIn": "Microsoft 不再接受 Outlook.com、Hotmail、Live 和 MSN 邮箱的密码。请改用 Microsoft 登录：无需应用密码。",
-      "deleteScheduled": "将随之删除的尚未发送的定时邮件：{{n}} 封。"
+      "deleteScheduled": "将随之删除的尚未发送的定时邮件：{{n}} 封。",
+      "deleteTitle": "要移除账户吗？",
+      "deleteBody": "此账户的所有已同步邮件都将被删除。此操作无法撤销。",
+      "deleteConfirm": "移除"
     },
     "folderMappings": {
       "title": "文件夹映射",

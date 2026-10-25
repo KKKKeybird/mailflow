@@ -14,7 +14,8 @@ import { SCHEDULE_UNDO_MS, needsConfirmation, once, sendNowUndoMs, undoSendNow }
 import { openSentMessage } from '../utils/openSentMessage.js';
 import {
   actionErrorText, actionLabelKey, chipKey, chipTone, composeDataFromScheduled, formatScheduledTime, groupScheduled,
-  hoverActions, isRetrying, primaryAction, reasonKey, recipientsOf, rowActions, rowLabel, sentNotes, storedZoneTime,
+  hoverActions, isRetrying, nextRestoreEnd, primaryAction, reasonKey, recipientsOf, rowActions, rowLabel, sentNotes,
+  storedZoneTime,
 } from '../utils/scheduledView.js';
 
 // The Scheduled view (#543, design 5.2): every scheduled message of every account, in three
@@ -37,6 +38,7 @@ const ICONS = {
   sendNow: icon(<><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>),
   sendAnyway: icon(<><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></>),
   resume: icon(<polygon points="6 4 20 12 6 20 6 4"/>),
+  restore: icon(<><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 102.13-9.36L1 10"/></>),
   cancel: icon(<><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></>),
   more: (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
@@ -68,9 +70,16 @@ export default function ScheduledList() {
     return () => clearInterval(timer);
   }, []);
   useEffect(() => { scheduledFeed.refresh(); }, []);
+  // A deleted message leaves the list the moment its restore window closes.
+  useEffect(() => {
+    const end = nextRestoreEnd(list?.messages || [], now);
+    if (end == null) return undefined;
+    const timer = setTimeout(() => setNow(new Date()), Math.max(0, end - Date.now()) + 50);
+    return () => clearTimeout(timer);
+  }, [list, now]);
 
-  const groups = useMemo(() => groupScheduled(list?.messages || []), [list]);
-  const ordered = useMemo(() => [...groups.attention, ...groups.upcoming, ...groups.sent], [groups]);
+  const groups = useMemo(() => groupScheduled(list?.messages || [], now), [list, now]);
+  const ordered = useMemo(() => [...groups.attention, ...groups.upcoming, ...groups.sent, ...groups.deleted], [groups]);
   const total = ordered.length;
 
   const [busyId, setBusyId] = useState(null);
@@ -104,20 +113,38 @@ export default function ScheduledList() {
     if (next) focusRow(next.id);
   };
 
-  // A notification link (/?scheduled=<id>): show that message, then let the highlight go.
+  // A notification link (/?scheduled=<id>) or a toast's Open: show that message, then let the
+  // highlight go. One not in the list is fetched for once more (the list may predate it); still
+  // missing, the user is told.
+  const lookedForRef = useRef(null);
   useEffect(() => {
     if (!highlight || !list?.loadedAt) return undefined;
     const el = rowRefs.current.get(highlight);
     if (!el) {
+      if (lookedForRef.current !== highlight) {
+        lookedForRef.current = highlight;
+        // A refetch that failed changes no list, so it is said here: not found.
+        scheduledFeed.refresh().then((loaded) => {
+          if (loaded || lookedForRef.current !== highlight) return;
+          lookedForRef.current = null;
+          if (useStore.getState().scheduledHighlight !== highlight) return;
+          useStore.getState().setScheduledHighlight(null);
+          notify({ title: t('scheduled.errors.linkNotFound') });
+        });
+        return undefined;
+      }
+      lookedForRef.current = null;
       useStore.getState().setScheduledHighlight(null);
+      notify({ title: t('scheduled.errors.linkNotFound') });
       return undefined;
     }
+    lookedForRef.current = null;
     el.scrollIntoView?.({ block: 'center' });
     el.focus({ preventScroll: true });
     setFocusedId(highlight);
     const timer = setTimeout(() => useStore.getState().setScheduledHighlight(null), HIGHLIGHT_MS);
     return () => clearTimeout(timer);
-  }, [highlight, list]);
+  }, [highlight, list, notify, t]);
 
   // Ctrl/Cmd+Z undoes the newest undo the toasts offer, as in the message list (#449); j and k
   // move between rows.
@@ -146,6 +173,14 @@ export default function ScheduledList() {
   }, []);
   const moveFocusRef = useRef(moveFocus);
   moveFocusRef.current = moveFocus;
+
+  // A menu, sheet or the times of a row that left the list (sent, deleted elsewhere, its restore
+  // window closed) close with it.
+  useEffect(() => {
+    const present = new Set(ordered.map(r => r.id));
+    if (menu && !present.has(menu.row.id)) setMenu(null);
+    if (picking && !present.has(picking.id)) setPicking(null);
+  }, [ordered, menu, picking]);
 
   // Reschedule's times open under their row: brought into view when that is near the bottom.
   useEffect(() => {
@@ -182,14 +217,17 @@ export default function ScheduledList() {
   const restore = (row) => api.scheduled.restore(row.id)
     .then((r) => {
       const body = subjectOf(row);
-      if (r?.sendsImmediately) notify({ title: t('scheduled.toast.restoredSending'), body });
+      // Its time passed meanwhile: the server put it back paused, so it never goes out at once.
+      if (r?.status === 'paused' && r.pauseReason === 'user') notify({ title: t('scheduled.toast.restoredPaused'), body });
       else if (r?.status === 'scheduled') notify({ title: t('compose.scheduleSend.scheduledFor', { when: formatSendAt(r.sendAt) }), body });
       else notify({ title: t('scheduled.toast.restored'), body });
     })
     .catch((err) => {
       notify({
         type: 'error', title: t('scheduled.errors.restoreFailed'), allowWrap: true,
-        body: err?.status === 409 && err.state === 'cancelled' ? t('scheduled.errors.restoreExpired') : actionErrorText(err, t),
+        // Past its window it is 409 until the purge, then 404: either way it is too late.
+        body: (err?.status === 409 && err.state === 'cancelled') || err?.status === 404
+          ? t('scheduled.errors.restoreExpired') : actionErrorText(err, t),
       });
     })
     .finally(() => scheduledFeed.refresh());
@@ -271,6 +309,10 @@ export default function ScheduledList() {
       case 'remove':
         attempt(row, () => api.scheduled.remove(row.id));
         return;
+      case 'restore':
+        setBusyId(row.id);
+        restore(row).finally(() => setBusyId(null));
+        return;
       case 'viewSent':
         openSentMessage(useStore, { accountId: row.accountId, folder: row.result.sentFolder, messageId: row.result.messageId });
         return;
@@ -339,8 +381,8 @@ export default function ScheduledList() {
     />
   );
 
-  const section = (key, title, rows, footer) => rows.length > 0 && (
-    <Section key={key} id={key} title={title} count={rows.length} isMobile={isMobile} footer={footer}>
+  const section = (key, title, rows, footer, { count = true } = {}) => rows.length > 0 && (
+    <Section key={key} id={key} title={title} count={count ? rows.length : null} isMobile={isMobile} footer={footer}>
       {rows.map(renderRow)}
     </Section>
   );
@@ -412,6 +454,7 @@ export default function ScheduledList() {
             {section('attention', t('scheduled.sections.attention'), groups.attention)}
             {section('upcoming', t('scheduled.sections.scheduled'), groups.upcoming)}
             {section('sent', t('scheduled.sections.sent'), groups.sent, list.moreSent ? t('scheduled.moreSent') : null)}
+            {section('deleted', t('scheduled.sections.deleted'), groups.deleted, null, { count: false })}
           </>
         )}
       </div>
@@ -484,7 +527,7 @@ function Section({ id, title, count, isMobile, footer, children }) {
         textTransform: 'uppercase', letterSpacing: '0.06em', color: id === 'attention' ? 'var(--red)' : 'var(--text-tertiary)',
         display: 'flex', gap: 6,
       }}>
-        <span>{title}</span><span style={{ fontWeight: 500 }}>{count}</span>
+        <span>{title}</span>{count != null && <span style={{ fontWeight: 500 }}>{count}</span>}
       </h3>
       <ul style={{ listStyle: 'none', margin: 0, padding: 0 }}>{children}</ul>
       {footer && <div style={{ padding: '8px 16px 12px', fontSize: 12, color: 'var(--text-tertiary)' }}>{footer}</div>}
@@ -503,7 +546,9 @@ function ScheduledRow({
   const chip = chipKey(row);
   const reasonId = reasonKey(row);
   const reason = !reasonId ? null
-    : isRetrying(row) ? t(reasonId, { when: formatScheduledTime(row.dueAt, { t, now }) }) : t(reasonId);
+    : isRetrying(row) ? t(reasonId, { when: formatScheduledTime(row.dueAt, { t, now }) })
+      : row.status === 'cancelled' ? t(reasonId, { when: formatScheduledTime(row.restoreUntil, { t, now }) })
+        : t(reasonId);
   const notes = sentNotes(row, { t, now });
   const detail = row.failureDetail && (reasonId || isRetrying(row)) ? row.failureDetail : null;
   const subject = summary?.subject || (row.status === 'sent' && !summary ? t('scheduled.sentMessage') : t('common.noSubject'));

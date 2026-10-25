@@ -632,7 +632,8 @@
     "sections": {
       "attention": "Precisa de atenção",
       "scheduled": "Agendado",
-      "sent": "Enviadas"
+      "sent": "Enviadas",
+      "deleted": "Excluídas"
     },
     "when": {
       "today": "Hoje {{time}}",
@@ -647,7 +648,8 @@
       "uncertain": "Verifique a entrega",
       "sent": "Enviada",
       "sentLate": "Enviada com atraso",
-      "retrying": "Tentando de novo"
+      "retrying": "Tentando de novo",
+      "deleted": "Excluída"
     },
     "reason": {
       "overdue": "Estava mais de 6 horas atrasada, então o MailFlow a reteve. Envie agora ou escolha um novo horário.",
@@ -668,7 +670,8 @@
       "gaveUp": "O servidor de e-mail continuou falhando, então o MailFlow parou de tentar.",
       "failed": "Não foi possível enviá-la.",
       "uncertain": "O MailFlow parou durante o envio. Ela pode ou não ter sido entregue. Confira a pasta Enviados.",
-      "retrying": "A última tentativa falhou. Próxima tentativa: {{when}}."
+      "retrying": "A última tentativa falhou. Próxima tentativa: {{when}}.",
+      "deleted": "Pode ser restaurada até {{when}}."
     },
     "sent": {
       "markedSent": "Você a marcou como enviada.",
@@ -699,7 +702,8 @@
       "viewSent": "Ver em Enviados",
       "remove": "Remover da lista",
       "more": "Mais ações",
-      "menu": "Ações da mensagem agendada"
+      "menu": "Ações da mensagem agendada",
+      "restore": "Restaurar"
     },
     "confirm": {
       "uncertainTitle": "Ela pode já ter sido entregue",
@@ -721,10 +725,10 @@
       "deleted": "Mensagem agendada excluída",
       "deletedForGood": "Excluída para sempre",
       "restored": "Restaurada",
-      "restoredSending": "Restaurada. O horário dela já passou, então ela está sendo enviada agora.",
       "sent": "Mensagem agendada enviada",
       "notSent": "Não enviada: {{reason}}",
-      "open": "Abrir"
+      "open": "Abrir",
+      "restoredPaused": "Restaurada e pausada. Retome-a quando ela deve ser enviada."
     },
     "errors": {
       "needsReauth": "Entre na conta de novo primeiro e depois retome-a.",
@@ -737,7 +741,8 @@
       "editing": "Ela está aberta para edição em outra janela.",
       "failed": "Não foi possível alterar a mensagem agendada.",
       "restoreFailed": "Não foi possível restaurá-la",
-      "restoreExpired": "Ela não pode mais ser restaurada."
+      "restoreExpired": "Ela não pode mais ser restaurada.",
+      "linkNotFound": "Essa mensagem agendada não foi encontrada."
     }
   },
   "contextMenu": {
@@ -1192,7 +1197,10 @@
       "trustedAuthservWarn": "Confie apenas em um ID que você reconheça como o servidor de recebimento do seu provedor de e-mail.",
       "enabledGlobally": "Ativado globalmente",
       "microsoftImapNoteSignIn": "A Microsoft não aceita mais senhas para caixas do Outlook.com, Hotmail, Live e MSN. Entre com a Microsoft: não é preciso senha de app.",
-      "deleteScheduled": "Mensagens agendadas ainda não enviadas que são excluídas com ela: {{n}}."
+      "deleteScheduled": "Mensagens agendadas ainda não enviadas que são excluídas com ela: {{n}}.",
+      "deleteTitle": "Remover a conta?",
+      "deleteBody": "Todas as mensagens sincronizadas desta conta serão excluídas. Isso não pode ser desfeito.",
+      "deleteConfirm": "Remover"
     },
     "folderMappings": {
       "title": "Mapeamento de pastas",

@@ -204,6 +204,7 @@ const SAME_VALUE_ALLOWED = {
   // "Para:"; a time with its zone in parentheses is a format, the same everywhere but Chinese,
   // which uses full-width parentheses.
   'scheduled.actions.edit': [['es', 'ptBR']],
+  'scheduled.actions.restore': [['es', 'ptBR']],
   'scheduled.chip.sending': [['es', 'ptBR']],
   'scheduled.toast.open': [['es', 'ptBR']],
   'scheduled.to': [['es', 'ptBR']],

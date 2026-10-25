@@ -181,7 +181,8 @@
     "sections": {
       "attention": "Vyžaduje pozornost",
       "scheduled": "Naplánováno",
-      "sent": "Odesláno"
+      "sent": "Odesláno",
+      "deleted": "Smazané"
     },
     "when": {
       "today": "Dnes {{time}}",
@@ -196,7 +197,8 @@
       "uncertain": "Ověřte doručení",
       "sent": "Odesláno",
       "sentLate": "Odesláno pozdě",
-      "retrying": "Opakuje se"
+      "retrying": "Opakuje se",
+      "deleted": "Smazáno"
     },
     "reason": {
       "overdue": "Zpozdila se o více než 6 hodin, proto ji MailFlow podržel. Odešlete ji hned, nebo vyberte nový čas.",
@@ -217,7 +219,8 @@
       "gaveUp": "Poštovní server stále selhával, proto to MailFlow vzdal.",
       "failed": "Nepodařilo se ji odeslat.",
       "uncertain": "MailFlow se během odesílání zastavil. Zpráva mohla, ale nemusela být doručena. Zkontrolujte složku Odeslané.",
-      "retrying": "Poslední pokus selhal. Další pokus: {{when}}."
+      "retrying": "Poslední pokus selhal. Další pokus: {{when}}.",
+      "deleted": "Lze obnovit do {{when}}."
     },
     "sent": {
       "markedSent": "Označili jste ji jako odeslanou.",
@@ -248,7 +251,8 @@
       "viewSent": "Zobrazit v Odeslaných",
       "remove": "Odebrat ze seznamu",
       "more": "Další akce",
-      "menu": "Akce naplánované zprávy"
+      "menu": "Akce naplánované zprávy",
+      "restore": "Obnovit zprávu"
     },
     "confirm": {
       "uncertainTitle": "Možná už byla doručena",
@@ -270,10 +274,10 @@
       "deleted": "Naplánovaná zpráva smazána",
       "deletedForGood": "Smazáno natrvalo",
       "restored": "Obnoveno",
-      "restoredSending": "Obnoveno. Její čas už uplynul, proto se právě odesílá.",
       "sent": "Naplánovaná zpráva odeslána",
       "notSent": "Neodesláno: {{reason}}",
-      "open": "Otevřít"
+      "open": "Otevřít",
+      "restoredPaused": "Obnoveno a pozastaveno. Obnovte odeslání, až má odejít."
     },
     "errors": {
       "needsReauth": "Nejprve se k účtu znovu přihlaste a pak odeslání obnovte.",
@@ -286,7 +290,8 @@
       "editing": "Je otevřená k úpravám v jiném okně.",
       "failed": "Naplánovanou zprávu se nepodařilo změnit.",
       "restoreFailed": "Nepodařilo se ji obnovit",
-      "restoreExpired": "Už ji nelze obnovit."
+      "restoreExpired": "Už ji nelze obnovit.",
+      "linkNotFound": "Tato naplánovaná zpráva nebyla nalezena."
     }
   },
   "messageList": {
@@ -1379,7 +1384,10 @@
       "trustedAuthservWarn": "Důvěřujte pouze ID, které znáte jako přijímající server vašeho poskytovatele.",
       "enabledGlobally": "Globálně zapnuto",
       "microsoftImapNoteSignIn": "Microsoft už nepřijímá hesla pro schránky Outlook.com, Hotmail, Live a MSN. Přihlaste se raději přes Microsoft: heslo aplikace není potřeba.",
-      "deleteScheduled": "Naplánované dosud neodeslané zprávy, které se smažou s ním: {{n}}."
+      "deleteScheduled": "Naplánované dosud neodeslané zprávy, které se smažou s ním: {{n}}.",
+      "deleteTitle": "Odebrat účet?",
+      "deleteBody": "Všechny synchronizované zprávy tohoto účtu budou smazány. Tuto akci nelze vrátit.",
+      "deleteConfirm": "Odebrat"
     },
     "folderMappings": {
       "title": "Mapování složek",

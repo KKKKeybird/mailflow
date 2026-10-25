@@ -1194,7 +1194,8 @@ export default function ComposeModal() {
             cancel: api.scheduled.cancel,
             reopen: data => reopenCompose(useStore, data),
             notify: n => useStore.getState().addNotification(n),
-            openView: () => openScheduledView(useStore),
+            // Open goes to the message there, highlighted: a deleted one can be restored for minutes.
+            openView: () => openScheduledView(useStore, undo.id),
             t,
           });
         }),

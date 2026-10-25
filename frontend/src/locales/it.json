@@ -632,7 +632,8 @@
     "sections": {
       "attention": "Richiede attenzione",
       "scheduled": "Programmato",
-      "sent": "Inviati"
+      "sent": "Inviati",
+      "deleted": "Eliminati"
     },
     "when": {
       "today": "Oggi {{time}}",
@@ -647,7 +648,8 @@
       "uncertain": "Verifica la consegna",
       "sent": "Inviato",
       "sentLate": "Inviato in ritardo",
-      "retrying": "Nuovo tentativo"
+      "retrying": "Nuovo tentativo",
+      "deleted": "Eliminato"
     },
     "reason": {
       "overdue": "Era in ritardo di oltre 6 ore, quindi MailFlow l'ha trattenuto. Invialo ora o scegli un nuovo orario.",
@@ -668,7 +670,8 @@
       "gaveUp": "Il server di posta ha continuato a non rispondere, quindi MailFlow ha smesso di riprovare.",
       "failed": "Non è stato possibile inviarlo.",
       "uncertain": "MailFlow si è fermato durante l'invio. Potrebbe essere stato consegnato oppure no. Controlla la cartella Posta inviata.",
-      "retrying": "L'ultimo tentativo non è riuscito. Prossimo tentativo: {{when}}."
+      "retrying": "L'ultimo tentativo non è riuscito. Prossimo tentativo: {{when}}.",
+      "deleted": "Si può ripristinare fino a {{when}}."
     },
     "sent": {
       "markedSent": "L'hai segnato come inviato.",
@@ -699,7 +702,8 @@
       "viewSent": "Vedi in Posta inviata",
       "remove": "Rimuovi dall'elenco",
       "more": "Altre azioni",
-      "menu": "Azioni del messaggio programmato"
+      "menu": "Azioni del messaggio programmato",
+      "restore": "Ripristina"
     },
     "confirm": {
       "uncertainTitle": "Potrebbe essere già stato consegnato",
@@ -721,10 +725,10 @@
       "deleted": "Messaggio programmato eliminato",
       "deletedForGood": "Eliminato definitivamente",
       "restored": "Ripristinato",
-      "restoredSending": "Ripristinato. Il suo orario è passato, quindi viene inviato ora.",
       "sent": "Messaggio programmato inviato",
       "notSent": "Non inviato: {{reason}}",
-      "open": "Apri"
+      "open": "Apri",
+      "restoredPaused": "Ripristinato e in pausa. Riprendilo quando deve partire."
     },
     "errors": {
       "needsReauth": "Prima accedi di nuovo all'account, poi riprendilo.",
@@ -737,7 +741,8 @@
       "editing": "È aperto in modifica in un'altra finestra.",
       "failed": "Non è stato possibile modificare il messaggio programmato.",
       "restoreFailed": "Impossibile ripristinarlo",
-      "restoreExpired": "Non può più essere ripristinato."
+      "restoreExpired": "Non può più essere ripristinato.",
+      "linkNotFound": "Quel messaggio programmato non è stato trovato."
     }
   },
   "contextMenu": {
@@ -1192,7 +1197,10 @@
       "trustedAuthservWarn": "Considera attendibile solo un ID che riconosci come il server di ricezione del tuo provider.",
       "enabledGlobally": "Abilitato globalmente",
       "microsoftImapNoteSignIn": "Microsoft non accetta più password per le caselle Outlook.com, Hotmail, Live e MSN. Accedi invece con Microsoft: non serve una password per le app.",
-      "deleteScheduled": "Messaggi programmati non ancora inviati che vengono eliminati con esso: {{n}}."
+      "deleteScheduled": "Messaggi programmati non ancora inviati che vengono eliminati con esso: {{n}}.",
+      "deleteTitle": "Rimuovere l'account?",
+      "deleteBody": "Tutti i messaggi sincronizzati di questo account verranno eliminati. L'operazione non può essere annullata.",
+      "deleteConfirm": "Rimuovi"
     },
     "folderMappings": {
       "title": "Mappatura cartelle",

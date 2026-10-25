@@ -71,6 +71,22 @@ describe('scheduledFeed', () => {
     assert.equal(state.scheduledAttention, 1);
   });
 
+  test('a steady stream of changes still refreshes within the maximum wait', async () => {
+    let clock = 0;
+    const timers = [];
+    const feed = createScheduledFeed({
+      store: useStore, client: { scheduled: { list: async () => ({ messages: [] }) }, getUnreadCounts: async () => null },
+      schedule: (fn, ms) => { timers.push(ms); return timers.length; }, unschedule: () => {}, clock: () => clock,
+    });
+    feed.changed();
+    for (clock = 250; clock <= 1750; clock += 250) feed.changed();
+    clock = 1900;
+    feed.changed();
+    assert.equal(timers[0], 300);
+    assert.equal(timers.at(-2), 250, '2000 - 1750');
+    assert.equal(timers.at(-1), 100, 'the burst is refreshed 2 s after its first change');
+  });
+
   test('a message the sender sent keeps the subject it had, and is told once', async () => {
     const h = harness();
     const heard = [];

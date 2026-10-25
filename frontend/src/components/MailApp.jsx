@@ -30,8 +30,7 @@ import { openSentMessage } from '../utils/openSentMessage.js';
 
 // Opens the Scheduled view at one message, highlighted (a notification link or a toast's Open).
 function openScheduledMessage(id) {
-  useStore.getState().setScheduledHighlight(id);
-  openScheduledView(useStore);
+  openScheduledView(useStore, id);
 }
 
 const ContactsPage = lazy(() => import('./ContactsPage.jsx'));

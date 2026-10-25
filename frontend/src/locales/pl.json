@@ -648,7 +648,8 @@
     "sections": {
       "attention": "Wymaga uwagi",
       "scheduled": "Zaplanowano",
-      "sent": "Wysłane"
+      "sent": "Wysłane",
+      "deleted": "Usunięte"
     },
     "when": {
       "today": "Dziś {{time}}",
@@ -663,7 +664,8 @@
       "uncertain": "Sprawdź dostarczenie",
       "sent": "Wysłano",
       "sentLate": "Wysłano z opóźnieniem",
-      "retrying": "Ponawianie"
+      "retrying": "Ponawianie",
+      "deleted": "Usunięta"
     },
     "reason": {
       "overdue": "Była spóźniona o ponad 6 godzin, więc MailFlow ją wstrzymał. Wyślij ją teraz albo wybierz nową godzinę.",
@@ -684,7 +686,8 @@
       "gaveUp": "Serwer poczty wciąż zawodził, więc MailFlow przestał próbować.",
       "failed": "Nie udało się jej wysłać.",
       "uncertain": "MailFlow zatrzymał się w trakcie wysyłania. Wiadomość mogła zostać dostarczona albo nie. Sprawdź folder Wysłane.",
-      "retrying": "Ostatnia próba nie powiodła się. Następna próba: {{when}}."
+      "retrying": "Ostatnia próba nie powiodła się. Następna próba: {{when}}.",
+      "deleted": "Można przywrócić do {{when}}."
     },
     "sent": {
       "markedSent": "Oznaczono ją jako wysłaną.",
@@ -715,7 +718,8 @@
       "viewSent": "Pokaż w Wysłanych",
       "remove": "Usuń z listy",
       "more": "Więcej działań",
-      "menu": "Działania dla zaplanowanej wiadomości"
+      "menu": "Działania dla zaplanowanej wiadomości",
+      "restore": "Przywróć"
     },
     "confirm": {
       "uncertainTitle": "Mogła już zostać dostarczona",
@@ -737,10 +741,10 @@
       "deleted": "Usunięto zaplanowaną wiadomość",
       "deletedForGood": "Usunięto na stałe",
       "restored": "Przywrócono",
-      "restoredSending": "Przywrócono. Jej godzina minęła, więc właśnie jest wysyłana.",
       "sent": "Wysłano zaplanowaną wiadomość",
       "notSent": "Nie wysłano: {{reason}}",
-      "open": "Otwórz"
+      "open": "Otwórz",
+      "restoredPaused": "Przywrócono i wstrzymano. Wznów ją, gdy ma zostać wysłana."
     },
     "errors": {
       "needsReauth": "Najpierw zaloguj się ponownie do konta, a potem ją wznów.",
@@ -753,7 +757,8 @@
       "editing": "Jest otwarta do edycji w innym oknie.",
       "failed": "Nie udało się zmienić zaplanowanej wiadomości.",
       "restoreFailed": "Nie udało się jej przywrócić",
-      "restoreExpired": "Nie można jej już przywrócić."
+      "restoreExpired": "Nie można jej już przywrócić.",
+      "linkNotFound": "Nie znaleziono tej zaplanowanej wiadomości."
     }
   },
   "contextMenu": {
@@ -1208,7 +1213,10 @@
       "trustedAuthservWarn": "Ufaj tylko identyfikatorowi, który rozpoznajesz jako serwer odbierający Twojego dostawcy.",
       "enabledGlobally": "Włączone globalnie",
       "microsoftImapNoteSignIn": "Microsoft nie przyjmuje już haseł do skrzynek Outlook.com, Hotmail, Live i MSN. Zaloguj się przez Microsoft: hasło aplikacji nie jest potrzebne.",
-      "deleteScheduled": "Zaplanowane, jeszcze niewysłane wiadomości usuwane razem z nim: {{n}}."
+      "deleteScheduled": "Zaplanowane, jeszcze niewysłane wiadomości usuwane razem z nim: {{n}}.",
+      "deleteTitle": "Usunąć konto?",
+      "deleteBody": "Wszystkie zsynchronizowane wiadomości tego konta zostaną usunięte. Tej operacji nie można cofnąć.",
+      "deleteConfirm": "Usuń"
     },
     "folderMappings": {
       "title": "Mapowania folderów",

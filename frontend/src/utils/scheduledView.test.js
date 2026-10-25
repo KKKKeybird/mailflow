@@ -7,7 +7,7 @@ import process from 'node:process';
 import {
   actionErrorText, actionLabelKey, addressName, changeNotices, chipKey, composeDataFromScheduled, formatScheduledTime,
   groupScheduled, hoverActions, noticeToast, primaryAction, reasonKey, recipientsOf, rowActions, rowLabel,
-  scheduledLinkId, sentNotes, storedZoneTime,
+  nextRestoreEnd, scheduledLinkId, sentNotes, storedZoneTime,
 } from './scheduledView.js';
 
 const t = (key, opts) => (opts ? `${key}:${JSON.stringify(opts)}` : key);
@@ -34,8 +34,15 @@ describe('groupScheduled', () => {
       row({ id: 'p', status: 'paused', sendAt: '2026-10-22T07:00:00Z' }),
       row({ id: 'x', status: 'sending', sendAt: '2026-10-24T07:00:00Z' }),
       row({ id: 'c', status: 'cancelled' }),
+      row({ id: 'd1', status: 'cancelled', restoreUntil: '2026-10-27T09:05:00Z' }),
+      row({ id: 'd2', status: 'cancelled', restoreUntil: '2026-10-27T09:08:00Z' }),
+      row({ id: 'gone', status: 'cancelled', restoreUntil: '2026-10-27T08:59:00Z' }),
     ];
-    const g = groupScheduled(list);
+    const now = new Date('2026-10-27T09:00:00Z');
+    const g = groupScheduled(list, now);
+    assert.deepEqual(g.deleted.map(r => r.id), ['d2', 'd1'], 'in their window, the last deleted first');
+    assert.equal(nextRestoreEnd(list, now), Date.parse('2026-10-27T09:05:00Z'));
+    assert.equal(nextRestoreEnd([row()], now), null);
     assert.deepEqual(g.attention.map(r => r.id), ['u', 'p', 'f']);
     assert.deepEqual(g.upcoming.map(r => r.id), ['x', 'e', 's2']);
     assert.deepEqual(g.sent.map(r => r.id), ['sent-new', 'sent-old']);
@@ -52,6 +59,11 @@ describe('rowActions', () => {
     assert.deepEqual(rowActions(row({ status: 'uncertain' })), ['sendAnyway', 'markSent', 'edit', 'reschedule', 'cancel', 'delete']);
     assert.deepEqual(rowActions(row({ status: 'sent', result: { sentFolder: 'Sent', messageId: '<m@x>' } })), ['viewSent', 'remove']);
     assert.deepEqual(rowActions(row({ status: 'sent', result: { sentFolder: null, messageId: null } })), ['remove']);
+    assert.deepEqual(rowActions(row({ status: 'cancelled' })), ['restore', 'delete']);
+    assert.deepEqual(hoverActions(row({ status: 'cancelled' })), ['restore']);
+    assert.equal(primaryAction(row({ status: 'cancelled' })), null);
+    assert.equal(chipKey(row({ status: 'cancelled' })), 'scheduled.chip.deleted');
+    assert.equal(reasonKey(row({ status: 'cancelled' })), 'scheduled.reason.deleted');
   });
 
   test('hover shows the way forward and Delete; a click edits, or opens the Sent copy', () => {
@@ -197,6 +209,18 @@ describe('composeDataFromScheduled', () => {
     });
     assert.equal('restored' in data, false, 'not a message undo send gave back');
     assert.equal('editToken' in data.scheduled, false, 'the composer takes the hold itself');
+  });
+
+  test('a plain-text signature is escaped, since the composer reads it as HTML', () => {
+    const data = composeDataFromScheduled({
+      id: 'i', accountId: 'a', version: 1, sendAt: 'x', attachments: [],
+      spec: { to: [], subject: '', body: 'Hi', bodyIsHtml: false, plaintextEmail: true, signature: 'Maria <maria@x.com>\nR&D' },
+    });
+    assert.equal(data.signature, 'Maria &lt;maria@x.com&gt;\nR&amp;D');
+    const html = composeDataFromScheduled({
+      id: 'i', accountId: 'a', version: 1, sendAt: 'x', attachments: [], spec: { to: [], signature: '<b>Maria</b>' },
+    });
+    assert.equal(html.signature, '<b>Maria</b>');
   });
 
   test('a new message keeps its signature and no reply context', () => {

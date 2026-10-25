@@ -10,11 +10,16 @@ import { changeNotices } from './scheduledView.js';
 // message the sender sent, failed or paused is told apart from one the user changed.
 
 export const REFRESH_DEBOUNCE_MS = 300;
+// A steady stream of changes still refreshes at least this often.
+export const REFRESH_MAX_WAIT_MS = 2000;
 
 export function createScheduledFeed({
   store = useStore, client = api, schedule = setTimeout, unschedule = clearTimeout, delayMs = REFRESH_DEBOUNCE_MS,
+  maxWaitMs = REFRESH_MAX_WAIT_MS, clock = () => Date.now(),
 } = {}) {
   let timer = null;
+  // When the first change of the burst waiting now came in.
+  let firstAt = null;
   let running = null;
   let again = false;
   const listeners = new Set();
@@ -42,6 +47,7 @@ export function createScheduledFeed({
   function refresh() {
     unschedule(timer);
     timer = null;
+    firstAt = null;
     if (running) {
       again = true;
       return running;
@@ -63,10 +69,14 @@ export function createScheduledFeed({
     return running;
   }
 
-  // A change seen over the WebSocket: collected for `delayMs`, then one refresh.
+  // A change seen over the WebSocket: collected until `delayMs` pass without another, then one
+  // refresh, but never more than `maxWaitMs` after the first.
   function changed() {
+    const now = clock();
+    if (firstAt == null) firstAt = now;
     unschedule(timer);
-    timer = schedule(() => { timer = null; refresh(); }, delayMs);
+    const wait = Math.max(0, Math.min(delayMs, firstAt + maxWaitMs - now));
+    timer = schedule(() => { timer = null; refresh(); }, wait);
   }
 
   // `onNotices(notices)` hears what changeNotices found. Also fetches the list once, while
@@ -84,6 +94,7 @@ export function createScheduledFeed({
       if (onNotices) listeners.delete(onNotices);
       unschedule(timer);
       timer = null;
+      firstAt = null;
     };
   }
 

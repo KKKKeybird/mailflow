@@ -21,7 +21,9 @@ export const HOLD_RENEW_MS = 5 * 60_000;
 export const isScheduledEdit = composeData => Boolean(composeData?.scheduled?.id);
 
 // The view the schedule toast's View opens: MessageList renders ScheduledList for it (design 5.2).
-export function openScheduledView(store) {
+// With `id` it highlights that message there (a toast's Open, a notification link).
+export function openScheduledView(store, id = null) {
+  if (id) store.getState().setScheduledHighlight?.(id);
   store.getState().setSelectedAccount(null, SCHEDULED_VIEW);
 }
 

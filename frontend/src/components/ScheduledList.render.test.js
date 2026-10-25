@@ -123,7 +123,7 @@ beforeEach(() => {
     sendAnyway: { status: 'scheduled', sendAt: future(0) },
     markSent: { status: 'sent' },
     cancel: { status: 'cancelled', undoUntil: future(0.01) },
-    restore: { status: 'scheduled', sendAt: future(3), sendsImmediately: false },
+    restore: { status: 'scheduled', sendAt: future(3) },
     remove: null,
   };
 });
@@ -355,7 +355,7 @@ describe('actions', () => {
   });
 
   test('Delete (the Delete key) cancels with Undo, and Undo restores it', async () => {
-    answers.restore = { status: 'scheduled', sendAt: future(-0.01), sendsImmediately: true };
+    answers.restore = { status: 'paused', sendAt: future(-0.01), pauseReason: 'user' };
     await mount();
     await key(mainButton(ID.scheduled), 'Delete');
     await settle();
@@ -365,7 +365,7 @@ describe('actions', () => {
     assert.equal(toast.undoMs, 10_000);
     await React.act(async () => { await toast.onUndo(); });
     assert.deepEqual(callsTo('restore'), [['restore', ID.scheduled]]);
-    assert.equal(notifications()[0].title, 'scheduled.toast.restoredSending', 'it says it goes out at once');
+    assert.equal(notifications()[0].title, 'scheduled.toast.restoredPaused', 'its time passed: it came back paused');
   });
 
   test('an Undo too late says it can no longer be restored', async () => {
@@ -474,4 +474,98 @@ test('a notification link highlights its message and focuses it', async () => {
   await settle();
   assert.equal(document.activeElement, mainButton(ID.paused));
   assert.equal(mainButton(ID.paused).style.background, 'var(--accent-dim)');
+});
+
+describe('deleted messages', () => {
+  const DELETED = '10000000-0000-4000-8000-000000000008';
+  const EXPIRED = '10000000-0000-4000-8000-000000000009';
+  const withDeleted = (restoreUntil) => () => {
+    const list = structuredClone(LIST);
+    list.messages.push(
+      { ...base, id: DELETED, status: 'cancelled', sendAt: future(1), restoreUntil, summary: summary('Deleted one') },
+      { ...base, id: EXPIRED, status: 'cancelled', sendAt: future(1), restoreUntil: future(-0.001), summary: summary('Gone') },
+    );
+    return list;
+  };
+
+  test('are listed last, without a count, while they can be restored; Restore and Delete for good', async () => {
+    answers.list = withDeleted(future(0.005));
+    await mount();
+    const sections = [...document.querySelectorAll('[data-scheduled-section]')];
+    assert.equal(sections.at(-1).dataset.scheduledSection, 'deleted');
+    assert.equal(sections.at(-1).querySelector('h3').textContent, 'scheduled.sections.deleted');
+    assert.ok(rowEl(DELETED));
+    assert.equal(rowEl(EXPIRED), null, 'one whose window closed is not shown');
+    assert.equal(rowEl(DELETED).querySelector('[data-scheduled-chip]').textContent, 'scheduled.chip.deleted');
+    assert.match(rowEl(DELETED).textContent, /scheduled\.reason\.deleted:\{"when":/);
+    await React.act(async () => {
+      rowEl(DELETED).dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 5, clientY: 5 }));
+    });
+    assert.deepEqual([...document.querySelectorAll('[role="menu"] [role="menuitem"]')].map(b => b.dataset.scheduledAction), ['restore', 'delete']);
+    await click(document.querySelector('[role="menu"] [data-scheduled-action="restore"]'));
+    await settle();
+    assert.deepEqual(callsTo('restore'), [['restore', DELETED]]);
+    assert.match(notifications()[0].title, /^compose\.scheduleSend\.scheduledFor/);
+  });
+
+  test('a restore that comes back paused says so', async () => {
+    answers.list = withDeleted(future(0.005));
+    answers.restore = { status: 'paused', sendAt: future(-0.01), pauseReason: 'user' };
+    await mount();
+    await hover(DELETED);
+    await click(action(DELETED, 'restore'));
+    await settle();
+    assert.equal(notifications()[0].title, 'scheduled.toast.restoredPaused');
+  });
+
+  test('leave the list when their window closes', async () => {
+    answers.list = withDeleted(new Date(Date.now() + 300).toISOString());
+    await mount();
+    assert.ok(rowEl(DELETED));
+    await React.act(async () => { await new Promise(r => setTimeout(r, 450)); });
+    assert.equal(rowEl(DELETED), null);
+  });
+});
+
+test('a link to a message not in the list fetches it once more, then says it was not found', async () => {
+  const missing = '10000000-0000-4000-8000-0000000000ff';
+  await mount({ state: { scheduledHighlight: missing } });
+  await settle();
+  await settle();
+  assert.ok(callsTo('list').length >= 2, 'fetched again');
+  assert.equal(useStore.getState().scheduledHighlight, null);
+  assert.equal(notifications()[0].title, 'scheduled.errors.linkNotFound');
+});
+
+describe('review nits', () => {
+  test('an open menu closes when its row leaves the list', async () => {
+    await mount();
+    await React.act(async () => {
+      rowEl(ID.failed).dispatchEvent(new window.MouseEvent('contextmenu', { bubbles: true, cancelable: true, clientX: 5, clientY: 5 }));
+    });
+    assert.ok(document.querySelector('[role="menu"]'));
+    const list = structuredClone(LIST);
+    list.messages = list.messages.filter(m => m.id !== ID.failed);
+    await React.act(async () => { useStore.getState().setScheduledList({ ...list, loadedAt: Date.now(), error: null }); });
+    assert.equal(document.querySelector('[role="menu"]'), null);
+  });
+
+  test('a restore answered 404 (purged meanwhile) says it can no longer be restored', async () => {
+    answers.restore = refusal(404, null, 'Scheduled message not found');
+    await mount();
+    await key(mainButton(ID.scheduled), 'Delete');
+    await settle();
+    await React.act(async () => { await notifications()[0].onUndo(); });
+    assert.equal(notifications()[0].body, 'scheduled.errors.restoreExpired');
+  });
+
+  test('a link whose refetch fails clears the highlight and says not found', async () => {
+    const missing = '10000000-0000-4000-8000-0000000000fe';
+    answers.list = [structuredClone(LIST), new Error('offline')];
+    await mount({ state: { scheduledHighlight: missing } });
+    await settle();
+    await settle();
+    assert.equal(useStore.getState().scheduledHighlight, null);
+    assert.equal(notifications()[0].title, 'scheduled.errors.linkNotFound');
+  });
 });

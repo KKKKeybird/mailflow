@@ -632,7 +632,8 @@
     "sections": {
       "attention": "Needs attention",
       "scheduled": "Scheduled",
-      "sent": "Sent"
+      "sent": "Sent",
+      "deleted": "Deleted"
     },
     "when": {
       "today": "Today {{time}}",
@@ -647,7 +648,8 @@
       "uncertain": "Check delivery",
       "sent": "Sent",
       "sentLate": "Sent late",
-      "retrying": "Retrying"
+      "retrying": "Retrying",
+      "deleted": "Deleted"
     },
     "reason": {
       "overdue": "It was more than 6 hours late, so MailFlow held it. Send it now or pick a new time.",
@@ -668,7 +670,8 @@
       "gaveUp": "The mail server kept failing, so MailFlow stopped trying.",
       "failed": "It could not be sent.",
       "uncertain": "MailFlow stopped while sending it. It may or may not have been delivered. Check your Sent folder.",
-      "retrying": "The last attempt failed. Next attempt: {{when}}."
+      "retrying": "The last attempt failed. Next attempt: {{when}}.",
+      "deleted": "Can be restored until {{when}}."
     },
     "sent": {
       "markedSent": "You marked it as sent.",
@@ -699,7 +702,8 @@
       "viewSent": "View in Sent",
       "remove": "Remove from list",
       "more": "More actions",
-      "menu": "Scheduled message actions"
+      "menu": "Scheduled message actions",
+      "restore": "Restore"
     },
     "confirm": {
       "uncertainTitle": "It may already have been delivered",
@@ -721,10 +725,10 @@
       "deleted": "Scheduled message deleted",
       "deletedForGood": "Deleted for good",
       "restored": "Restored",
-      "restoredSending": "Restored. Its time has passed, so it is being sent now.",
       "sent": "Scheduled message sent",
       "notSent": "Not sent: {{reason}}",
-      "open": "Open"
+      "open": "Open",
+      "restoredPaused": "Restored and paused. Resume it when it should go."
     },
     "errors": {
       "needsReauth": "Sign in to the account again first, then resume it.",
@@ -737,7 +741,8 @@
       "editing": "It is open for editing in another window.",
       "failed": "The scheduled message could not be changed.",
       "restoreFailed": "Could not restore it",
-      "restoreExpired": "It can no longer be restored."
+      "restoreExpired": "It can no longer be restored.",
+      "linkNotFound": "That scheduled message was not found."
     }
   },
   "contextMenu": {
@@ -1192,7 +1197,10 @@
       "trustedAuthservWarn": "Only trust an ID you recognize as your mail provider's receiving server.",
       "enabledGlobally": "Enabled globally",
       "microsoftImapNoteSignIn": "Microsoft no longer accepts passwords for Outlook.com, Hotmail, Live and MSN mailboxes. Sign in with Microsoft instead: no app password is needed.",
-      "deleteScheduled": "Scheduled messages not yet sent that are deleted with it: {{n}}."
+      "deleteScheduled": "Scheduled messages not yet sent that are deleted with it: {{n}}.",
+      "deleteTitle": "Remove account?",
+      "deleteBody": "All synced messages for this account will be deleted. This cannot be undone.",
+      "deleteConfirm": "Remove"
     },
     "folderMappings": {
       "title": "Folder mappings",

@@ -347,6 +347,14 @@ describe('the rest', () => {
     assert.deepEqual(seen, [[null, SCHEDULED_VIEW]]);
     assert.equal(SCHEDULED_VIEW, '__scheduled__');
   });
+
+  test('openScheduledView with an id highlights that message there', () => {
+    const seen = [];
+    openScheduledView({ getState: () => ({
+      setScheduledHighlight: id => seen.push(['highlight', id]), setSelectedAccount: (...args) => seen.push(args),
+    }) }, 'id-1');
+    assert.deepEqual(seen, [['highlight', 'id-1'], [null, SCHEDULED_VIEW]]);
+  });
 });
 
 describe('undoing a schedule', () => {

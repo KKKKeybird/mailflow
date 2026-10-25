@@ -12,18 +12,34 @@ export const ATTENTION_STATUSES = new Set(['failed', 'paused', 'uncertain']);
 const bySendAt = (a, b) => (new Date(a.sendAt) - new Date(b.sendAt)) || String(a.id).localeCompare(String(b.id));
 const bySentAt = (a, b) => (new Date(b.sentAt || 0) - new Date(a.sentAt || 0)) || String(a.id).localeCompare(String(b.id));
 
+// A deleted message that can still be restored at `now`.
+export const isRestorable = (row, now = Date.now()) => row?.status === 'cancelled'
+  && Boolean(row.restoreUntil) && new Date(row.restoreUntil).getTime() > (now instanceof Date ? now.getTime() : now);
+
 // The sections, in the order the view shows them: Needs attention, Scheduled (scheduled, being
-// edited or being sent), soonest first, and the recently sent ones, newest first.
-export function groupScheduled(messages = []) {
+// edited or being sent), soonest first, the recently sent ones, newest first, and the deleted ones
+// still in their restore window, the last deleted first.
+export function groupScheduled(messages = [], now = Date.now()) {
   const attention = [];
   const upcoming = [];
   const sent = [];
+  const deleted = [];
   for (const m of messages) {
     if (ATTENTION_STATUSES.has(m.status)) attention.push(m);
     else if (m.status === 'sent') sent.push(m);
-    else if (m.status !== 'cancelled') upcoming.push(m);
+    else if (m.status === 'cancelled') { if (isRestorable(m, now)) deleted.push(m); }
+    else upcoming.push(m);
   }
-  return { attention: attention.sort(bySendAt), upcoming: upcoming.sort(bySendAt), sent: sent.sort(bySentAt) };
+  const byRestoreUntil = (a, b) => (new Date(b.restoreUntil) - new Date(a.restoreUntil)) || String(a.id).localeCompare(String(b.id));
+  return {
+    attention: attention.sort(bySendAt), upcoming: upcoming.sort(bySendAt), sent: sent.sort(bySentAt), deleted: deleted.sort(byRestoreUntil),
+  };
+}
+
+// When the next deleted message's restore window closes, so the view can drop it then; null if none.
+export function nextRestoreEnd(messages = [], now = Date.now()) {
+  const ends = messages.filter(m => isRestorable(m, now)).map(m => new Date(m.restoreUntil).getTime());
+  return ends.length ? Math.min(...ends) : null;
 }
 
 // A message the sender tried and will try again (a retry is `scheduled` with the last failure kept).
@@ -34,7 +50,8 @@ export const isRetrying = row => row?.status === 'scheduled' && Number(row.attem
 // now and reschedule ask first for uncertain and restored ones), resume from paused and failed,
 // send anyway and mark as sent for uncertain only, cancel (Delete, with Undo) from anything but
 // sending and sent, and delete for good from anything but sending. One being edited can be opened
-// (the composer offers to take it over) or deleted; one being sent, nothing.
+// (the composer offers to take it over) or deleted; one being sent, nothing; a deleted one, in its
+// window, restored or deleted for good.
 export function rowActions(row) {
   switch (row?.status) {
     case 'scheduled': return ['edit', 'reschedule', 'sendNow', 'cancel', 'delete'];
@@ -43,6 +60,7 @@ export function rowActions(row) {
     case 'failed': return ['edit', 'resume', 'reschedule', 'sendNow', 'cancel', 'delete'];
     case 'uncertain': return ['sendAnyway', 'markSent', 'edit', 'reschedule', 'cancel', 'delete'];
     case 'sent': return [...(row.result?.sentFolder && row.result?.messageId ? ['viewSent'] : []), 'remove'];
+    case 'cancelled': return ['restore', 'delete'];
     default: return [];
   }
 }
@@ -51,6 +69,7 @@ export function rowActions(row) {
 // and Delete.
 export function hoverActions(row) {
   const all = rowActions(row);
+  if (row?.status === 'cancelled') return ['restore'];
   const lead = ['sendAnyway', 'resume', 'sendNow'].find(a => all.includes(a));
   return ['edit', 'reschedule', lead, 'cancel'].filter(a => a && all.includes(a));
 }
@@ -73,6 +92,7 @@ export const ACTION_LABELS = {
   delete: 'scheduled.actions.delete',
   viewSent: 'scheduled.actions.viewSent',
   remove: 'scheduled.actions.remove',
+  restore: 'scheduled.actions.restore',
 };
 // Resume reads "Try again" for a message that failed.
 export const actionLabelKey = (action, row) => (action === 'resume' && row?.status === 'failed' ? ACTION_LABELS.retry : ACTION_LABELS[action]);
@@ -102,6 +122,7 @@ export function reasonKey(row) {
   if (row?.status === 'uncertain') return 'scheduled.reason.uncertain';
   if (row?.status === 'paused') return PAUSE_REASONS[row.pauseReason] || 'scheduled.reason.paused';
   if (row?.status === 'failed') return FAILURE_REASONS[row.failureCode] || 'scheduled.reason.failed';
+  if (row?.status === 'cancelled') return 'scheduled.reason.deleted';
   if (isRetrying(row)) return 'scheduled.reason.retrying';
   return null;
 }
@@ -115,6 +136,7 @@ export function chipKey(row) {
     case 'paused': return 'scheduled.chip.paused';
     case 'uncertain': return 'scheduled.chip.uncertain';
     case 'sent': return row.sentLate ? 'scheduled.chip.sentLate' : 'scheduled.chip.sent';
+    case 'cancelled': return 'scheduled.chip.deleted';
     default: return isRetrying(row) ? 'scheduled.chip.retrying' : null;
   }
 }
@@ -217,6 +239,8 @@ export function rowLabel(row, { t, when, summary, reason }) {
   return parts.join(', ');
 }
 
+const escapePlain = text => String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
 // The composer's data for editing a message, from GET /api/mail/scheduled/:id: the spec's fields
 // as a reopened message has them, what the composer was (spec.compose), and `scheduled`
 // (utils/scheduledCompose.js). The composer takes the hold itself; `restored` is not set, since
@@ -239,8 +263,9 @@ export function composeDataFromScheduled(detail) {
     body: spec.body || '',
     ...(spec.quotedBody ? { quotedBody: spec.quotedBody } : {}),
     ...(spec.quotedBodyHtml ? { quotedBodyHtml: spec.quotedBodyHtml } : {}),
-    // What it was to be sent with: an empty one is the signature turned off.
-    signature: spec.signature ?? '',
+    // What it was to be sent with: an empty one is the signature turned off. The composer reads
+    // it as HTML, so a plain-text one is escaped, as buildRestoreData does for undo send.
+    signature: spec.plaintextEmail === true ? escapePlain(spec.signature ?? '') : (spec.signature ?? ''),
     ...(spec.priority && spec.priority !== 'normal' ? { priority: spec.priority } : {}),
     ...(spec.inReplyTo ? { inReplyTo: spec.inReplyTo } : {}),
     ...(spec.references ? { references: spec.references } : {}),
