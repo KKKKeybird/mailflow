@@ -260,7 +260,8 @@
         "undone": "Nie wysłano. Wróciła do Zaplanowanych bez zmian.",
         "undoFailed": "Nie udało się cofnąć natychmiastowej wysyłki"
       }
-    }
+    },
+    "selectAccount": "Wybierz konto do wysyłki"
   },
   "message": {
     "find": {

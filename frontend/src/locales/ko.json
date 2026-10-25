@@ -260,7 +260,8 @@
         "undone": "보내지 않았습니다. 예약됨에 그대로 돌아왔습니다.",
         "undoFailed": "지금 보내기를 취소하지 못했습니다"
       }
-    }
+    },
+    "selectAccount": "보낼 계정을 선택하세요"
   },
   "message": {
     "printConversation": "대화 인쇄",

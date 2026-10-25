@@ -260,7 +260,8 @@
         "undone": "Nicht gesendet. Sie ist wieder unter Geplant, wie zuvor.",
         "undoFailed": "Jetzt senden konnte nicht rückgängig gemacht werden"
       }
-    }
+    },
+    "selectAccount": "Wähle ein Konto zum Senden"
   },
   "message": {
     "find": {

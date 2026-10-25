@@ -260,7 +260,8 @@
         "undone": "Non envoyé. Il est de retour dans Programmés, comme avant.",
         "undoFailed": "Impossible d'annuler l'envoi immédiat"
       }
-    }
+    },
+    "selectAccount": "Choisissez un compte d'envoi"
   },
   "message": {
     "find": {

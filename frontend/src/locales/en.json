@@ -260,7 +260,8 @@
         "undone": "Not sent. It is back in Scheduled as it was.",
         "undoFailed": "Could not undo Send now"
       }
-    }
+    },
+    "selectAccount": "Choose an account to send from"
   },
   "message": {
     "find": {

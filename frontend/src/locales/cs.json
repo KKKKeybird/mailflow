@@ -631,7 +631,8 @@
         "undone": "Neodesláno. Je zpět v Naplánovaných jako předtím.",
         "undoFailed": "Okamžité odeslání se nepodařilo vrátit"
       }
-    }
+    },
+    "selectAccount": "Vyberte účet, ze kterého odeslat"
   },
   "notifications": {
     "newMessage": "Nová zpráva"

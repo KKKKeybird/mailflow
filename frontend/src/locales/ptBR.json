@@ -260,7 +260,8 @@
         "undone": "Não enviada. Ela voltou para Agendados como estava.",
         "undoFailed": "Não foi possível desfazer o envio imediato"
       }
-    }
+    },
+    "selectAccount": "Escolha uma conta para enviar"
   },
   "message": {
     "find": {

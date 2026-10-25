@@ -260,7 +260,8 @@
         "undone": "No enviado. Ha vuelto a Programados como estaba.",
         "undoFailed": "No se pudo deshacer el envío inmediato"
       }
-    }
+    },
+    "selectAccount": "Elige una cuenta desde la que enviar"
   },
   "message": {
     "find": {
