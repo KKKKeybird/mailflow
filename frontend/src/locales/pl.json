@@ -759,7 +759,8 @@
       "restoreFailed": "Nie udało się jej przywrócić",
       "restoreExpired": "Nie można jej już przywrócić.",
       "linkNotFound": "Nie znaleziono tej zaplanowanej wiadomości."
-    }
+    },
+    "serverReply": "Odpowiedź serwera: {{detail}}"
   },
   "contextMenu": {
     "find": "Znajdź",

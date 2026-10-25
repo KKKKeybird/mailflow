@@ -743,7 +743,8 @@
       "restoreFailed": "Could not restore it",
       "restoreExpired": "It can no longer be restored.",
       "linkNotFound": "That scheduled message was not found."
-    }
+    },
+    "serverReply": "Server reply: {{detail}}"
   },
   "contextMenu": {
     "find": "Find",

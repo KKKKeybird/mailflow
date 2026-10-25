@@ -149,6 +149,13 @@ describe('Sidebar: the Scheduled entry', () => {
     assert.equal(entry().getAttribute('aria-label'), 'sidebar.scheduled, sidebar.scheduledAttention');
   });
 
+  test('its name carries the pending count the badge shows, and the attention count', async () => {
+    await mount({ state: { scheduledCount: 1, scheduledAttention: 3 } });
+    assert.equal(entry().getAttribute('aria-label'), 'sidebar.scheduled, sidebar.scheduledPending, sidebar.scheduledAttention');
+    await mount({ state: { scheduledCount: 1, scheduledAttention: 0 } });
+    assert.equal(entry().getAttribute('aria-label'), 'sidebar.scheduled, sidebar.scheduledPending');
+  });
+
   test('stays while the view is open, and is the active row, not All Inboxes', async () => {
     await mount({ state: { selectedAccountId: null, selectedFolder: '__scheduled__' } });
     assert.ok(entry());

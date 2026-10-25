@@ -743,7 +743,8 @@
       "restoreFailed": "无法恢复",
       "restoreExpired": "已无法恢复。",
       "linkNotFound": "未找到该定时邮件。"
-    }
+    },
+    "serverReply": "服务器回复：{{detail}}"
   },
   "contextMenu": {
     "find": "查找",

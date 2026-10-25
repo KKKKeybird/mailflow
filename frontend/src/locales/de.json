@@ -743,7 +743,8 @@
       "restoreFailed": "Konnte nicht wiederhergestellt werden",
       "restoreExpired": "Sie lässt sich nicht mehr wiederherstellen.",
       "linkNotFound": "Diese geplante Nachricht wurde nicht gefunden."
-    }
+    },
+    "serverReply": "Antwort des Servers: {{detail}}"
   },
   "contextMenu": {
     "find": "Suchen",

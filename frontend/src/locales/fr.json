@@ -743,7 +743,8 @@
       "restoreFailed": "Impossible de le restaurer",
       "restoreExpired": "Il ne peut plus être restauré.",
       "linkNotFound": "Ce message programmé est introuvable."
-    }
+    },
+    "serverReply": "Réponse du serveur : {{detail}}"
   },
   "contextMenu": {
     "find": "Rechercher",

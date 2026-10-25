@@ -229,6 +229,7 @@ describe('Send later on desktop', () => {
     const [toast] = useStore.getState().notifications;
     assert.equal(typeof toast.onAction, 'function', 'View');
     assert.equal(toast.undoMs, 10_000);
+    assert.equal(toast.scheduledUndoFor, 's1', 'another action on it in the Scheduled view can dismiss it');
     await React.act(async () => { toast.onUndo(); });
     await settle();
     assert.deepEqual(callsTo('cancel')[0], ['cancel', 's1']);
@@ -673,6 +674,7 @@ describe('Send now while editing', () => {
     const [toast] = useStore.getState().notifications;
     assert.equal(toast.title, 'compose.undoSend.sending');
     assert.ok(toast.undoMs > 9000 && toast.undoMs <= 10_000);
+    assert.equal(toast.scheduledUndoFor, ID);
     await React.act(async () => { toast.onUndo(); });
     await settle();
     assert.deepEqual(callsTo('undoSendNow')[0], ['undoSendNow', ID, 'undo-token']);

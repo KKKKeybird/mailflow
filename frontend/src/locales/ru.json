@@ -743,7 +743,8 @@
       "restoreFailed": "Не удалось восстановить",
       "restoreExpired": "Его больше нельзя восстановить.",
       "linkNotFound": "Это запланированное письмо не найдено."
-    }
+    },
+    "serverReply": "Ответ сервера: {{detail}}"
   },
   "contextMenu": {
     "find": "Найти",

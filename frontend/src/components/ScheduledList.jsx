@@ -10,7 +10,9 @@ import { ComposeQuestion, SendLaterMenu, SendLaterSheet, SendLaterIcon, trapTab 
 import { shortcutBus } from '../utils/shortcutBus.js';
 import { scheduledFeed } from '../utils/scheduledFeed.js';
 import { browserTimeZone, formatSendAt } from '../utils/scheduleTimes.js';
-import { SCHEDULE_UNDO_MS, needsConfirmation, once, sendNowUndoMs, undoSendNow } from '../utils/scheduledCompose.js';
+import {
+  SCHEDULE_UNDO_MS, UNDO_FOR, needsConfirmation, once, sendNowUndoMs, supersedeUndo, undoSendNow,
+} from '../utils/scheduledCompose.js';
 import { openSentMessage } from '../utils/openSentMessage.js';
 import {
   actionErrorText, actionLabelKey, chipKey, chipTone, composeDataFromScheduled, formatScheduledTime, groupScheduled,
@@ -194,6 +196,9 @@ export default function ScheduledList() {
     setBusyId(row.id);
     try {
       const result = await call(confirm);
+      // Done: an Undo still offered for this message (its schedule, a Send now, a Delete) would
+      // put back what this changed, so it goes. A refused action leaves it.
+      supersedeUndo(useStore, row.id);
       await onDone?.(result);
     } catch (err) {
       if (!confirm && needsConfirmation(err)) {
@@ -216,6 +221,7 @@ export default function ScheduledList() {
 
   const restore = (row) => api.scheduled.restore(row.id)
     .then((r) => {
+      supersedeUndo(useStore, row.id);
       const body = subjectOf(row);
       // Its time passed meanwhile: the server put it back paused, so it never goes out at once.
       if (r?.status === 'paused' && r.pauseReason === 'user') notify({ title: t('scheduled.toast.restoredPaused'), body });
@@ -251,7 +257,9 @@ export default function ScheduledList() {
               return;
             }
             // An open composer is asked first, as for any message; it says why when it keeps its own.
-            useStore.getState().openCompose(composeDataFromScheduled(detail));
+            // Once it is open on the message, an Undo still offered for it goes.
+            return Promise.resolve(useStore.getState().openCompose(composeDataFromScheduled(detail)))
+              .then(opened => { if (opened) supersedeUndo(useStore, row.id); });
           })
           .catch(err => fail(row, err))
           .finally(() => setBusyId(null));
@@ -266,6 +274,7 @@ export default function ScheduledList() {
           notify({
             title: t('compose.undoSend.sending', { subject }),
             undoMs: sendNowUndoMs(started),
+            [UNDO_FOR]: row.id,
             onUndo: once(() => {
               if (!mine()) return;
               return undoSendNow({ id: row.id, undoToken: r.undoToken, subject }, {
@@ -295,7 +304,7 @@ export default function ScheduledList() {
         return;
       case 'cancel':
         attempt(row, () => api.scheduled.cancel(row.id), () => notify({
-          title: t('scheduled.toast.deleted'), body: subject, undoMs: SCHEDULE_UNDO_MS,
+          title: t('scheduled.toast.deleted'), body: subject, undoMs: SCHEDULE_UNDO_MS, [UNDO_FOR]: row.id,
           onUndo: once(() => (mine() ? restore(row) : undefined)),
         }));
         return;
@@ -550,7 +559,10 @@ function ScheduledRow({
       : row.status === 'cancelled' ? t(reasonId, { when: formatScheduledTime(row.restoreUntil, { t, now }) })
         : t(reasonId);
   const notes = sentNotes(row, { t, now });
-  const detail = row.failureDetail && (reasonId || isRetrying(row)) ? row.failureDetail : null;
+  // The server's reply, or MailFlow's explanation; never "try again" beside an uncertain message.
+  const detail = row.failureDetail && (reasonId || isRetrying(row))
+    && !(row.status === 'uncertain' && /try again/i.test(row.failureDetail)) ? row.failureDetail : null;
+  const serverReply = detail && /^[245]\d\d[\s-]/.test(detail);
   const subject = summary?.subject || (row.status === 'sent' && !summary ? t('scheduled.sentMessage') : t('common.noSubject'));
   const to = names.length
     ? (more ? t('scheduled.toMore', { names: names.join(', '), more }) : t('scheduled.to', { names: names.join(', ') }))
@@ -645,7 +657,7 @@ function ScheduledRow({
         )}
         {detail && (
           <span style={{ display: 'block', marginTop: 2, fontSize: 11, color: 'var(--text-tertiary)', overflowWrap: 'anywhere' }}>
-            {t('scheduled.detail', { detail })}
+            {serverReply ? t('scheduled.serverReply', { detail }) : t('scheduled.detail', { detail })}
           </span>
         )}
         {notes.map(n => (

@@ -743,7 +743,8 @@
       "restoreFailed": "Não foi possível restaurá-la",
       "restoreExpired": "Ela não pode mais ser restaurada.",
       "linkNotFound": "Essa mensagem agendada não foi encontrada."
-    }
+    },
+    "serverReply": "Resposta do servidor: {{detail}}"
   },
   "contextMenu": {
     "find": "Localizar",

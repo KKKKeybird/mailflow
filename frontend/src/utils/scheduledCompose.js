@@ -38,6 +38,14 @@ export function newClientKey(cryptoApi = globalThis.crypto) {
   return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`;
 }
 
+// The field an Undo toast of one scheduled message carries its id in (the schedule toast, Send
+// now's, Delete's). Any other action on that message in this tab dismisses the toast: its Undo
+// would put back something the user has changed since (supersedeUndo).
+export const UNDO_FOR = 'scheduledUndoFor';
+export function supersedeUndo(store, id) {
+  store.getState().dismissUndoNotifications?.(n => n[UNDO_FOR] === id);
+}
+
 // How long the "Scheduled for ..." toast offers Undo. Cancel works for minutes on the server; the
 // toast is what bounds it, so Undo is there exactly as long as the toast is.
 export const SCHEDULE_UNDO_MS = 10_000;

@@ -194,7 +194,7 @@ describe('sections and rows', () => {
     assert.equal(chip(ID.editing), 'scheduled.chip.editing');
     assert.equal(chip(ID.sent), 'scheduled.chip.sentLate');
     assert.ok(rowEl(ID.failed).textContent.includes('scheduled.reason.smtpRejected'));
-    assert.ok(rowEl(ID.failed).textContent.includes('scheduled.detail:{"detail":"550 5.1.1 no such user"}'));
+    assert.ok(rowEl(ID.failed).textContent.includes('scheduled.serverReply:{"detail":"550 5.1.1 no such user"}'));
     assert.ok(rowEl(ID.paused).textContent.includes('scheduled.reason.needsReauth'));
     assert.ok(rowEl(ID.restored).textContent.includes('scheduled.reason.restored'));
     assert.ok(rowEl(ID.uncertain).textContent.includes('scheduled.reason.uncertain'));
@@ -567,5 +567,47 @@ describe('review nits', () => {
     await settle();
     assert.equal(useStore.getState().scheduledHighlight, null);
     assert.equal(notifications()[0].title, 'scheduled.errors.linkNotFound');
+  });
+});
+
+describe('details and superseded undos', () => {
+  test('an uncertain row never says "try again"; a MailFlow explanation is labeled as the reason', async () => {
+    answers.list = () => {
+      const list = structuredClone(LIST);
+      list.messages.find(m => m.id === ID.uncertain).failureDetail = 'Failed to send message. Please try again.';
+      list.messages.find(m => m.id === ID.failed).failureDetail = 'The alias no longer exists.';
+      return list;
+    };
+    await mount();
+    assert.equal(rowEl(ID.uncertain).textContent.includes('try again'), false);
+    assert.ok(rowEl(ID.failed).textContent.includes('scheduled.detail:{"detail":"The alias no longer exists."}'));
+  });
+
+  test('another action on a message dismisses the Undo still offered for it', async () => {
+    await mount();
+    await React.act(async () => {
+      useStore.getState().addNotification({ title: 'scheduled', onUndo: () => {}, undoMs: 10_000, scheduledUndoFor: ID.scheduled });
+      useStore.getState().addNotification({ title: 'other', onUndo: () => {}, undoMs: 10_000, scheduledUndoFor: ID.failed });
+    });
+    await hover(ID.scheduled);
+    await click(action(ID.scheduled, 'reschedule'));
+    await click(rowEl(ID.scheduled).querySelector('[data-preset="tomorrowMorning"]'));
+    await settle();
+    const titles = notifications().map(n => n.title);
+    assert.equal(titles.includes('scheduled'), false, 'the schedule Undo for it is gone');
+    assert.ok(titles.includes('other'), 'another message keeps its Undo');
+  });
+
+  test('a refused action leaves the Undo offered for the message', async () => {
+    answers.reschedule = refusal(409, null, 'This message is being sent now.', { state: 'sending' });
+    await mount();
+    await React.act(async () => {
+      useStore.getState().addNotification({ title: 'scheduled', onUndo: () => {}, undoMs: 10_000, scheduledUndoFor: ID.scheduled });
+    });
+    await hover(ID.scheduled);
+    await click(action(ID.scheduled, 'reschedule'));
+    await click(rowEl(ID.scheduled).querySelector('[data-preset="tomorrowMorning"]'));
+    await settle();
+    assert.ok(notifications().some(n => n.title === 'scheduled'));
   });
 });

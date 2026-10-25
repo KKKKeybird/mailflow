@@ -36,7 +36,7 @@ import { stripTags } from '../utils/stripTags.js';
 import { aiTextToHtml } from '../utils/aiText.js';
 import { browserTimeZone, checkSendAt, formatSendAt } from '../utils/scheduleTimes.js';
 import {
-  DUE_MARGIN_MS, SCHEDULE_UNDO_MS, SEND_NOW_SAVE_AHEAD_MS, createEditHold, isScheduledEdit, needsConfirmation, newClientKey, once,
+  DUE_MARGIN_MS, SCHEDULE_UNDO_MS, UNDO_FOR, SEND_NOW_SAVE_AHEAD_MS, createEditHold, isScheduledEdit, needsConfirmation, newClientKey, once,
   openScheduledView, scheduleErrorText, sendNowUndoMs, undoSchedule, undoSendNow,
 } from '../utils/scheduledCompose.js';
 import { ComposeQuestion, ScheduledStrip, SendLaterIcon, SendLaterMenu, SendLaterSheet } from './SendLater.jsx';
@@ -1187,6 +1187,8 @@ export default function ComposeModal() {
       onAction: () => openScheduledView(useStore),
       ...(undo ? {
         undoMs: SCHEDULE_UNDO_MS,
+        // Another action on this message in the Scheduled view dismisses this Undo (UNDO_FOR).
+        [UNDO_FOR]: undo.id,
         // Once only: a second click while the toast fades out must not reopen it twice.
         onUndo: once(() => {
           if (useStore.getState().user?.id !== owner) return;
@@ -1356,6 +1358,7 @@ export default function ComposeModal() {
       addNotification({
         title: t('compose.undoSend.sending', { subject: shownSubject }),
         undoMs: sendNowUndoMs(started),
+        [UNDO_FOR]: id,
         onUndo: once(() => {
           if (useStore.getState().user?.id !== owner) return;
           return undoSendNow({ id, undoToken: result.undoToken, subject: shownSubject }, {

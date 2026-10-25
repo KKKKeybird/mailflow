@@ -2127,7 +2127,10 @@ export default function Sidebar() {
 // `alert` (the Scheduled entry's "2 need attention") adds a red dot and is said with the label.
 function NavItem({ icon, label, active, collapsed, badge, badgeStale = false, badgeTitle, alert = null, onClick, mailboxRow = false }) {
   const navBadge = unreadBadge({ count: badge, stale: badgeStale, max: 999 });
-  const name = alert ? `${label}, ${alert}` : label;
+  // The name says what the badge and the dot show: "Scheduled, Waiting to be sent: 1, Need
+  // attention: 3". Only an entry with its own badge title (Scheduled) names its count.
+  const parts = [label, badgeTitle && navBadge ? badgeTitle : null, alert].filter(Boolean);
+  const name = parts.length > 1 ? parts.join(', ') : null;
   return (
     <div
       data-mailbox-row={mailboxRow ? '' : undefined}
@@ -2136,8 +2139,8 @@ function NavItem({ icon, label, active, collapsed, badge, badgeStale = false, ba
       onKeyDown={activateOnKey(onClick)}
       role="button"
       tabIndex={0}
-      title={alert ? name : collapsedTooltip(label, collapsed)}
-      aria-label={alert ? name : collapsedTooltip(label, collapsed)}
+      title={name || collapsedTooltip(label, collapsed)}
+      aria-label={name || collapsedTooltip(label, collapsed)}
       style={{
         display: 'flex', alignItems: 'center',
         gap: 8, padding: collapsed ? '9px' : '8px 10px',

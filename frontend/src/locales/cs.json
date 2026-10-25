@@ -292,7 +292,8 @@
       "restoreFailed": "Nepodařilo se ji obnovit",
       "restoreExpired": "Už ji nelze obnovit.",
       "linkNotFound": "Tato naplánovaná zpráva nebyla nalezena."
-    }
+    },
+    "serverReply": "Odpověď serveru: {{detail}}"
   },
   "messageList": {
     "replyDraftChanged": "Koncept odpovědi se změnil. Zkuste jej znovu otevřít.",
