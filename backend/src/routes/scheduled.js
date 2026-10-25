@@ -402,11 +402,22 @@ router.post('/scheduled/:id/hold', validId, async (req, res) => {
   res.json({ editToken: row.edit_token, editLeaseUntil: row.edit_lease_until, version: row.version, statusBefore: row.status_before });
 });
 
+// Hands the message back: to the status it had before the hold. With keepPaused (the composer's
+// Keep paused, for a message that fell due while open, design 2.3) a scheduled message becomes
+// paused with pause_reason 'user' instead, so it does not go out the moment it is released; it
+// goes on with Resume. A message that was paused keeps its reason (a restored one still asks
+// before it is sent), and one that failed or may have gone out stays so: neither would be sent
+// by a release anyway, and uncertain must keep its question. No push: the user just chose this.
 router.post('/scheduled/:id/release', validId, async (req, res) => {
   const editToken = String(req.body?.editToken || '');
   if (!UUID_RE.test(editToken)) return fail(res, 400, 'editToken is required');
+  const keepPaused = req.body?.keepPaused === true;
   const row = await update(req.session.userId, req.params.id, ['editing'],
-    `status = COALESCE(status_before, 'scheduled'), status_before = NULL, edit_token = NULL, edit_lease_until = NULL`,
+    keepPaused
+      ? `status = CASE WHEN status_before IN ('failed', 'uncertain') THEN status_before ELSE 'paused' END,
+         pause_reason = CASE WHEN status_before IN ('paused', 'failed', 'uncertain') THEN pause_reason ELSE 'user' END,
+         status_before = NULL, edit_token = NULL, edit_lease_until = NULL`
+      : `status = COALESCE(status_before, 'scheduled'), status_before = NULL, edit_token = NULL, edit_lease_until = NULL`,
     [editToken], 'AND edit_token = $4::uuid');
   if (!row) return lostHold(res, req.session.userId, req.params.id);
   changed(req.session.userId, row.id, row.status);

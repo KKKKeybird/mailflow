@@ -45,7 +45,7 @@ CREATE TABLE IF NOT EXISTS scheduled_messages (
   edit_token        UUID,
   edit_lease_until  TIMESTAMPTZ,
   pause_reason      TEXT CHECK (pause_reason IN ('overdue', 'restored', 'edit_abandoned',
-                                                 'account_disabled', 'needs_reauth')),
+                                                 'account_disabled', 'needs_reauth', 'user')),
   -- What an edit hold or a cancel returns the message to.
   status_before     TEXT CHECK (status_before IN ('scheduled', 'paused', 'failed', 'uncertain')),
   -- A machine code, listed in services/scheduledSend.js and mapped to copy in the UI. Any text

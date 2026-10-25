@@ -32,6 +32,7 @@ vi.mock('../index.js', () => ({
 }));
 vi.mock('../services/draftCopies.js', () => ({ deleteSentDraft: vi.fn(async () => true) }));
 vi.mock('../services/rateLimiter.js', () => ({ consume: vi.fn(async () => ({ limited: false, resetMs: 60_000 })) }));
+vi.mock('../services/pushNotifications.js', () => ({ sendPushToUser: vi.fn(async () => {}) }));
 
 import express from 'express';
 import { runMigrations } from '../services/migrations.js';
@@ -39,6 +40,7 @@ import routes from './scheduled.js';
 import { imapManager } from '../index.js';
 import { deleteSentDraft } from '../services/draftCopies.js';
 import { consume } from '../services/rateLimiter.js';
+import { sendPushToUser } from '../services/pushNotifications.js';
 import { aad, openJson, sealJson } from '../services/scheduledSend.js';
 
 const ADMIN_URL = process.env.MAILFLOW_TEST_DATABASE_URL;
@@ -307,6 +309,49 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
       expect((await call('POST', `/${id}/release`, { editToken: held.body.editToken })).body.code).toBe('hold_lost');
       expect((await call('POST', `/${id}/release`, { editToken: other.body.editToken })).body).toEqual({ status: 'failed' });
       expect(await rowOf(id)).toMatchObject({ status: 'failed', status_before: null, edit_token: null });
+    });
+
+    it('keeps a message paused on release when asked (Keep paused), by the user, without a push', async () => {
+      const id = await create();
+      const { body: { editToken } } = await call('POST', `/${id}/hold`, {});
+      expect(await call('POST', `/${id}/release`, { editToken: randomUUID(), keepPaused: true }))
+        .toMatchObject({ status: 409, body: { code: 'hold_lost', status: 'editing' } });
+      expect((await call('POST', `/${id}/release`, { editToken, keepPaused: true }, stranger.id)).status).toBe(404);
+      expect(await rowOf(id)).toMatchObject({ status: 'editing', edit_token: editToken });
+      imapManager.broadcast.mockClear();
+      expect((await call('POST', `/${id}/release`, { editToken, keepPaused: true })).body).toEqual({ status: 'paused' });
+      const row = await rowOf(id);
+      expect(row).toMatchObject({ status: 'paused', pause_reason: 'user', status_before: null, edit_token: null, edit_lease_until: null });
+      expect(broadcasts()).toEqual([{ type: 'scheduled_changed', id, status: 'paused' }]);
+      expect(sendPushToUser).not.toHaveBeenCalled();
+      // The token is spent.
+      expect((await call('POST', `/${id}/release`, { editToken, keepPaused: true })).body.code).toBe('hold_lost');
+      // It goes on with Resume, which asks nothing for a pause the user chose: now, attempts reset.
+      await set(id, { attempts: 2 });
+      const resumed = await call('POST', `/${id}/resume`, {});
+      expect(resumed.status).toBe(200);
+      const after = await rowOf(id);
+      expect(after).toMatchObject({ status: 'scheduled', pause_reason: null, attempts: 0 });
+      expect(Math.abs(after.send_at.getTime() - Date.now())).toBeLessThan(60_000);
+      expect(after.due_at).toEqual(after.send_at);
+    });
+
+    it('keepPaused leaves a paused message its reason, and a failed or uncertain one as it was', async () => {
+      const release = async (id, fields) => {
+        await set(id, fields);
+        const { body: { editToken } } = await call('POST', `/${id}/hold`, {});
+        return (await call('POST', `/${id}/release`, { editToken, keepPaused: true })).body;
+      };
+      const restored = await create();
+      expect(await release(restored, { status: 'paused', pause_reason: 'restored' })).toEqual({ status: 'paused' });
+      expect(await rowOf(restored)).toMatchObject({ status: 'paused', pause_reason: 'restored' });
+      expect((await call('POST', `/${restored}/resume`, {})).body.code).toBe('confirm_restored');
+      const failed = await create();
+      expect(await release(failed, { status: 'failed', failure_code: 'smtp_rejected' })).toEqual({ status: 'failed' });
+      expect(await rowOf(failed)).toMatchObject({ status: 'failed', pause_reason: null, failure_code: 'smtp_rejected' });
+      const uncertain = await create();
+      expect(await release(uncertain, { status: 'uncertain', smtp_started_at: new Date() })).toEqual({ status: 'uncertain' });
+      expect(sendPushToUser).not.toHaveBeenCalled();
     });
 
     it('cannot take a message that is being sent or was sent', async () => {

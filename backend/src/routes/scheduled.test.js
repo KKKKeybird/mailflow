@@ -128,6 +128,34 @@ describe('a message that is not the user\'s', () => {
   });
 });
 
+describe('release', () => {
+  beforeEach(() => { query.mockResolvedValue({ rows: [{ id: ID, status: 'paused' }] }); });
+
+  it('with keepPaused pauses a scheduled message by the user, under the token and the editing guard', async () => {
+    const token = randomUUID();
+    expect(await call('POST', `/${ID}/release`, { editToken: token, keepPaused: true })).toMatchObject({ status: 200, body: { status: 'paused' } });
+    const [sql, params] = query.mock.calls[0];
+    expect(sql).toMatch(/WHERE id = \$1 AND user_id = \$2 AND status = ANY\(\$3\)\s+AND edit_token = \$4::uuid/);
+    expect(sql).toMatch(/ELSE 'paused' END/);
+    expect(sql).toMatch(/ELSE 'user' END/);
+    expect(params).toEqual([ID, 'u1', ['editing'], token]);
+  });
+
+  it('without it hands the message back to the status it had', async () => {
+    await call('POST', `/${ID}/release`, { editToken: randomUUID(), keepPaused: 'yes' });
+    expect(query.mock.calls[0][0]).toMatch(/status = COALESCE\(status_before, 'scheduled'\)/);
+    expect(query.mock.calls[0][0]).not.toMatch(/'user'/);
+  });
+
+  it('a lost hold is 409, and no token is 400', async () => {
+    query.mockResolvedValue({ rows: [] });
+    findOwnedScheduledMessage.mockResolvedValue({ id: ID, status: 'scheduled' });
+    expect(await call('POST', `/${ID}/release`, { editToken: randomUUID(), keepPaused: true }))
+      .toMatchObject({ status: 409, body: { code: 'hold_lost', status: 'scheduled' } });
+    expect((await call('POST', `/${ID}/release`, { keepPaused: true })).status).toBe(400);
+  });
+});
+
 describe('what needs the user\'s confirmation', () => {
   beforeEach(() => { withTransaction.mockImplementation(fn => fn({ query })); });
   const owned = row => findOwnedScheduledMessage.mockResolvedValue({ id: ID, user_id: 'u1', account_id: ACCOUNT, version: 1, ...row });

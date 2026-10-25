@@ -152,6 +152,9 @@ describe.skipIf(!ADMIN_URL)('scheduled messages schema on PostgreSQL (#543)', ()
     for (const over of refused) await expect(insertMessage(over)).rejects.toThrow();
     expect(await insertMessage({ payload_enc: Buffer.alloc(10 * MiB + 29), attachment_bytes: 26214400 })).toBeTruthy();
     for (const before of ['scheduled', 'paused', 'failed', 'uncertain']) expect(await insertMessage({ status_before: before })).toBeTruthy();
+    for (const reason of ['overdue', 'restored', 'edit_abandoned', 'account_disabled', 'needs_reauth', 'user']) {
+      expect(await insertMessage({ status: 'paused', pause_reason: reason })).toBeTruthy();
+    }
     expect(await insertMessage({ smtp_started_at: '2026-10-25T07:00:01Z', smtp_accepted_at: '2026-10-25T07:00:02Z' })).toBeTruthy();
 
     // One send in flight per account.
