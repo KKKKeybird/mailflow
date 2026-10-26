@@ -4773,6 +4773,20 @@ describe('prefetchFolderBodies — stops instead of hammering a refusing provide
   }
   afterEach(() => { vi.restoreAllMocks(); });
 
+  // A prefetch leaves the pool's last idle session to the user's click (acquirePooledClient).
+  it('fetches each body as background work', async () => {
+    const mgr = arrange(() => new Error('Command failed'));
+    await mgr.prefetchFolderBodies('acc-1', UIDS.map(u => `m-${u}`));
+    expect(mgr.fetchMessageBody).toHaveBeenNthCalledWith(1, YAHOO, 101, 'INBOX', { background: true });
+  });
+
+  it('prefetches newly arrived bodies as background work too', async () => {
+    const mgr = arrange(() => new Error('Command failed'));
+    mgr.fetchMessageBody = vi.fn(async () => ({}));
+    await mgr.prefetchNewMessageBodies(YAHOO, [{ id: 'm-101', uid: 101, folder: 'INBOX' }]);
+    expect(mgr.fetchMessageBody).toHaveBeenCalledWith(YAHOO, 101, 'INBOX', { background: true });
+  });
+
   it('stops after the FIRST refusal rather than trying every remaining message', async () => {
     const mgr = arrange(() => Object.assign(new Error('Command failed'), {
       responseText: 'AUTHENTICATE Server error - Please try again later',

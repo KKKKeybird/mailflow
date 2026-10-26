@@ -651,7 +651,7 @@ router.get('/messages/:id/body', async (req, res) => {
     }
 
     const { html, text, attachments, cidsComplete } = await fetchWithTimeout(
-      imapManager.fetchMessageBody(account, message.uid, message.folder),
+      imapManager.fetchMessageBody(account, message.uid, message.folder, { background: Boolean(prefetch) }),
       BODY_FETCH_TIMEOUT_MS
     );
     return await serveFetched({ ...await storeFetchedBody(id, { html, text, attachments, cidsComplete }), attachments });

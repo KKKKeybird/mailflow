@@ -74,6 +74,8 @@ describe('GET /messages/:id/body?prefetch=1 (#677)', () => {
     expect(res.status).toBe(200);
     expect((await res.json()).text).toBe('hello');
     expect(imapManager.fetchMessageBody).toHaveBeenCalledTimes(1);
+    // As background work, which leaves the pool's last idle session to the click.
+    expect(imapManager.fetchMessageBody.mock.calls[0][3]).toEqual({ background: true });
     expect(imapManager.noteUserActivity).not.toHaveBeenCalled();
   });
 
@@ -91,5 +93,6 @@ describe('GET /messages/:id/body?prefetch=1 (#677)', () => {
     expect(res.status).toBe(200);
     expect(imapManager.noteUserActivity).toHaveBeenCalledWith('acct-1');
     expect(imapManager.prefetchBodyVerdict).not.toHaveBeenCalled();
+    expect(imapManager.fetchMessageBody.mock.calls[0][3]).toEqual({ background: false });
   });
 });

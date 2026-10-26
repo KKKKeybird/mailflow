@@ -2139,15 +2139,29 @@ const poolSecondaryGate = {
 export function registerPoolSecondaryGate(gate) { Object.assign(poolSecondaryGate, gate); }
 
 // Exported for imapPool.test.js, which pins how many connections a stalled pool opens.
-export async function acquirePooledClient(account) {
+//
+// `background` work (body prefetch) leaves the last idle session to the user: it takes one only
+// while another stays idle, and otherwise opens a session of its own while the pool may grow, so
+// the prefetch pays for the login rather than the click that follows it. A click on a generic
+// IMAP account right after its list loaded used to queue behind the prefetch that list started
+// and wait out a fresh login (0.7 s alone, 1.4 s behind the prefetch). At the ceiling, or while
+// the provider refuses logins, it takes the last idle session as before rather than wait, so it
+// queues only when nothing is idle at the ceiling. A background grow that fails transiently is
+// retried by fetchMessageBody on a fresh login, so it can cost two logins (never while the backoff
+// is armed, which stops the grow).
+export async function acquirePooledClient(account, { background = false } = {}) {
   const id = account.id;
   if (!connectionPools.has(id)) {
     connectionPools.set(id, { clients: [], inUse: new Set(), waiters: [], pending: 0 });
   }
   const pool = connectionPools.get(id);
+  const poolCap = Math.min(POOL_SIZE, providerProfile(account).poolSize ?? POOL_SIZE);
 
   // Find an idle client
-  const idle = pool.clients.find(c => !pool.inUse.has(c));
+  const idleClients = pool.clients.filter(c => !pool.inUse.has(c));
+  const leaveForUser = background && idleClients.length === 1
+    && pool.clients.length + pool.pending < poolCap && !poolSecondaryGate.isBlocked(id);
+  const idle = leaveForUser ? null : idleClients[0];
   if (idle) {
     pool.inUse.add(idle);
     return handOutPooledClient(pool, idle);
@@ -2162,7 +2176,6 @@ export async function acquirePooledClient(account) {
   // Per-provider clamp. Yahoo refuses logins past a small per-account session ceiling
   // (#474), so a provider profile may cap its pool below the global size; anything the
   // clamp turns away waits in the queue below exactly like a full pool.
-  const poolCap = Math.min(POOL_SIZE, providerProfile(account).poolSize ?? POOL_SIZE);
   if (pool.clients.length + pool.pending < poolCap) {
     // A grow is a fresh AUTHENTICATE. While the secondary backoff is armed the provider is
     // refusing exactly that, so fail fast with the same typed error fetchMessageBody's gate
@@ -2311,8 +2324,8 @@ function guardPoolLease(client) {
 
 // Exported for imapPoolStall.test.js. stallTimeout: false keeps the lease on the normal
 // timeout, for an operation the stall timer cannot judge (appendToFolder).
-export async function withFreshClient(account, fn, { stallTimeout = true } = {}) {
-  const client = await acquirePooledClient(account);
+export async function withFreshClient(account, fn, { stallTimeout = true, background = false } = {}) {
+  const client = await acquirePooledClient(account, { background });
   const lease = stallTimeout ? guardPoolLease(client) : { stalled: false, end() {} };
   try {
     return await fn(client);
@@ -6656,7 +6669,7 @@ export class ImapManager {
         if (existing.rows.length) continue;
 
         const { html, text, attachments, cidsComplete } = await this.fetchMessageBody(
-          account, msg.uid, msg.folder || 'INBOX'
+          account, msg.uid, msg.folder || 'INBOX', { background: true }
         );
         const safeHtml = (html && sanitizeEmail(html)) || null;
         if (safeHtml || text) {
@@ -6719,7 +6732,7 @@ export class ImapManager {
         );
         if (existing.rows.length) continue;
 
-        const { html, text, attachments, cidsComplete } = await this.fetchMessageBody(account, msg.uid, msg.folder);
+        const { html, text, attachments, cidsComplete } = await this.fetchMessageBody(account, msg.uid, msg.folder, { background: true });
         const safeHtml = (html && sanitizeEmail(html)) || null;
         if (safeHtml || text) {
           const snip = snippetFromBody(text, safeHtml || html);
@@ -6791,7 +6804,9 @@ export class ImapManager {
   // Uses a fresh connection to avoid lock contention with sync connection.
   // Auto-retries once on transient connection errors (stale pool connection, NAT
   // timeout, half-open TCP, etc.) so a single click is enough in all common cases.
-  async fetchMessageBody(account, uid, folder) {
+  // `background`: a prefetch nobody is waiting on, which leaves the pool's last idle session to
+  // the user (see acquirePooledClient).
+  async fetchMessageBody(account, uid, folder, { background = false } = {}) {
     // While the provider is refusing secondary logins, a body click can only succeed over a
     // session that already exists. If the pool holds an idle client, use it (no new LOGIN);
     // otherwise fail fast with a typed error the route turns into a clear 503, instead of
@@ -7113,7 +7128,9 @@ export class ImapManager {
     // size-2 pool and inheriting a frozen/half-open pooled session view that would hang the
     // fetch until the hand-out NOOP or POOL_STALL_TIMEOUT_MS closed it. Other providers keep
     // pool-first for TLS reuse.
-    const firstAcquire = providerProfile(account).preferFreshBodyFetch ? withFreshLogin : withFreshClient;
+    const firstAcquire = providerProfile(account).preferFreshBodyFetch
+      ? withFreshLogin
+      : (acct, fn) => withFreshClient(acct, fn, { background });
     try {
       return await doFetch(firstAcquire);
     } catch (firstErr) {
