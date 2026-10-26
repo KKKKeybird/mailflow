@@ -90,16 +90,6 @@ export default function MailApp() {
   const scale = fontSize / 100;
   const hasNativeBridge = Boolean(window.mailflowNative || window.Capacitor?.isNativePlatform?.());
 
-  useEffect(() => {
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') {
-        window.dispatchEvent(new CustomEvent('mailflow:refresh'));
-      }
-    };
-    document.addEventListener('visibilitychange', onVisible);
-    return () => document.removeEventListener('visibilitychange', onVisible);
-  }, []);
-
   const [showShortcutHelp, setShowShortcutHelp] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [labelPickerMessage, setLabelPickerMessage] = useState(null);
