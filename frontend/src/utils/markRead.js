@@ -1,6 +1,6 @@
 import { useStore } from '../store/index.js';
 import { api } from './api.js';
-import { setPending, settleMarkRead, failMarkRead } from './pendingReads.js';
+import { setPending, settleMarkRead, failMarkRead, onReadRollback, pendingMarkReadMap, completedMarkReadMap } from './pendingReads.js';
 
 const scheduledByMessage = new Map();
 const scheduledMessageByTimer = new Map();
@@ -35,13 +35,26 @@ export function cancelScheduledMarkReadFor(id) {
 // together and rolled back together, or a failed PATCH leaves the badge drifting
 // away from the list it is supposed to be counting.
 //
-// Idempotent: an already-read message is a no-op, so callers do not have to guard.
+// Idempotent: an already-read message is a no-op, so callers do not have to guard. So is one whose
+// read is already in flight or has just landed, whatever the copy passed in says.
 
 // onChange(isRead) hears the optimistic change and its rollback, for a caller that keeps its own
 // copy of the message beside the store's: a conversation card does.
 export function applyMarkRead(msg, { onChange } = {}) {
   if (!msg || msg.is_read) return;
   const st = useStore.getState();
+  // A read of this message is already under way, or has just landed and the store still shows it:
+  // a stale copy must not count it a second time. Opening a conversation marks its row read from the
+  // list, and the card the pane opens then marked the same message read again from the thread's
+  // copy, fetched before the first read landed. It goes by that read's guard, not the store's flag
+  // alone, which may itself be stale (an unread on another device while the socket was down); a
+  // failed read has given its guard up, and a manual unread clears it.
+  if (readUnderWay(st, msg.id)) {
+    onChange?.(true);
+    // That read failing rolls the store back; the caller's own copy has to follow it.
+    if (onChange) onReadRollback(msg.id, () => onChange(false));
+    return;
+  }
   st.updateMessage(msg.id, { is_read: true });
   onChange?.(true);
   st.decrementUnread(msg.account_id);
@@ -62,6 +75,13 @@ export function applyMarkRead(msg, { onChange } = {}) {
       st.incrementUnread(msg.account_id);
       st.adjustCategoryCount(msg.category, 1);
     });
+}
+
+function readUnderWay(st, id) {
+  if (pendingMarkReadMap.has(id)) return true;
+  if (!completedMarkReadMap.has(id)) return false;
+  const lists = [st.messages, st.searchResults, ...Object.values(st.threadMessages || {})];
+  return lists.some(list => Array.isArray(list) && list.some(m => m?.id === id && m.is_read));
 }
 
 // Honors the user's markReadBehavior preference. Returns a timer handle when the
