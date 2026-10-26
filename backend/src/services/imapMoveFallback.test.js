@@ -18,7 +18,7 @@ import imapflowMove from 'imapflow/lib/commands/move.js';
 
 vi.mock('imapflow', () => ({ ImapFlow: vi.fn() }));
 vi.mock('./db.js', () => ({ query: vi.fn() }));
-vi.mock('./messageParser.js', () => ({ parseMessage: vi.fn(), buildSnippetFromHtml: vi.fn(), snippetFromBody: vi.fn(), decodeMimeWords: vi.fn(), detectBulkFromParsedHeaders: vi.fn(), parseRawHeaders: vi.fn(), enrichParsedMetadata: vi.fn((p) => p) }));
+vi.mock('./messageParser.js', () => ({ MAX_HEADER_FIELD: 500, parseMessage: vi.fn(), buildSnippetFromHtml: vi.fn(), snippetFromBody: vi.fn(), decodeMimeWords: vi.fn(), detectBulkFromParsedHeaders: vi.fn(), parseRawHeaders: vi.fn(), enrichParsedMetadata: vi.fn((p) => p) }));
 vi.mock('../routes/oauth.js', () => ({ refreshMicrosoftToken: vi.fn(), refreshGoogleToken: vi.fn() }));
 vi.mock('./emailSanitizer.js', () => ({ sanitizeEmail: vi.fn() }));
 vi.mock('./encryption.js', () => ({ decrypt: vi.fn(() => 'pw') }));
@@ -505,5 +505,49 @@ describe.each([
     const r = await mgr.bulkMoveMessages(acct, [4, 5, 6], 'INBOX', 'Archive');
     expect(r.succeeded).toEqual([4, 5, 6]);
     expect([...r.uidMap]).toEqual([[4, 4]]);
+  });
+});
+
+// Removing a label copy expunges its uid only while the server copy there is still the row's
+// message: a row left on a stale uid would otherwise remove another message (#665).
+describe('removeMessageCopy', () => {
+  const rowAt = {};
+  beforeEach(() => {
+    server = makeServer({ capabilities: ['IMAP4rev1', 'UIDPLUS', 'MOVE'] });
+    for (const k of Object.keys(rowAt)) delete rowAt[k];
+    query.mockImplementation(async (sql, params) => {
+      if (sql.startsWith('SELECT * FROM email_accounts')) return { rows: [acct] };
+      if (sql.startsWith('SELECT message_id, date, subject, from_email FROM messages')) {
+        const row = rowAt[`${params[2]}:${params[1]}`];
+        return { rows: row ? [row] : [] };
+      }
+      if (sql.startsWith('DELETE FROM messages')) {
+        const key = `${params[2]}:${params[1]}`;
+        const had = rowAt[key];
+        delete rowAt[key];
+        return { rows: had ? [{ is_read: true }] : [] };
+      }
+      return { rows: [] };
+    });
+  });
+
+  it("expunges a copy that is still its row's message", async () => {
+    rowAt['Trash:7'] = { message_id: '<trash-7@example.com>' };
+    await expect(mgr.removeMessageCopy(acct.id, 7, 'Trash')).resolves.toBe(1);
+    expect(server.folders.Trash.uids).toEqual([8]);
+  });
+
+  it('leaves the message at a stale uid alone, drops the row and pulls the folder', async () => {
+    rowAt['Trash:7'] = { message_id: '<moved-away@example.com>' };
+    await expect(mgr.removeMessageCopy(acct.id, 7, 'Trash')).rejects.toMatchObject({ copyChanged: true, message: expect.stringMatching(/holds another message/) });
+    expect(server.folders.Trash.uids).toEqual([7, 8]);
+    expect(server.commands.filter(([c]) => c === 'EXPUNGE')).toEqual([]);
+    expect(rowAt['Trash:7']).toBeUndefined();
+    expect(mgr.syncFolderOnDemand).toHaveBeenCalledWith(acct, 'Trash');
+  });
+
+  it('expunges nothing for a uid with no row to check it against', async () => {
+    await expect(mgr.removeMessageCopy(acct.id, 7, 'Trash')).resolves.toBe(0);
+    expect(server.folders.Trash.uids).toEqual([7, 8]);
   });
 });

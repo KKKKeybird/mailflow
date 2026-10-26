@@ -7642,12 +7642,31 @@ export class ImapManager {
   // If the IMAP delete throws, the DB row is left in place so the two never silently diverge.
   // Post-remove notification is a plugin concern (generic `afterLabelRemove` hook), so this
   // stays label-feature-agnostic.
+  //
+  // The uid is expunged only while its server copy is still the row's message (isRowsMessage): a
+  // row left on a stale uid, by a move without UIDPLUS before #665 or a sync behind the server,
+  // would otherwise remove whatever message holds that uid now. A uid with no row has nothing to
+  // check against and is left alone. A refused row is dropped and its folder pulled, as a refused
+  // Delete forever is, since sync never corrects it, and the call throws an error marked
+  // `copyChanged`.
   async removeMessageCopy(accountId, uid, folder) {
     const accountResult = await query('SELECT * FROM email_accounts WHERE id = $1', [accountId]);
     const account = accountResult.rows[0];
     if (!account) throw new Error(`removeMessageCopy: account ${accountId} not found`);
 
-    await this.permanentDeleteMessage(account, uid, folder);
+    const { rows: [row] } = await query(
+      'SELECT message_id, date, subject, from_email FROM messages WHERE account_id = $1 AND uid = $2 AND folder = $3',
+      [accountId, uid, folder]
+    );
+    if (!row) return 0;
+    if ((await this.permanentDeleteMessage(account, uid, folder, { expectRow: row })) === false) {
+      await deleteMessageCopyRow(accountId, uid, folder);
+      this.syncFolderOnDemand(account, folder)
+        .catch(err => console.warn(`removeMessageCopy: sync of ${folder} failed: ${err.message}`));
+      const err = new Error(`removeMessageCopy: uid ${uid} in ${folder} holds another message, so nothing was removed`);
+      err.copyChanged = true;
+      throw err;
+    }
     const result = await deleteMessageCopyRow(accountId, uid, folder);
     // Removing a label copy changes label-feed data — let plugins broadcast their refresh.
     await pluginRegistry.runHook('afterLabelRemove', { mgr: this.pluginFacade, account, folder, uid });
