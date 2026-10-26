@@ -491,6 +491,15 @@ describe('conversation actions', () => {
     assert.notEqual(useStore.getState().messages.find(m => m.id === 'm1')?.is_read, false, 'the list copy is not left unread');
   });
 
+  test('the headers dialog opens from a card and its close button has a name', async () => {
+    await click(button('m1', 'contextMenu.viewHeaders'));
+    assert.match(document.body.textContent, /contextMenu\.headers\.title/, 'the headers dialog is open');
+    const close = document.querySelector('button[aria-label="window.close"]');
+    assert.ok(close, 'its close button is named');
+    await click(close);
+    assert.doesNotMatch(document.body.textContent, /contextMenu\.headers\.title/, 'and closes it');
+  });
+
   test('print conversation loads every body in order and prints once', async () => {
     const printAll = document.querySelector('button[aria-label="message.printConversation"]');
     await click(printAll);
