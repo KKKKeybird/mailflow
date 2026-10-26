@@ -1,3 +1,5 @@
+import { orderedRead } from './readOrder.js';
+
 const BASE = '/api';
 
 // Sent on every /api request so the backend CSRF guard accepts it. A cross-site
@@ -380,7 +382,9 @@ export const api = {
     if (unified) qs.set('unified', 'true');
     return request('GET', `/mail/thread?${qs}`);
   },
-  bulkRead: (ids, read) => request('POST', '/mail/messages/bulk-read', { ids, read }),
+  // Per message, in the order the user acted (utils/readOrder.js). `since`, from reserveReadIntent,
+  // leaves out the messages acted on after it was taken.
+  bulkRead: (ids, read, { since } = {}) => orderedRead(ids, list => request('POST', '/mail/messages/bulk-read', { ids: list, read }), { since }),
   bulkStar: (ids, starred) => request('POST', '/mail/messages/bulk-star', { ids, starred }),
   markStarred: (id, starred) => request('PATCH', `/mail/messages/${id}/star`, { starred }),
   markAllRead: (accountId, folder) => request('POST', '/mail/mark-all-read', { accountId, folder }),
