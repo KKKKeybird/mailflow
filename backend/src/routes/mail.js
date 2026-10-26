@@ -2363,9 +2363,12 @@ router.post('/messages/:id/snooze', async (req, res) => {
       if (snoozedUid != null) {
         await query('UPDATE messages SET folder = $1, uid = $2 WHERE id = $3', [snoozedFolder, snoozedUid, tm.id]);
       } else {
-        imapManager._guardMoveUid(tm.account_id, snoozedFolder, tm.uid);
-        await query('UPDATE messages SET folder = $1 WHERE id = $2', [snoozedFolder, tm.id]);
-        setTimeout(() => imapManager._unguardMoveUid(tm.account_id, snoozedFolder, tm.uid), 10_000);
+        // The new uid is not known (see moveMessage), and the source uid can belong to another
+        // message in Snoozed. Drop the row and let a sync of Snoozed file the message, which
+        // the snooze below still finds by its Message-ID.
+        await query('DELETE FROM messages WHERE id = $1', [tm.id]);
+        imapManager.syncFolderOnDemand(account, snoozedFolder)
+          .catch(err => console.warn(`Sync of ${snoozedFolder} after a snooze without a new uid failed: ${err.message}`));
       }
 
       await query(
@@ -2375,7 +2378,7 @@ router.post('/messages/:id/snooze', async (req, res) => {
       );
 
       adjustFolderCounts(tm.account_id, tm.folder, -1, tm.is_read ? 0 : -1);
-      adjustFolderCounts(tm.account_id, snoozedFolder, 1, tm.is_read ? 0 : 1);
+      if (snoozedUid != null) adjustFolderCounts(tm.account_id, snoozedFolder, 1, tm.is_read ? 0 : 1);
     } finally {
       imapManager._unguardMoveUid(tm.account_id, tm.folder, tm.uid);
     }
@@ -2499,17 +2502,18 @@ async function deleteMessage(req, res, id) {
           [message.account_id, newUid, trashPath, id]);
         await query('UPDATE messages SET folder = $1, uid = $2, id = gen_random_uuid() WHERE id = $3', [trashPath, newUid, id]);
       } else {
-        // Non-UIDPLUS: DB holds the stale source UID at the destination. Guard it so
-        // reconcileDeletes does not treat it as an orphan before the next sync corrects it.
-        imapManager._guardMoveUid(message.account_id, trashPath, message.uid);
-        await query('UPDATE messages SET folder = $1, id = gen_random_uuid() WHERE id = $2', [trashPath, id]);
-        setTimeout(() => imapManager._unguardMoveUid(message.account_id, trashPath, message.uid), 10_000);
+        // The new uid is not known (see moveMessage). The source uid can belong to another
+        // message in Trash, so the row is dropped rather than kept on it, and a sync of Trash
+        // files the message under its real uid; Trash's counts come from that sync.
+        await query('DELETE FROM messages WHERE id = $1', [id]);
+        imapManager.syncFolderOnDemand(account, trashPath)
+          .catch(err => console.warn(`Sync of ${trashPath} after a delete without a new uid failed: ${err.message}`));
       }
     } finally {
       imapManager._unguardMoveUid(message.account_id, message.folder, message.uid);
     }
     adjustFolderCounts(message.account_id, message.folder, -1, -wasUnread);
-    adjustFolderCounts(message.account_id, trashPath, 1, wasUnread);
+    if (newUid != null) adjustFolderCounts(message.account_id, trashPath, 1, wasUnread);
   } else {
     // strategy.action === 'expunge': message is already in Trash — permanently delete. A move
     // into Trash without UIDPLUS leaves the row under the message's source uid, which in Trash
@@ -2675,15 +2679,12 @@ async function moveForSpamLabel(messageId, userId, destinationFolder, label) {
         [destinationFolder, newUid, label, messageId]
       );
     } else {
-      // Non-UIDPLUS server: DB holds the stale source UID at the destination.
-      imapManager._guardMoveUid(account.id, destinationFolder, message.uid);
-      await query(
-        `UPDATE messages SET folder = $1,
-            spam_user_override = $2, spam_verdict = $2, spam_analyzed_at = NOW()
-         WHERE id = $3`,
-        [destinationFolder, label, messageId]
-      );
-      setTimeout(() => imapManager._unguardMoveUid(account.id, destinationFolder, message.uid), 10_000);
+      // The new uid is not known (see moveMessage). The source uid can belong to another
+      // message in the destination, so the row is dropped rather than kept on it, and a sync of
+      // the destination files the message under its real uid; its counts come from that sync.
+      await query('DELETE FROM messages WHERE id = $1', [messageId]);
+      imapManager.syncFolderOnDemand(account, destinationFolder)
+        .catch(err => console.warn(`Sync of ${destinationFolder} after a move without a new uid failed: ${err.message}`));
     }
   } finally {
     imapManager._unguardMoveUid(account.id, message.folder, message.uid);
@@ -2692,12 +2693,12 @@ async function moveForSpamLabel(messageId, userId, destinationFolder, label) {
   // Adjust cached folder counts.
   const wasUnread = !message.is_read ? 1 : 0;
   adjustFolderCounts(account.id, message.folder, -1, -wasUnread);
-  adjustFolderCounts(account.id, destinationFolder, 1, wasUnread);
+  if (newUid != null) adjustFolderCounts(account.id, destinationFolder, 1, wasUnread);
 
   // Training log: capture the decision for future model training. Record the UID that now
-  // lives in the destination folder: on a UIDPLUS move the row was re-keyed to newUid above,
-  // so message.uid (the pre-move source UID) would no longer match the messages row. Non-UIDPLUS
-  // servers keep the source UID at the destination, so newUid is null there and we fall back to it.
+  // lives in the destination folder: the row was re-keyed to newUid above, so message.uid (the
+  // pre-move source UID) would no longer match the messages row. Without a new uid there is no
+  // row to match, and the source uid is recorded as before.
   await logSpamTraining(
     userId,
     { ...message, uid: newUid ?? message.uid, account_id: account.id },

@@ -4704,6 +4704,8 @@ export class ImapManager {
             this._autoMoveSem.release(key);
           }
         },
+        // With this account's full row, which the pool needs to log in.
+        syncFolderOnDemand: (_acct, folder) => this.syncFolderOnDemand(account, folder),
         broadcast: (...args) => this.broadcast(...args),
         _guardMoveUid: (...args) => this._guardMoveUid(...args),
         _unguardMoveUid: (...args) => this._unguardMoveUid(...args),
@@ -8048,16 +8050,18 @@ export class ImapManager {
         if (markUnread && newUid) {
           await this.setFlag(account, newUid, row.original_folder, '\\Seen', false);
         } else if (markUnread && row.message_id_header) {
-          // No UIDPLUS — server moved the message but returned no UID map.
-          // Search the destination folder by Message-ID to locate and unflag \Seen.
+          // The move named no new uid. Search the destination folder by Message-ID to locate and
+          // unflag \Seen, but only when that finds one message: a Message-ID is not unique.
           try {
             await withFreshClient(account, async (client) => {
               const lock = await client.getMailboxLock(row.original_folder);
               try {
                 const uids = await client.search({ header: ['Message-ID', row.message_id_header] }, { uid: true });
-                if (uids.length > 0) {
+                if (uids.length === 1) {
                   const r = await client.messageFlagsRemove(String(uids[0]), ['\\Seen'], { uid: true });
                   if (r === false) console.warn(`Snooze wakeup: messageFlagsRemove returned false for ${row.original_folder}`);
+                } else if (uids.length) {
+                  console.warn(`Snooze wakeup: ${uids.length} messages in ${row.original_folder} carry Message-ID ${row.message_id_header}, leaving them as they are`);
                 } else {
                   console.warn(`Snooze wakeup: could not find message in ${row.original_folder} to mark unread (Message-ID: ${row.message_id_header})`);
                 }
@@ -8073,18 +8077,20 @@ export class ImapManager {
         // Update DB: change folder (and mark unread, on its own wake-up), and update UID if the move returned one.
         if (newUid != null) {
           await query(
-            `UPDATE messages SET folder = $1, uid = $4${markUnread ? ', is_read = false, read_changed_at = NOW()' : ''} WHERE account_id = $2 AND message_id = $3 AND folder = $5`,
-            [row.original_folder, row.account_id, row.message_id_header, newUid, row.snoozed_folder]
+            `UPDATE messages SET folder = $1, uid = $4${markUnread ? ', is_read = false, read_changed_at = NOW()' : ''} WHERE account_id = $2 AND message_id = $3 AND folder = $5 AND uid = $6`,
+            [row.original_folder, row.account_id, row.message_id_header, newUid, row.snoozed_folder, row.uid]
           );
         } else {
-          // Non-UIDPLUS: DB holds the stale source UID at the destination. Guard it so
-          // reconcileDeletes does not treat it as an orphan before the next sync corrects it.
-          this._guardMoveUid(row.account_id, row.original_folder, row.uid);
+          // The new uid is not known, and the source uid can belong to another message in the
+          // original folder (#665). Drop the row rather than keep it on that uid, and let a sync
+          // of the folder file the message under its real one. Only this row: another message in
+          // Snoozed may carry the same Message-ID, and a sync would not add its row back.
           await query(
-            `UPDATE messages SET folder = $1${markUnread ? ', is_read = false, read_changed_at = NOW()' : ''} WHERE account_id = $2 AND message_id = $3 AND folder = $4`,
-            [row.original_folder, row.account_id, row.message_id_header, row.snoozed_folder]
+            'DELETE FROM messages WHERE account_id = $1 AND message_id = $2 AND folder = $3 AND uid = $4',
+            [row.account_id, row.message_id_header, row.snoozed_folder, row.uid]
           );
-          setTimeout(() => this._unguardMoveUid(row.account_id, row.original_folder, row.uid), 10_000);
+          this.syncFolderOnDemand(account, row.original_folder)
+            .catch(err => console.warn(`Snooze wakeup: sync of ${row.original_folder} failed: ${err.message}`));
         }
       } finally {
         this._unguardMoveUid(row.account_id, row.snoozed_folder, row.uid);
@@ -8096,7 +8102,7 @@ export class ImapManager {
       // Update folder counts: message leaves Snoozed and re-enters original_folder (unread on its own wake-up).
       // row.is_read reflects the read state in the Snoozed folder before the move.
       adjustFolderCounts(row.account_id, row.snoozed_folder, -1, row.is_read ? 0 : -1);
-      adjustFolderCounts(row.account_id, row.original_folder, 1, markUnread || !row.is_read ? 1 : 0);
+      if (newUid != null) adjustFolderCounts(row.account_id, row.original_folder, 1, markUnread || !row.is_read ? 1 : 0);
 
       // Notify the user's open clients so the message reappears
       this.broadcast({ type: 'snooze_wakeup', accountId: row.account_id }, row.user_id);
