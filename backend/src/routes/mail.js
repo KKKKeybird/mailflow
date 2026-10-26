@@ -1175,11 +1175,12 @@ router.post('/mark-all-read', async (req, res) => {
   await query('UPDATE messages SET is_read = true, read_changed_at = NOW() WHERE account_id = $1 AND folder = $2', [accountId, folder]);
   await query('UPDATE folders SET unread_count = 0 WHERE account_id = $1 AND path = $2', [accountId, folder])
     .catch(err => console.error('Folder count update failed:', err.message));
-  // Also update IMAP so the change survives the next sync (non-fatal if it fails)
-  imapManager.markAllReadImap(account, folder).catch(err =>
-    console.warn('markAllReadImap failed:', err.message)
-  );
-  imapManager.scheduleCountRefresh?.(accountId);
+  // Also update IMAP so the change survives the next sync (non-fatal if it fails). Not awaited: a
+  // large folder is written in chunks. The count refresh waits for it, though, because it asks
+  // the server for UNSEEN, and one started beside the write found the folder still unread.
+  imapManager.markAllReadImap(account, folder)
+    .catch(err => console.warn('markAllReadImap failed:', err.message))
+    .finally(() => imapManager.scheduleCountRefresh?.(accountId));
   imapManager.broadcast({ type: 'sync_complete', accountId }, account.user_id);
   res.json({ ok: true });
 });
