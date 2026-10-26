@@ -1255,6 +1255,8 @@ function walkNode(node, results, inRelated) {
       type: type === 'text/plain' ? 'text/plain' : 'text/html',
       encoding: node.encoding || '',
       charset: node.parameters?.charset || 'utf-8',
+      // Its size as the structure gives it: 0 is an empty part, which no fetch fills (fetchMessageBody).
+      bytes: node.size,
       // A filename marks a possible attached file; walkStructure's post-pass
       // decides once the whole tree is known.
       ...(filename ? {
@@ -6739,6 +6741,7 @@ export class ImapManager {
             type: (rootType === 'text/html' || rootType === 'text/plain' || rootType === 'application/xhtml+xml') ? 'text/html' : 'text/plain',
             encoding: structure.encoding || '',
             charset: structure.parameters?.charset || 'utf-8',
+            bytes: structure.size,
           });
         }
 
@@ -6748,18 +6751,14 @@ export class ImapManager {
         // a multipart/alternative invite keeps its normal text/html rendering.
         const calendarParts = results.textParts.length === 0 ? results.calendarParts : [];
 
-        // Fetch any text/image parts not already obtained from the speculative fetch
+        // Fetch any calendar/image parts not already obtained from the speculative fetch. Text
+        // parts are not batched first: each is fetched on its own below whatever happens, so
+        // batching them too cost one more command for nothing on every message a two-step
+        // provider (Gmail, Yahoo) opened (#677).
         const inlineImages = results.inlineImages || [];
-        const needed = [
-          ...new Set([
-            ...results.textParts.map(p => p.part),
-            ...calendarParts.map(p => p.part),
-            ...inlineImages.map(p => p.part),
-          ])
-        ].filter(p => !prefetched.has(p));
-
-        if (needed.length > 0) {
-          // Batched fetch for parts not already available.
+        const fetchBatch = async (parts) => {
+          const needed = [...new Set(parts)].filter(p => !prefetched.has(p));
+          if (needed.length === 0) return;
           for await (const msg of client.fetch(uidStr, { uid: true, bodyParts: needed }, { uid: true })) {
             if (msg.bodyParts) {
               for (const [k, v] of msg.bodyParts) {
@@ -6767,7 +6766,8 @@ export class ImapManager {
               }
             }
           }
-        }
+        };
+        await fetchBatch([...calendarParts.map(p => p.part), ...inlineImages.map(p => p.part)]);
 
         // Per-part individual fetch for text parts. Some IMAP servers return a
         // non-empty but malformed text payload for speculative/batched sibling
@@ -6784,6 +6784,28 @@ export class ImapManager {
               if (v && v.length > 0) prefetched.set(part.part, v);
             }
           } catch { /* don't let a single part failure block others */ }
+        }
+        // A text part its own fetch did not bring falls back to the batched value, as it did when
+        // the batch ran first: the same request, taken only for the parts still missing. A part
+        // the structure says is empty (an empty alternative) is not fetched again for nothing.
+        const fetchable = results.textParts.filter(p => p.bytes !== 0);
+        const unanswered = fetchable.filter(p => !prefetched.has(p.part));
+        if (unanswered.length > 0) {
+          const all = [...new Set(fetchable.map(p => p.part))];
+          try {
+            for await (const msg of client.fetch(uidStr, { uid: true, bodyParts: all }, { uid: true })) {
+              for (const p of unanswered) {
+                const v = msg.bodyParts?.get(p.part);
+                if (v != null && !prefetched.has(p.part)) prefetched.set(p.part, v);
+              }
+            }
+          } catch (err) {
+            // A body is never returned with a part missing that a fetch could still bring: it would
+            // be stored that way and shown so for good (an HTML email as its plain text). The open
+            // fails as the batch failing first made it fail, and the retry over a fresh login
+            // fetches the whole body (a dropped socket).
+            if (fetchable.some(p => !prefetched.has(p.part))) throw err;
+          }
         }
 
         for (const part of results.textParts) {
