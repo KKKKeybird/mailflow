@@ -30,6 +30,8 @@ const React = await import('react');
 const { createRoot } = await import('react-dom/client');
 const { api } = await import('../utils/api.js');
 const { useWebSocket } = await import('./useWebSocket.js');
+const { installResumeRefresh, RESUME_RETRY_MS } = await import('../utils/resumeRefresh.js');
+const flush = async () => { for (let i = 0; i < 20; i += 1) await Promise.resolve(); };
 function App() { useWebSocket(); return null; }
 
 const original = api.getUnreadCounts;
@@ -55,7 +57,7 @@ function comeBack(t, awayMs) {
   document.dispatchEvent(new dom.window.Event('visibilitychange'));
 }
 
-test('an open socket that no longer answers is replaced soon after the tab comes back', (t) => {
+test('an open socket that no longer answers is replaced soon after the tab comes back', async (t) => {
   const stale = socket;
   comeBack(t, 20_000);
   assert.equal(stale.sent.at(-1), 'ping', 'the socket is asked to prove it is alive');
@@ -64,6 +66,13 @@ test('an open socket that no longer answers is replaced soon after the tab comes
   t.mock.timers.tick(1);
   assert.notEqual(socket, stale, 'no answer, so a new socket is opened');
   assert.equal(stale.onclose, null, 'the abandoned socket cannot schedule a second reconnect');
+  let caughtUp = 0;
+  const count = () => { caughtUp += 1; };
+  window.addEventListener('mailflow:socket_caught_up', count);
+  socket.onopen();
+  await flush();
+  window.removeEventListener('mailflow:socket_caught_up', count);
+  assert.equal(caughtUp, 1, 'the new socket catches up, which settles a resume resync still owed');
 });
 
 test('an open socket that answers the probe is kept', (t) => {
@@ -78,4 +87,33 @@ test('a silent socket is replaced by the heartbeat even when its close never com
   const stale = socket;
   t.mock.timers.tick(90_000);
   assert.notEqual(socket, stale);
+});
+
+// A reconnect's catch-up settles a resume resync still being retried, but only once its counts
+// are in. Failing too (a 502, a network still flapping), it must leave the retry in place.
+test('a reconnect whose catch-up fails leaves a resume retry in place', async (t) => {
+  const realRandom = Math.random;
+  Math.random = () => 0;
+  let resyncs = 0;
+  const stop = installResumeRefresh({ doc: document, win: window, onResync: () => { resyncs += 1; return Promise.reject(new Error('offline')); } });
+  try {
+    api.getUnreadCounts = async () => { throw new Error('502'); };
+    const pageshow = new dom.window.Event('pageshow');
+    Object.defineProperty(pageshow, 'persisted', { value: true });
+    window.dispatchEvent(pageshow);
+    await flush();
+    assert.equal(resyncs, 1);
+    const dropped = socket;
+    dropped.onclose({ code: 1006 });
+    t.mock.timers.tick(1000);
+    assert.notEqual(socket, dropped);
+    socket.onopen();
+    await flush();
+    t.mock.timers.tick(RESUME_RETRY_MS[0]);
+    await flush();
+    assert.equal(resyncs, 2, 'the retry still runs');
+  } finally {
+    stop();
+    Math.random = realRandom;
+  }
 });

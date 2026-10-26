@@ -5,6 +5,9 @@
 // visibilitychange listener that dispatched mailflow:refresh on every return, so a glance at the
 // app switcher still reloaded the list and a real resume reloaded it twice.
 //
+// A resume often comes before the network does, so its requests fail; that resync has to be
+// tried again rather than spent.
+//
 // MailApp is mounted for real with its children stubbed: the question is only which refreshes
 // its own effects ask for.
 
@@ -28,7 +31,8 @@ const STUBS = {
   '/components/ElectronNotificationBridge.jsx': 'export default function ElectronNotificationBridge() { return null; }',
   '/components/InboxReplyDraftObserver.js': 'export default function InboxReplyDraftObserver() { return null; }',
   '/plugins/PluginSlot.jsx': 'export const usePluginSlot = () => []; export const usePluginCollected = () => []; export function PluginSlot() { return null; } export function PluginRuntime() { return null; }',
-  '/hooks/useWebSocket.js': 'export const useWebSocket = () => ({ current: null });',
+  // An open socket, so the fallback list refresh for a socket that is down stays quiet.
+  '/hooks/useWebSocket.js': 'export const useWebSocket = () => ({ current: { readyState: 1 } });',
 };
 
 registerHooks({
@@ -81,23 +85,29 @@ const React = await import('react');
 const { createRoot } = await import('react-dom/client');
 const { api } = await import('../utils/api.js');
 const { useStore } = await import('../store/index.js');
+const { RESUME_RETRY_MS } = await import('../utils/resumeRefresh.js');
 const MailApp = (await import('./MailApp.jsx')).default;
 
 const original = { ...api, todoist: api.todoist };
 let root;
 let refreshes;
+let countsFail;
 const countRefresh = () => { refreshes += 1; };
 
 beforeEach(async (t) => {
   t.mock.timers.enable({ apis: ['setTimeout', 'setInterval', 'Date'], now: 1_000_000 });
   Object.assign(api, {
     getAccounts: async () => [],
-    getUnreadCounts: async () => ({ total: 0, byAccount: {}, snapshots: {}, complete: true }),
+    getUnreadCounts: async () => {
+      if (countsFail) throw new Error('Failed to fetch');
+      return { total: 0, byAccount: {}, snapshots: {}, complete: true };
+    },
     getFolders: async () => [],
     todoist: { ...original.todoist, status: async () => ({ connected: false }) },
   });
   useStore.setState({ isLocked: false });
   refreshes = 0;
+  countsFail = false;
   visibility = 'visible';
   root = createRoot(document.getElementById('root'));
   await React.act(async () => { root.render(React.createElement(MailApp)); });
@@ -127,5 +137,16 @@ describe('MailApp: returning to the tab', () => {
   test('coming back after a real absence reloads the list once', async (t) => {
     await hideFor(t, 10 * 60_000);
     assert.equal(refreshes, 1);
+  });
+
+  test('a resume that comes back before the network does is tried again', async (t) => {
+    countsFail = true;
+    await hideFor(t, 10 * 60_000);
+    assert.equal(refreshes, 1);
+    countsFail = false;
+    await React.act(async () => { t.mock.timers.tick(RESUME_RETRY_MS[0]); });
+    assert.equal(refreshes, 2, 'the list is asked for again');
+    await React.act(async () => { t.mock.timers.tick(60_000); });
+    assert.equal(refreshes, 2, 'and only until it works');
   });
 });

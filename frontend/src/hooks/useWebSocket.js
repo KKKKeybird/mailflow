@@ -8,6 +8,7 @@ import { accountAffectsUnifiedInbox } from '../utils/unifiedInbox.js';
 import { dispatchPluginWsMessage, dispatchPluginReconnect } from '../plugins/events.js';
 import { recordDiagEvent } from '../utils/diagEvents.js';
 import { scheduledFeed } from '../utils/scheduledFeed.js';
+import { SOCKET_CAUGHT_UP_EVENT } from '../utils/resumeRefresh.js';
 
 function _applyServerCounts(counts) {
   useStore.getState().setUnreadCounts(counts);
@@ -97,6 +98,10 @@ export function useWebSocket() {
         window.dispatchEvent(new CustomEvent('mailflow:refresh'));
         api.getUnreadCounts().then(counts => {
           useStore.getState().setUnreadCounts(counts);
+          // The counts stand for the whole catch-up, as they do for a resume resync: once they
+          // are in, a resume resync still being retried is settled. Not before, or a failed
+          // catch-up would cancel the retry and leave the list stale.
+          window.dispatchEvent(new CustomEvent(SOCKET_CAUGHT_UP_EVENT));
         }).catch(() => {});
         // A plugin's rail/derived data can drift during the outage — events fired while the socket
         // was down are lost, not buffered. Let each activated plugin resync (GTD refetches its

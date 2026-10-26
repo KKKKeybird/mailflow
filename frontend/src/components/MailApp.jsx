@@ -450,10 +450,13 @@ export default function MailApp() {
     const stopResume = installResumeRefresh({
       doc: document, win: window,
       shouldSkip: () => useStore.getState().isLocked,
+      // The counts request stands for the whole resync: the list reload and the folder requests
+      // fail on their own without saying so, and when the network is not back yet, all of them
+      // do. Its failure has installResumeRefresh run the resync again.
       onResync: () => {
-        refreshCounts();
         refreshFolders();
         window.dispatchEvent(new CustomEvent('mailflow:refresh'));
+        return api.getUnreadCounts().then(setUnreadCounts);
       },
     });
 
