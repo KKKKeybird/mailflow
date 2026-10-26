@@ -14,7 +14,7 @@ vi.mock('./connectionPolicy.js', () => ({ getConnectionPolicy: vi.fn() }));
 vi.mock('./spamPipeline.js', () => ({ classifyAndTagMessage: vi.fn() }));
 vi.mock('./mailAccess.js', () => ({ getAccountAddresses: vi.fn(async () => []) }));
 
-import { ImapManager, PREFETCH_MAX_CONSECUTIVE_ERRORS, INLINE_IMAGE_REPEAT_BUDGET, hasIdlePooledClient, shouldPrewarmPool, acquirePooledClient, releasePooledClient, MIN_SYNC_INTERVAL_MS, AUTO_IDLE_DELAY_MS, countMissingInboxCopies, fetchBackfillBatch, providerProfile, makeClientCfg, relocateExemptGuard, insertCopiedSibling, deleteMessageCopyRow, emitSectionsChanged, ensureMailbox, createKeyedSemaphore, isConnectionRefusal, connectCooldownMs, effectiveSyncIntervalMs, folderSyncDue, planModseqSync, connectStaggerFor, walkStructure, extractBodyFromMsg, attachmentsFromStructure, contentLocationFromMimeHeader, bodyFallbackApplies, parsePersistentCap, resolvePersistentCap, persistentEligible, shouldRetryIPv4, classifyMoveBySearch, computeThreadId, noteDraftsChanged } from './imapManager.js';
+import { ImapManager, PREFETCH_MAX_CONSECUTIVE_ERRORS, INLINE_IMAGE_REPEAT_BUDGET, hasIdlePooledClient, shouldPrewarmPool, acquirePooledClient, releasePooledClient, MIN_SYNC_INTERVAL_MS, AUTO_IDLE_DELAY_MS, countMissingInboxCopies, fetchBackfillBatch, providerProfile, makeClientCfg, relocateExemptGuard, insertCopiedSibling, deleteMessageCopyRow, emitSectionsChanged, ensureMailbox, createKeyedSemaphore, isConnectionRefusal, connectCooldownMs, effectiveSyncIntervalMs, folderSyncDue, planModseqSync, connectStaggerFor, walkStructure, extractBodyFromMsg, attachmentsFromStructure, contentLocationFromMimeHeader, bodyFallbackApplies, parsePersistentCap, resolvePersistentCap, persistentEligible, shouldRetryIPv4, classifyMoveBySearch, pairMovedCopies, computeThreadId, noteDraftsChanged } from './imapManager.js';
 import { pluginRegistry } from '../plugins/registry.js';
 import { ensureFreshToken } from './imapManager.js';
 import { clearRefreshFailure, noteFreshToken, noteRefreshFailure, refreshFailureFor } from './accountErrorCode.js';
@@ -3073,16 +3073,14 @@ describe('classifyMoveBySearch (#407 empty-uidMap reconciliation)', () => {
       expect(r.succeeded).toEqual([]);
       expect(r.failed).toEqual([4, 5, 6]);
       expect(r.staleCount).toBeNull();
-      expect(r.mappable).toBe(false);
     }
   });
 
-  it('clean move: all left source, all arrived -> succeeded + mappable', () => {
+  it('clean move: all left source, all arrived -> succeeded', () => {
     const r = classifyMoveBySearch([4, 5, 6], /*remaining*/ [], /*destArrived*/ 3);
     expect(r.succeeded).toEqual([4, 5, 6]);
     expect(r.failed).toEqual([]);
     expect(r.staleCount).toBe(0);
-    expect(r.mappable).toBe(true);
   });
 
   it('stale UID in batch: fewer arrived than left -> ALL failed, no wrong-deletion', () => {
@@ -3092,7 +3090,6 @@ describe('classifyMoveBySearch (#407 empty-uidMap reconciliation)', () => {
     expect(r.succeeded).toEqual([]);
     expect(r.failed).toEqual([2, 3, 4, 5, 6]);
     expect(r.staleCount).toBe(2);
-    expect(r.mappable).toBe(false);
   });
 
   it('partial move failure: some still in source -> those are failed, the rest succeeded', () => {
@@ -3101,7 +3098,6 @@ describe('classifyMoveBySearch (#407 empty-uidMap reconciliation)', () => {
     expect(r.succeeded).toEqual([4]);
     expect(r.failed).toEqual([5, 6]);
     expect(r.staleCount).toBe(0);
-    expect(r.mappable).toBe(true);
   });
 
   it('nothing left the source -> all failed (move did not happen)', () => {
@@ -3111,12 +3107,68 @@ describe('classifyMoveBySearch (#407 empty-uidMap reconciliation)', () => {
     expect(r.staleCount).toBe(0);
   });
 
-  it('destination not verifiable (null) -> trust source-absence, not mappable, stale unknown', () => {
+  it('destination not verifiable (null) -> trust source-absence, stale unknown', () => {
     const r = classifyMoveBySearch([4, 5, 6], /*remaining*/ [], /*destArrived*/ null);
     expect(r.succeeded).toEqual([4, 5, 6]);
     expect(r.failed).toEqual([]);
     expect(r.staleCount).toBeNull();
-    expect(r.mappable).toBe(false);
+  });
+
+  // What else reaches the destination meanwhile arrives in the same UID range, so the count can
+  // make up for a stale UID. The source as a FETCH found it before the move says which one it was.
+  it('with the source as it was before the move: a UID that was not there is stale, whatever arrived', () => {
+    const r = classifyMoveBySearch([5, 9], /*remaining*/ [], /*destArrived*/ 2, /*presentBefore*/ new Set([5]));
+    expect(r.succeeded).toEqual([5]);
+    expect(r.failed).toEqual([9]);
+    expect(r.staleCount).toBe(1);
+  });
+
+  it('with the source as it was before the move: one still there failed, one that left moved', () => {
+    const r = classifyMoveBySearch([4, 5, 6], /*remaining*/ [6], /*destArrived*/ null, new Set([4, 5, 6]));
+    expect(r.succeeded).toEqual([4, 5]);
+    expect(r.failed).toEqual([6]);
+    expect(r.staleCount).toBe(0);
+  });
+});
+
+// pairMovedCopies finds a moved message among the destination's arrivals by its content: the
+// Message-ID, sender, subject, Date header and size together. Each case below differs in one part
+// only, so it fails when that part is left out of the match.
+describe('pairMovedCopies', () => {
+  const copy = (uid, { size = 100, ...envelope } = {}) => ({
+    uid, size,
+    envelope: { messageId: '<a@example.com>', subject: 'Subject', from: [{ address: 'sender@example.com' }], date: new Date('2026-10-01T10:00:00Z'), ...envelope },
+  });
+  const pairs = (moved, arrivals) => [...pairMovedCopies(moved, arrivals)];
+
+  it.each([
+    ['size', { size: 200 }],
+    ['Date header', { date: new Date('2026-10-01T10:00:01Z') }],
+    ['subject', { subject: 'Re: Subject' }],
+    ['sender', { from: [{ address: 'other@example.com' }] }],
+    ['Message-ID', { messageId: '<b@example.com>' }],
+  ])('tells apart an arrival that differs only in its %s', (_part, other) => {
+    expect(pairs([copy(5)], [copy(40, other), copy(41)])).toEqual([[5, 41]]);
+  });
+
+  it('pairs a message with no Message-ID by the rest of its content', () => {
+    const none = { messageId: undefined };
+    expect(pairs([copy(5, none)], [copy(40), copy(41, none)])).toEqual([[5, 41]]);
+    expect(pairs([copy(5, { messageId: '<>' })], [copy(40), copy(41, none)])).toEqual([[5, 41]]);
+  });
+
+  it('pairs nothing when two arrivals carry the same content', () => {
+    expect(pairs([copy(5)], [copy(40), copy(41)])).toEqual([]);
+  });
+
+  it('pairs nothing for several identical moved messages, even when only one copy arrived', () => {
+    expect(pairs([copy(5), copy(6)], [copy(40)])).toEqual([]);
+    expect(pairs([copy(5), copy(6)], [copy(40), copy(41)])).toEqual([]);
+  });
+
+  it('pairs each of several different messages with its own arrival, whatever the order', () => {
+    expect(pairs([copy(5, { subject: 'A' }), copy(6, { subject: 'B' })], [copy(40, { subject: 'B' }), copy(41), copy(42, { subject: 'A' })]))
+      .toEqual([[5, 42], [6, 40]]);
   });
 });
 

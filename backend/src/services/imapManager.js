@@ -2445,8 +2445,8 @@ async function resolveServerFolderCasing(client, knownPath) {
 // Decide the outcome of a bulk move whose UIDPLUS map was unavailable, from what a follow-up
 // UID SEARCH found. `remainingUids` are the requested UIDs still present in the source after the
 // move; `destArrived` is the count of new UIDs that landed in the destination (null when that
-// check could not run). Returns which UIDs to treat as succeeded/failed, the inferred number of
-// stale UIDs, and whether the destination UIDs can be mapped 1:1 by sorted order.
+// check could not run). Returns which UIDs to treat as succeeded/failed and the inferred number of
+// stale UIDs. It never maps them to destination UIDs: see pairMovedCopies.
 //
 // The #407 case: some servers (e.g. Dovecot/PurelyMail) return NO uidMap when the batch contains
 // a stale UID, so afterwards every requested UID is absent from the source — the moved ones
@@ -2454,28 +2454,39 @@ async function resolveServerFolderCasing(client, knownPath) {
 // tell them apart. When fewer messages arrived in the destination than left the source, a stale
 // UID is in the batch, so the WHOLE batch is reported failed (nothing is deleted or misfiled
 // locally; the next sync reconciles) rather than guessing which UID was stale and losing the rest.
-export function classifyMoveBySearch(uids, remainingUids, destArrived) {
+//
+// `presentBefore`, the UIDs a FETCH found in the source just before the move, tells them apart
+// exactly, and replaces the count: a UID that was not there is stale and failed, one that was
+// there and left moved. The count alone can be fooled, because whatever else reaches the
+// destination meanwhile (new mail, another client's move, another move of ours) arrives in the
+// same UID range and makes up for a stale UID.
+export function classifyMoveBySearch(uids, remainingUids, destArrived, presentBefore = null) {
   // Total in the non-array case as well. The caller guards this and logs, but search() can
   // resolve to undefined or false rather than throwing, and this function moves mail: any
   // future caller that forgets must not silently read a non-array as "the source is empty",
   // which would mean the whole batch moved. Report everything failed and let the next sync
   // reconcile, matching the caller's own failed-search path.
   if (!Array.isArray(remainingUids)) {
-    return { succeeded: [], failed: uids.slice(), staleCount: null, mappable: false };
+    return { succeeded: [], failed: uids.slice(), staleCount: null };
   }
   const remaining = new Set(remainingUids.map(Number));
   const gone = uids.filter(u => !remaining.has(Number(u)));
   const stillPresent = uids.filter(u => remaining.has(Number(u)));
   if (!gone.length) {
-    return { succeeded: [], failed: uids.slice(), staleCount: 0, mappable: false };
+    return { succeeded: [], failed: uids.slice(), staleCount: 0 };
+  }
+  if (presentBefore) {
+    const moved = gone.filter(u => presentBefore.has(Number(u)));
+    const stale = gone.filter(u => !presentBefore.has(Number(u)));
+    return { succeeded: moved, failed: uids.filter(u => !moved.includes(u)), staleCount: stale.length };
   }
   if (destArrived == null) {
-    return { succeeded: gone, failed: stillPresent, staleCount: null, mappable: false };
+    return { succeeded: gone, failed: stillPresent, staleCount: null };
   }
   if (destArrived < gone.length) {
-    return { succeeded: [], failed: uids.slice(), staleCount: gone.length - destArrived, mappable: false };
+    return { succeeded: [], failed: uids.slice(), staleCount: gone.length - destArrived };
   }
-  return { succeeded: gone, failed: stillPresent, staleCount: 0, mappable: destArrived === gone.length };
+  return { succeeded: gone, failed: stillPresent, staleCount: 0 };
 }
 
 const bareMessageId = id => String(id ?? '').replace(/[<>]/g, '').trim();
@@ -2539,6 +2550,120 @@ async function hasOtherMatch(client, row, uid, searched = new Map()) {
     searched.set(day, copies);
   }
   return searched.get(day).some(copy => copy.uid !== Number(uid) && isRowsMessage(row, copy));
+}
+
+// What a moved message is known by in its new folder. Everything here is part of the message
+// itself, which MOVE and COPY carry over unchanged: the envelope's Message-ID, sender, subject and
+// Date header, and the size. A server may give the new copy its own INTERNALDATE, so that is left
+// out. Two copies of one message share all of it.
+function contentKey(copy) {
+  const e = copy.envelope;
+  return JSON.stringify([bareMessageId(e.messageId), senderOf(copy).toLowerCase(), e.subject ?? '', timeOf(e.date) || null, copy.size ?? null]);
+}
+
+// Pairs each moved message, as a FETCH of the source found it before the move, with its copy among
+// the destination's arrivals, by content (contentKey), and returns source uid -> destination uid.
+// Whatever else reached the folder meanwhile (new mail, another client's move, another move of
+// ours) is among the arrivals too, so nothing is paired by count or order. A message that shares
+// its content with another moved message or another arrival is left out, since either could be it.
+export function pairMovedCopies(moved, arrivals) {
+  const byKey = (copies) => {
+    const groups = new Map();
+    for (const c of copies) {
+      if (!c?.envelope) continue;
+      const k = contentKey(c);
+      groups.set(k, [...(groups.get(k) || []), c]);
+    }
+    return groups;
+  };
+  const landed = byKey(arrivals);
+  const uidMap = new Map();
+  for (const [k, sources] of byKey(moved)) {
+    const found = landed.get(k);
+    if (sources.length === 1 && found?.length === 1) uidMap.set(Number(sources[0].uid), Number(found[0].uid));
+  }
+  return uidMap;
+}
+
+const COPY_IDENTITY = { uid: true, envelope: true, size: true };
+
+// The server copies at `range` in the selected mailbox, by uid, or null when the FETCH fails. An
+// unsolicited FETCH (a flag change) carries no envelope and is not one.
+async function fetchCopies(client, range) {
+  try {
+    const copies = new Map();
+    for await (const msg of client.fetch(range, COPY_IDENTITY, { uid: true })) {
+      if (msg.envelope) copies.set(msg.uid, msg);
+    }
+    return copies;
+  } catch (err) {
+    console.warn(`FETCH of ${client.mailbox?.path} UID(s) ${range} for a move failed: ${err.message}`);
+    return null;
+  }
+}
+
+// `toFolder`'s UIDNEXT, read while another mailbox is selected, or null when STATUS fails.
+async function uidNextOf(client, toFolder) {
+  try {
+    return (await client.status(toFolder, { uidNext: true }))?.uidNext ?? null;
+  } catch (err) {
+    console.warn(`STATUS ${toFolder} before a move failed: ${err.message}`);
+    return null;
+  }
+}
+
+// The messages that reached `toFolder` from `uidNext` on, FETCHed. Selects toFolder, and throws
+// when it cannot be searched or FETCHed. The filter guards the RFC 3501 `n:*`
+// quirk: when nothing arrived, the server still returns the folder's newest message.
+async function fetchArrivals(client, toFolder, uidNext) {
+  const lock = await client.getMailboxLock(toFolder);
+  try {
+    const found = await client.search({ uid: `${uidNext}:*` }, { uid: true });
+    if (!Array.isArray(found)) throw new Error(`destination UID SEARCH returned ${found}`);
+    const arrived = found.filter(u => u >= uidNext);
+    if (!arrived.length) return new Map();
+    const copies = await fetchCopies(client, arrived.join(','));
+    if (!copies) throw new Error(`FETCH of the arrivals in ${toFolder} failed`);
+    return copies;
+  } finally {
+    lock.release();
+  }
+}
+
+// Moves one UID from `fromFolder` to `toFolder` and returns its uid there, or null when that is
+// not known. Without UIDPLUS the server names no new uid, and the source uid is no stand-in for
+// it: in the destination it can belong to another message, which every later action on the row
+// would then reach (#665). So the message is FETCHed before the move and found among the
+// destination's arrivals afterwards, on the same session (pairMovedCopies).
+async function moveOneUid(client, uid, fromFolder, toFolder) {
+  const follow = !client.capabilities?.has('UIDPLUS');
+  let result;
+  let uidNext = null;
+  let before = null;
+  const lock = await client.getMailboxLock(fromFolder);
+  try {
+    if (follow) {
+      uidNext = await uidNextOf(client, toFolder);
+      if (uidNext != null) before = await fetchCopies(client, String(uid));
+    }
+    result = await moveUids(client, String(uid), toFolder);
+  } finally {
+    lock.release();
+  }
+  if (result === false) throw new Error('messageMove returned false: the server did not confirm the move');
+  if (result?.uidMap) return result.uidMap.get(Number(uid)) || null;
+  const moved = before?.get(Number(uid));
+  if (!moved) return null;
+  try {
+    const arrivals = await fetchArrivals(client, toFolder, uidNext);
+    return pairMovedCopies([moved], [...arrivals.values()]).get(Number(uid)) || null;
+  } catch (err) {
+    // The move went through, so this does not throw; but the session may be the reason it
+    // failed (a stall, a dropped socket), so close it rather than hand it back to the pool.
+    console.warn(`Moved UID ${uid} to ${toFolder}, but its new UID could not be found: ${err.message}`);
+    try { client.close(); } catch { /* already closed */ }
+    return null;
+  }
 }
 
 // client.messageMove without its data loss. On a server without MOVE (RFC 6851) imapflow
@@ -7291,25 +7416,12 @@ export class ImapManager {
   }
 
   async moveMessageGetNewUid(account, uid, fromFolder, toFolder) {
-    let newUid = null;
     try {
-      await withFreshClient(account, async (client) => {
-        const lock = await client.getMailboxLock(fromFolder);
-        try {
-          const result = await moveUids(client, String(uid), toFolder);
-          if (result === false) throw new Error('messageMove returned false — server did not confirm move');
-          if (result?.uidMap) {
-            newUid = result.uidMap.get(Number(uid)) || null;
-          }
-        } finally {
-          lock.release();
-        }
-      });
+      return await withFreshClient(account, client => moveOneUid(client, uid, fromFolder, toFolder));
     } catch (err) {
       console.error(`moveMessageGetNewUid failed: uid=${uid}:`, err.message);
       throw err;
     }
-    return newUid;
   }
 
   async deleteFolder(account, path) {
@@ -7429,23 +7541,12 @@ export class ImapManager {
   }
 
   async moveMessage(account, uid, fromFolder, toFolder) {
-    let newUid = null;
     try {
-      await withFreshClient(account, async (client) => {
-        const lock = await client.getMailboxLock(fromFolder);
-        try {
-          const result = await moveUids(client, String(uid), toFolder);
-          if (result === false) throw new Error('messageMove returned false — server did not confirm move');
-          if (result?.uidMap) newUid = result.uidMap.get(Number(uid)) || null;
-        } finally {
-          lock.release();
-        }
-      });
+      return await withFreshClient(account, client => moveOneUid(client, uid, fromFolder, toFolder));
     } catch (err) {
       console.error(`moveMessage failed: uid=${uid}:`, err.message);
       throw err;
     }
-    return newUid;
   }
 
   // With expectRow, a row of the messages table, the uid is deleted only if its server copy is
@@ -7563,29 +7664,26 @@ export class ImapManager {
   async bulkMoveMessages(account, uids, fromFolder, toFolder) {
     if (!uids.length) return { uidMap: new Map(), succeeded: [], failed: [] };
     let destUidNextBefore = null;
-
-    // Capture UIDNEXT on a dedicated connection so a STATUS failure (e.g. toFolder
-    // is the currently selected mailbox on a pooled connection) cannot corrupt the
-    // connection used for the actual move.
-    try {
-      const status = await withFreshClient(account, async (client) => {
-        return await client.status(toFolder, { uidNext: true });
-      });
-      destUidNextBefore = status?.uidNext ?? null;
-    } catch (statusErr) {
-      console.warn(`bulkMoveMessages STATUS ${toFolder} failed (${statusErr.message}) — reconciliation skipped`);
-    }
+    // Without UIDPLUS, the batch as the source held it just before the move (see moveOneUid).
+    let before = null;
 
     try {
       const serverUidMap = await withFreshClient(account, async (client) => {
+        let result;
         const lock = await client.getMailboxLock(fromFolder);
         try {
-          const result = await moveUids(client, uids.map(String), toFolder);
-          if (result === false) throw new Error('bulk messageMove returned false — server did not confirm move');
-          return result?.uidMap?.size ? result.uidMap : null;
+          // Read with fromFolder selected, so toFolder is not the selected mailbox, and before
+          // the move, so what arrives from it on includes the batch.
+          destUidNextBefore = await uidNextOf(client, toFolder);
+          if (destUidNextBefore != null && !client.capabilities?.has('UIDPLUS')) {
+            before = await fetchCopies(client, uids.map(String).join(','));
+          }
+          result = await moveUids(client, uids.map(String), toFolder);
         } finally {
           lock.release();
         }
+        if (result === false) throw new Error('bulk messageMove returned false: the server did not confirm the move');
+        return result?.uidMap?.size ? result.uidMap : null;
       });
 
       if (serverUidMap) {
@@ -7608,10 +7706,11 @@ export class ImapManager {
       // case — so reconcile by UID SEARCH rather than blindly claiming success, which would delete
       // local rows for messages that never moved and lose the destination UIDs of the ones that
       // did. `stale_mutation_uid` records the inferred stale count.
-      const bySearch = await this._reconcileMoveBySearch(account, uids, fromFolder, toFolder, destUidNextBefore);
+      const bySearch = await this._reconcileMoveBySearch(account, uids, fromFolder, toFolder, destUidNextBefore, before);
       if (bySearch.staleCount) {
         recordSyncSignal('stale_mutation_uid', { accountId: account.id, magnitude: bySearch.staleCount });
-        // The batch is reported all-failed, so the caller leaves local rows untouched. The
+        // The stale UIDs are reported failed, and so is the rest of the batch when the source
+        // could not be read before the move, so the caller leaves those rows untouched. The
         // genuinely-moved messages have already left the source (the server EXPUNGEd them, and the
         // persistent IDLE connection reconciles the source shortly) but are not yet in the local
         // destination. Pull the destination now so they reappear promptly instead of at the next
@@ -7628,19 +7727,20 @@ export class ImapManager {
       console.warn(`bulkMoveMessages ${fromFolder} → ${toFolder}: batch failed (${err.message}), verifying via UID SEARCH`);
       // A thrown move may have applied partway; reconcile by search to report what actually moved.
       // Not counted as stale_mutation_uid — this is a move failure, not a stale-identity meeting.
-      const bySearch = await this._reconcileMoveBySearch(account, uids, fromFolder, toFolder, destUidNextBefore);
+      const bySearch = await this._reconcileMoveBySearch(account, uids, fromFolder, toFolder, destUidNextBefore, before);
       return { uidMap: bySearch.uidMap, succeeded: bySearch.succeeded, failed: bySearch.failed };
     }
   }
 
   // Reconcile a move whose UIDPLUS map is unavailable — the server returned an empty map (some
   // servers do this when the batch contains a stale UID, the #407 case), or the move threw partway.
-  // Determines succeeded/failed by which requested UIDs still remain in the source, and rebuilds a
-  // destination uidMap only when the counts line up exactly. The pure decision lives in
-  // classifyMoveBySearch; this method just does the two IMAP searches and the sorted-order mapping.
+  // Determines succeeded/failed by which requested UIDs still remain in the source (the pure
+  // decision lives in classifyMoveBySearch). Destination UIDs are mapped only by content, from
+  // `before`, the batch as a FETCH found it in the source before the move (pairMovedCopies): a
+  // move into a folder that anything else is also filling cannot be mapped by order.
   // Returns { uidMap, succeeded, failed, staleCount } (staleCount is the inferred stale-UID count,
   // or null when it could not be determined).
-  async _reconcileMoveBySearch(account, uids, fromFolder, toFolder, destUidNextBefore) {
+  async _reconcileMoveBySearch(account, uids, fromFolder, toFolder, destUidNextBefore, before = null) {
     let remaining;
     try {
       remaining = await withFreshClient(account, async (client) => {
@@ -7654,23 +7754,27 @@ export class ImapManager {
     }
 
     let destArrived = null;
-    let destNew = [];
+    let arrivals = null;
     if (destUidNextBefore !== null) {
       try {
-        destNew = await withFreshClient(account, async (client) => {
+        arrivals = await withFreshClient(account, async (client) => {
+          if (before) return fetchArrivals(client, toFolder, destUidNextBefore);
           const lock = await client.getMailboxLock(toFolder);
-          try { return await client.search({ uid: `${destUidNextBefore}:*` }, { uid: true }); }
-          finally { lock.release(); }
+          try {
+            const found = await client.search({ uid: `${destUidNextBefore}:*` }, { uid: true });
+            // A non-array result (undefined: no mailbox selected, false: SEARCH failed) leaves the
+            // destination unverified. Read as empty, it would report the whole batch stale.
+            if (!Array.isArray(found)) throw new Error(`destination UID SEARCH returned ${found}`);
+            // The filter guards the RFC 3501 `n:*` quirk, same as the staleness probe: when nothing
+            // arrived, the server still returns the destination's newest existing message, and a
+            // stale UID in the batch would be counted as having landed there.
+            return new Map(found.filter(u => u >= destUidNextBefore).map(u => [u, null]));
+          } finally { lock.release(); }
         });
-        // A non-array result (undefined: no mailbox selected, false: SEARCH failed) leaves the
-        // destination unverified. Read as empty, it would report the whole batch stale.
-        if (!Array.isArray(destNew)) throw new Error(`destination UID SEARCH returned ${destNew}`);
-        // The filter guards the RFC 3501 `n:*` quirk, same as the staleness probe: when nothing
-        // arrived, the server still returns the destination's newest existing message, and a
-        // stale UID in the batch would be counted as having landed there and mapped onto it.
-        destNew = destNew.filter(u => u >= destUidNextBefore);
-        destArrived = destNew.length;
+        if (!arrivals) throw new Error('destination arrivals could not be read');
+        destArrived = arrivals.size;
       } catch (destErr) {
+        arrivals = null;
         console.warn(`bulkMoveMessages: destination verification failed (${destErr.message}) — trusting source-absence`);
       }
     }
@@ -7685,17 +7789,15 @@ export class ImapManager {
       console.error(`bulkMoveMessages: source UID SEARCH returned ${remaining} — leaving all ${uids.length} for next sync`);
       return { uidMap: new Map(), succeeded: [], failed: uids, staleCount: null };
     }
-    const c = classifyMoveBySearch(uids, remaining, destArrived);
+    const presentBefore = before ? new Set(before.keys()) : null;
+    const c = classifyMoveBySearch(uids, remaining, destArrived, presentBefore);
     if (c.staleCount) {
-      console.warn(`bulkMoveMessages ${fromFolder} → ${toFolder}: ${c.staleCount} stale UID(s) in batch — reporting all ${uids.length} failed for the next sync to reconcile`);
+      const reported = presentBefore ? c.staleCount : uids.length;
+      console.warn(`bulkMoveMessages ${fromFolder} → ${toFolder}: ${c.staleCount} stale UID(s) in batch, reporting ${reported} failed for the next sync to reconcile`);
     }
-    // IMAP MOVE assigns destination UIDs in ascending source-UID order, so sort both sides before
-    // zipping. Only mappable when exactly as many arrived as left the source.
-    const uidMap = new Map();
-    if (c.mappable) {
-      const sortedSrc = c.succeeded.map(Number).sort((a, b) => a - b);
-      const sortedNew = [...destNew].sort((a, b) => a - b);
-      sortedSrc.forEach((uid, i) => uidMap.set(uid, sortedNew[i]));
+    let uidMap = new Map();
+    if (before && arrivals && c.succeeded.length) {
+      uidMap = pairMovedCopies(c.succeeded.map(u => before.get(Number(u))), [...arrivals.values()]);
     }
     return { uidMap, succeeded: c.succeeded, failed: c.failed, staleCount: c.staleCount };
   }
