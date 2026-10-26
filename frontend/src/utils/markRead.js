@@ -37,10 +37,13 @@ export function cancelScheduledMarkReadFor(id) {
 //
 // Idempotent: an already-read message is a no-op, so callers do not have to guard.
 
-export function applyMarkRead(msg) {
+// onChange(isRead) hears the optimistic change and its rollback, for a caller that keeps its own
+// copy of the message beside the store's: a conversation card does.
+export function applyMarkRead(msg, { onChange } = {}) {
   if (!msg || msg.is_read) return;
   const st = useStore.getState();
   st.updateMessage(msg.id, { is_read: true });
+  onChange?.(true);
   st.decrementUnread(msg.account_id);
   st.adjustCategoryCount(msg.category, -1);
   // The guard stops a concurrent sync from reverting the optimistic flag before
@@ -55,6 +58,7 @@ export function applyMarkRead(msg) {
       // Marked unread (or read again) by hand meanwhile: that state is the user's.
       if (!failMarkRead(msg.id, token)) return;
       st.updateMessage(msg.id, { is_read: false });
+      onChange?.(false);
       st.incrementUnread(msg.account_id);
       st.adjustCategoryCount(msg.category, 1);
     });
@@ -63,14 +67,14 @@ export function applyMarkRead(msg) {
 // Honors the user's markReadBehavior preference. Returns a timer handle when the
 // mark was deferred, so the caller can cancelScheduledMarkRead it if the reader
 // moves on first, and null when there is nothing to cancel.
-export function scheduleMarkRead(msg) {
+export function scheduleMarkRead(msg, options) {
   if (!msg || msg.is_read) return null;
   const { markReadBehavior, markReadDelay } = useStore.getState();
   if (markReadBehavior === 'manual') return null;
   if (markReadBehavior === 'delay') {
-    return scheduleMarkReadTimer(msg.id, () => applyMarkRead(msg), (markReadDelay || 1) * 1000);
+    return scheduleMarkReadTimer(msg.id, () => applyMarkRead(msg, options), (markReadDelay || 1) * 1000);
   }
-  applyMarkRead(msg);
+  applyMarkRead(msg, options);
   return null;
 }
 

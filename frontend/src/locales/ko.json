@@ -272,6 +272,7 @@
   },
   "message": {
     "printConversation": "대화 인쇄",
+    "conversationActions": "대화 작업",
     "preparingPrint": "인쇄 준비 중…",
     "find": {
       "title": "검색",
