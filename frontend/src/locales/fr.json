@@ -2101,6 +2101,7 @@
     "removed": "Étiquette retirée",
     "removeFailed": "Impossible de retirer l'étiquette",
     "onlyCopy": "C'est la seule copie du message : retirer le libellé la supprimerait. Archivez-le ou déplacez-le plutôt.",
+    "labelChanged": "Ce libellé a changé sur le serveur et n'a pas été retiré. Actualisez et réessayez.",
     "done": "Marquer comme terminé",
     "doneFailed": "Impossible de marquer comme terminé",
     "doneArchiveFailed": "Marqué comme terminé, mais l'archivage a échoué — toujours dans la boîte de réception",

@@ -2101,6 +2101,7 @@
     "removed": "Label entfernt",
     "removeFailed": "Label konnte nicht entfernt werden",
     "onlyCopy": "Dies ist die einzige Kopie der Nachricht. Das Entfernen der Markierung würde sie löschen. Archivieren oder verschieben Sie sie stattdessen.",
+    "labelChanged": "Diese Markierung hat sich auf dem Server geändert und wurde nicht entfernt. Aktualisieren Sie und versuchen Sie es erneut.",
     "done": "Als erledigt markieren",
     "doneFailed": "Konnte nicht als erledigt markiert werden",
     "doneArchiveFailed": "Als erledigt markiert, aber Archivieren fehlgeschlagen – noch im Posteingang",

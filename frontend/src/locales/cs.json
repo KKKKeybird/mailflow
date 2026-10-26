@@ -888,6 +888,7 @@
     "removed": "Štítek odebrán",
     "removeFailed": "Štítek se nepodařilo odebrat",
     "onlyCopy": "Toto je jediná kopie zprávy, odebráním štítku by se smazala. Místo toho ji archivujte nebo přesuňte.",
+    "labelChanged": "Tento štítek se na serveru změnil a nebyl odebrán. Obnovte stránku a zkuste to znovu.",
     "done": "Označit jako hotové",
     "doneFailed": "Nepodařilo se označit jako hotové",
     "doneArchiveFailed": "Označeno jako hotové, ale archivace se nezdařila — zpráva zůstává v Doručené poště",

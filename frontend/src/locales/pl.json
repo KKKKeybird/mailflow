@@ -2119,6 +2119,7 @@
     "removed": "Usunięto etykietę",
     "removeFailed": "Nie udało się usunąć etykiety",
     "onlyCopy": "To jedyna kopia wiadomości, więc usunięcie etykiety by ją skasowało. Zamiast tego zarchiwizuj ją lub przenieś.",
+    "labelChanged": "Ta etykieta zmieniła się na serwerze i nie została usunięta. Odśwież i spróbuj ponownie.",
     "done": "Oznacz jako wykonane",
     "doneFailed": "Nie udało się oznaczyć jako gotowe",
     "doneArchiveFailed": "Oznaczono jako gotowe, ale archiwizacja nie powiodła się — wiadomość nadal znajduje się w skrzynce odbiorczej",

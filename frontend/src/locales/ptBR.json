@@ -2101,6 +2101,7 @@
     "removed": "Etiqueta removida",
     "removeFailed": "Não foi possível remover a etiqueta",
     "onlyCopy": "Esta é a única cópia da mensagem, então remover o marcador a excluiria. Arquive ou mova-a em vez disso.",
+    "labelChanged": "Este marcador mudou no servidor e não foi removido. Atualize e tente novamente.",
     "done": "Marcar como concluída",
     "doneFailed": "Não foi possível marcar como concluída",
     "doneArchiveFailed": "Marcada como concluída, mas o arquivamento falhou — ainda está na sua Caixa de entrada",

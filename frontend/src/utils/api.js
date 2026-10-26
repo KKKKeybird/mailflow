@@ -38,6 +38,8 @@ async function request(method, path, body, extraHeaders) {
       ...(typeof err.serverNow === 'string' ? { serverNow: err.serverNow } : {}),
       // What a scheduled message is doing when the server refused to change it (sending, sent...).
       ...(typeof err.status === 'string' ? { state: err.status } : {}),
+      // A GTD label row that named another message on the server, so nothing was removed (#665).
+      ...(err.changed === true ? { changed: true } : {}),
     });
   }
   // No Content (a DELETE): there is no body to read.

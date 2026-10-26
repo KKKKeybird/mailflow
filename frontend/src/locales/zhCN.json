@@ -2101,6 +2101,7 @@
     "removed": "已移除标签",
     "removeFailed": "无法移除标签",
     "onlyCopy": "这是该邮件的唯一副本，移除标签会将其删除。请改为归档或移动。",
+    "labelChanged": "此标签已在服务器上更改，未被移除。请刷新后重试。",
     "done": "标记为完成",
     "doneFailed": "无法标记为完成",
     "doneArchiveFailed": "已标记为完成，但归档失败——邮件仍在收件箱中",
