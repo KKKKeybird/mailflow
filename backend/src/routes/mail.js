@@ -612,9 +612,19 @@ router.get('/messages/:id/body', async (req, res) => {
     const inline = req.query.original === '1' ? { html: responseHtml, count: 0 } : await fitInlineImages(responseHtml, req.session.userId);
     return res.json({ ...splitDarkScheme(inline.html), inlineImagesFitted: inline.count > 0, text: safeText, attachments: attachments || [], hasBlockedRemoteImages, remoteImagesBlocked, remoteImagesProxied, trackersBlocked: imageStats.trackers ?? 0, senderEmail: message.sender_email, senderName: message.sender_name, forwardedFromEmail: message.forwarded_from_email, forwardedFromName: message.forwarded_from_name, forwardedVia: message.forwarded_via, bccAddresses: bccOf(message) });
   };
+  // A prefetch (?prefetch=1): the client loading a row the pointer rests on, ahead of a click that
+  // may never come (#677). It gets a stored body as any view does, and fetches from the mail server
+  // only when imapManager.prefetchBodyVerdict says 'yes'. Otherwise it is answered 204, with
+  // nothing fetched or stored, and an X-Prefetch header saying why: 'later' (the provider is being
+  // backed off), 'never' (prefetches are not for this account), or 'repair' (the stored body is due
+  // a repair fetch, which the click does as it always has; serving it unrepaired would leave the
+  // client a cached copy the click then shows instead).
+  const prefetch = req.query.prefetch === '1';
+  const declinePrefetch = why => res.status(204).set('X-Prefetch', why).end();
   if (cached && !hasCidRefs && !hasHttpImgs && !staleImages) return serveCached();
   if (repairOnly) {
     if (bodyRepairFailedLately(id)) return serveCached();
+    if (prefetch) return declinePrefetch('repair');
     let repaired;
     try {
       repaired = await fetchWithTimeout(repairBody(message), BODY_REPAIR_TIMEOUT_MS);
@@ -628,11 +638,17 @@ router.get('/messages/:id/body', async (req, res) => {
     return serveCached();
   }
 
-  // Fetch from IMAP — signal user activity so background jobs back off during this request.
+  // Fetch from IMAP: a view the user asked for signals user activity so background jobs back off.
   try {
     const accountResult = await query('SELECT * FROM email_accounts WHERE id = $1', [message.account_id]);
     const account = accountResult.rows[0];
-    imapManager.noteUserActivity(account.id);
+    if (prefetch) {
+      const verdict = imapManager.prefetchBodyVerdict(account);
+      if (verdict !== 'yes') return declinePrefetch(verdict);
+    } else {
+      // Only a view the user asked for holds background work back; a prefetch is not one.
+      imapManager.noteUserActivity(account.id);
+    }
 
     const { html, text, attachments, cidsComplete } = await fetchWithTimeout(
       imapManager.fetchMessageBody(account, message.uid, message.folder),

@@ -13,6 +13,7 @@ import { keepDraftsApart } from '../utils/conversationActions.js';
 import { unreadDeltaByAccount } from '../utils/countSnapshots.js';
 import { splitDraftSignature } from '../utils/draftSignature.js';
 import { useSwipeRow } from '../hooks/useSwipeRow.js';
+import { useHoverPrefetch } from '../hooks/useHoverPrefetch.js';
 import ContextMenu from './ContextMenu.jsx';
 import RowHoverActions from './RowHoverActions.jsx';
 import UndoBar from './UndoBar.jsx';
@@ -2720,6 +2721,8 @@ function MailboxList() {
 
   // Derived bulk-selection values (computed fresh each render, no stale closure risk)
   const selectionMode = selectedIds.size > 0 || selectionModeActive;
+  // A row's body loads while the mouse rests on it, so the click shows it at once (#677).
+  const hoverPrefetch = useHoverPrefetch({ enabled: !isMobile && !selectionMode });
   const selectedMsgs = displayMessages.filter(m => selectedIds.has(m.id));
   const selectedCount = selectedIds.size;
   const allSelected = displayMessages.length > 0 && selectedIds.size === displayMessages.length;
@@ -3525,8 +3528,10 @@ function MailboxList() {
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         <div
           ref={listRef}
-          onScroll={handleScroll}
+          onScroll={(e) => { hoverPrefetch.onScroll(); handleScroll(e); }}
           onKeyDown={handleListKeyDown}
+          onPointerMove={hoverPrefetch.onPointerMove}
+          onPointerLeave={hoverPrefetch.onPointerLeave}
           tabIndex={0}
           style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', outline: 'none', overscrollBehavior: 'contain' }}
         >

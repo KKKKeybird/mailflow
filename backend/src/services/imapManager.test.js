@@ -6889,3 +6889,38 @@ describe('the commands a body fetch sends', () => {
     expect(commands).toEqual(['BODYSTRUCTURE', '1', '2']);
   });
 });
+
+// #677: a body prefetch fetches from the mail server only when that cannot add to a provider's
+// trouble or stand in a click's way.
+describe('prefetchBodyVerdict', () => {
+  let seq = 0;
+  const manager = () => Object.assign(Object.create(ImapManager.prototype), { _connectCooldown: new Map(), _secondaryCooldown: new Map() });
+  const acct = host => ({ ...baseAccount, id: `prefetch-gate-${++seq}`, user_id: 'u1', email_address: 'p@example.test', imap_host: host });
+
+  it('allows Gmail and an ordinary server', () => {
+    const m = manager();
+    expect(m.prefetchBodyVerdict(acct('imap.gmail.com'))).toBe('yes');
+    expect(m.prefetchBodyVerdict(acct('mail.example.test'))).toBe('yes');
+  });
+
+  it('says later while the secondary backoff or the connect cooldown is armed', () => {
+    const m = manager();
+    const a = acct('imap.gmail.com');
+    m._secondaryCooldown.set(a.id, { until: Date.now() + 60_000, failures: 1 });
+    expect(m.prefetchBodyVerdict(a)).toBe('later');
+    const b = acct('imap.gmail.com');
+    m._connectCooldown.set(b.id, { until: Date.now() + 60_000 });
+    expect(m.prefetchBodyVerdict(b)).toBe('later');
+    m._secondaryCooldown.set(a.id, { until: Date.now() - 1, failures: 1 });
+    expect(m.prefetchBodyVerdict(a)).toBe('yes');
+  });
+
+  it('says never for a provider whose body fetches open a login of their own (PurelyMail)', () => {
+    expect(manager().prefetchBodyVerdict(acct('imap.purelymail.com'))).toBe('never');
+  });
+
+  it('says never for a one-connection pool (Yahoo), even with that connection free', () => {
+    const m = manager();
+    expect(m.prefetchBodyVerdict(acct('imap.mail.yahoo.com'))).toBe('never');
+  });
+});

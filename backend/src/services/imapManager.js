@@ -3608,6 +3608,19 @@ export class ImapManager {
     return null;
   }
 
+  // Whether a body prefetch (a list row the pointer rests on, #677) may fetch from the mail server:
+  // 'yes'; 'later' while the secondary backoff is armed; or 'never', for a provider whose body
+  // fetches open a login of their own (PurelyMail), or one with a single pooled connection (Yahoo),
+  // where a click would queue behind the prefetch. It is a guess at a click, so it never adds to a
+  // provider's trouble or stands in a click's way.
+  prefetchBodyVerdict(account) {
+    const profile = providerProfile(account);
+    if (profile.preferFreshBodyFetch) return 'never';
+    if (Math.min(POOL_SIZE, profile.poolSize ?? POOL_SIZE) <= 1) return 'never';
+    if (this._secondaryConnectBlocked(account.id)) return 'later';
+    return 'yes';
+  }
+
   // Everything a successful RECONNECT is allowed to clean up. Deliberately the account
   // error only: the refusal ladder is NOT cleared by a login, because #474's provider
   // accepts every login and starves the session after, which kept the ladder at
