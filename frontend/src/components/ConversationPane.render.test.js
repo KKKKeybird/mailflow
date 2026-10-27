@@ -491,6 +491,32 @@ describe('conversation actions', () => {
     assert.notEqual(useStore.getState().messages.find(m => m.id === 'm1')?.is_read, false, 'the list copy is not left unread');
   });
 
+  test('mark read on a card behind the list, read elsewhere meanwhile, only catches up', async () => {
+    const { useStore } = await import('../store/index.js');
+    const { clearReadGuard } = await import('../utils/pendingReads.js');
+    await click(button('m1', 'contextMenu.markUnread'));
+    assert.ok(button('m1', 'contextMenu.markRead'));
+    // Read again from the list (or another device) long enough ago that its guard is gone.
+    clearReadGuard('m1');
+    const saved = useStore.getState();
+    const decremented = [];
+    await React.act(async () => {
+      useStore.setState({
+        messages: [...saved.messages.filter(m => m.id !== 'm1'), { ...THREAD[0], is_read: true }],
+        decrementUnread: id => decremented.push(id),
+      });
+    });
+    const before = bulkReads.length;
+    try {
+      await click(button('m1', 'contextMenu.markRead'));
+      assert.deepEqual(bulkReads.slice(before), [], 'nothing sent again');
+      assert.deepEqual(decremented, [], 'not counted off the unread badge a second time');
+      assert.ok(button('m1', 'contextMenu.markUnread'), 'the card now shows it read');
+    } finally {
+      await React.act(async () => { useStore.setState({ messages: saved.messages, decrementUnread: saved.decrementUnread }); });
+    }
+  });
+
   test('the headers dialog opens from a card and its close button has a name', async () => {
     await click(button('m1', 'contextMenu.viewHeaders'));
     assert.match(document.body.textContent, /contextMenu\.headers\.title/, 'the headers dialog is open');
