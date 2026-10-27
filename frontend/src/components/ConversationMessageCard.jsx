@@ -337,9 +337,11 @@ export default function ConversationMessageCard({ message, expanded, onToggle, o
               conversation's own bar does for all of it. Reply and forward are per message, not per
               thread: replying to a conversation means replying to one message in it, and which one
               decides the recipients and the References chain. The body is already loaded here, so
-              it is handed over, not refetched. Keyed by message, as the reading pane's. */}
+              it is handed over, not refetched. Keyed by message, as the reading pane's. In a pane
+              too narrow for all of them (about 370 px) they wrap to a second line, rather than
+              make the whole conversation scroll sideways. */}
           <div role="group" aria-label={t('shortcuts.groups.messageActions')} style={{
-            display: 'flex', alignItems: 'center', gap: isMobile ? 0 : 6, margin: '0 -4px 8px',
+            display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: isMobile ? 0 : 6, rowGap: 4, margin: '0 -4px 8px',
           }}>
             <ReplySplitButton
               key={`reply-${message.id}`}

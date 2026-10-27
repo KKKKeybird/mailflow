@@ -517,6 +517,11 @@ describe('conversation actions', () => {
     }
   });
 
+  test('a card\'s toolbar wraps in a narrow pane instead of scrolling the conversation sideways', () => {
+    const group = card('m1').querySelector('[role="group"]');
+    assert.equal(group.style.flexWrap, 'wrap');
+  });
+
   test('the headers dialog opens from a card and its close button has a name', async () => {
     await click(button('m1', 'contextMenu.viewHeaders'));
     assert.match(document.body.textContent, /contextMenu\.headers\.title/, 'the headers dialog is open');
