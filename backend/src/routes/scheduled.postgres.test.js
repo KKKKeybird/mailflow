@@ -201,6 +201,13 @@ describe.skipIf(!ADMIN_URL)('scheduled messages API on PostgreSQL (#543)', () =>
       expect((await call('POST', '', draftBody())).status).toBe(201);
     });
 
+    it('counts a message being sent as pending', async () => {
+      const ids = [];
+      for (let i = 0; i < 100; i++) ids.push(await create());
+      await h.pool.query("UPDATE scheduled_messages SET status = 'sending', claim_token = $2, claimed_at = NOW() WHERE id = $1", [ids[0], randomUUID()]);
+      expect((await call('POST', '', draftBody())).body.code).toBe('too_many');
+    });
+
     it('holds the limit under concurrent creates, by the lock on the user\'s row', async () => {
       for (let i = 0; i < 98; i++) await create();
       const results = await Promise.all(Array.from({ length: 6 }, () => call('POST', '', draftBody())));

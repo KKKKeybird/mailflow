@@ -47,7 +47,9 @@ export const LIMITS = Object.freeze({
   maxAheadMs: 366 * 24 * 60 * 60 * 1000,
   createsPerMinute: 30,
 });
-export const PENDING_STATUSES = ['scheduled', 'editing', 'paused', 'failed', 'uncertain'];
+// What counts against the pending limit: every message not yet sent or deleted, one being sent
+// too, as it may come back scheduled for a retry.
+export const PENDING_STATUSES = ['scheduled', 'editing', 'sending', 'paused', 'failed', 'uncertain'];
 const MAX_IN_FLIGHT = 2;
 const SENT_PURGE_INTERVAL = '7 days';
 // Like the Sent metadata upsert after an immediate send (outgoingMail.js): an auto-saving
