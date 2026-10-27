@@ -1964,7 +1964,7 @@ export default function ComposeModal() {
           label: t('compose.scheduleSend.edit.pickNewTime'), kind: 'plain',
           onClick: () => { closeQuestion(); setSendLaterView('times'); setSendLaterOpen(true); },
         }]),
-        { label: t('compose.scheduleSend.edit.keepPaused'), kind: 'plain', onClick: () => { closeQuestion(); keepPaused(); } },
+        { label: t('compose.scheduleSend.edit.keepPaused'), kind: 'plain', focus: true, onClick: () => { closeQuestion(); keepPaused(); } },
       ]}
     />
   ) : null;
@@ -1990,7 +1990,7 @@ export default function ComposeModal() {
           onCancel={closeQuestion}
           actions={[
             { label: t('compose.scheduleSend.confirm.go'), kind: 'primary', onClick: () => { const { retry } = scheduleQuestion; closeQuestion(); retry(); } },
-            { label: t('common.cancel'), kind: 'plain', onClick: closeQuestion },
+            { label: t('common.cancel'), kind: 'plain', focus: true, onClick: closeQuestion },
           ]}
         />
       )}
@@ -2002,7 +2002,7 @@ export default function ComposeModal() {
           onCancel={closeQuestion}
           actions={[
             { label: t('compose.scheduleSend.edit.unscheduleGo'), kind: 'primary', onClick: () => { closeQuestion(); handleUnschedule({ skipAttachWarn: true }); } },
-            { label: t('compose.closeDraft.keepEditing'), kind: 'plain', onClick: closeQuestion },
+            { label: t('compose.closeDraft.keepEditing'), kind: 'plain', focus: true, onClick: closeQuestion },
           ]}
         />
       )}

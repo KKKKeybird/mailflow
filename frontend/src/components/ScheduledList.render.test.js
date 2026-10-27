@@ -369,6 +369,7 @@ describe('actions', () => {
     await hover(ID.uncertain);
     await click(action(ID.uncertain, 'sendAnyway'));
     assert.ok(question().textContent.includes('scheduled.confirm.sendAnywayBody'));
+    assert.equal(document.activeElement, questionButton('common.cancel'), 'Cancel has the focus, not Send anyway');
     assert.equal(callsTo('sendAnyway').length, 0);
     await click(questionButton('common.cancel'));
     assert.equal(question(), null);
@@ -423,6 +424,7 @@ describe('actions', () => {
     });
     await click(document.querySelector('[role="menu"] [data-scheduled-action="delete"]'));
     assert.ok(question().textContent.includes('scheduled.confirm.deleteBody'));
+    assert.equal(document.activeElement, questionButton('common.cancel'), 'Cancel has the focus, not Delete');
     await click(questionButton('scheduled.actions.delete'));
     await settle();
     assert.deepEqual(callsTo('remove'), [['remove', ID.failed]]);

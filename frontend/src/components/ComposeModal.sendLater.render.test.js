@@ -571,6 +571,7 @@ describe('editing a scheduled message', () => {
     await click(chevron());
     assert.equal(chevron().getAttribute('aria-label'), 'compose.scheduleSend.edit.options');
     assert.deepEqual(menuItems().map(i => i.dataset.preset), ['sendNow', 'changeTime', 'unschedule']);
+    assert.equal(document.activeElement, preset('changeTime'), 'focus starts on Change time, not Send now');
     await click(preset('changeTime'));
     assert.equal(document.querySelector('[role="menu"]').getAttribute('aria-label'), 'compose.scheduleSend.changeTime');
     await key(preset('tomorrowMorning'), 'Escape');
@@ -592,7 +593,10 @@ describe('editing a scheduled message', () => {
     const dialog = document.querySelector('[role="alertdialog"]');
     assert.ok(dialog);
     assert.equal(document.getElementById(dialog.getAttribute('aria-describedby')).textContent, message);
-    assert.equal(document.activeElement, button('compose.scheduleSend.confirm.go'));
+    assert.equal(document.activeElement, button('common.cancel'), 'the safe answer has the focus');
+    const held = new window.KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true });
+    button('compose.scheduleSend.confirm.go').dispatchEvent(held);
+    assert.equal(held.defaultPrevented, true, 'a held Enter does not click again');
     await click(button('compose.scheduleSend.confirm.go'));
     await settle();
     const updates = callsTo('update');
@@ -910,6 +914,7 @@ describe('closing a scheduled message that fell due while open (design 2.3)', ()
     assert.equal(document.getElementById(dialog.getAttribute('aria-labelledby')).textContent, 'compose.scheduleSend.edit.dueTitle');
     assert.ok(button('compose.scheduleSend.edit.sendNow'));
     assert.ok(button('compose.scheduleSend.edit.pickNewTime'));
+    assert.equal(document.activeElement, button('compose.scheduleSend.edit.keepPaused'), 'focus on the choice that sends nothing');
     await click(button('compose.scheduleSend.edit.keepPaused'));
     await settle();
     assert.deepEqual(callsTo('release'), [['release', ID, TOKEN, { keepPaused: true }]]);
@@ -1013,11 +1018,11 @@ describe('modals keep focus inside', () => {
     await click(document.querySelector('button[title="compose.toolbar.close"]'));
     const dialog = document.querySelector('[role="alertdialog"]');
     const actions = [...dialog.querySelectorAll('button')];
-    assert.equal(document.activeElement, actions[0]);
-    await key(actions[0], 'Tab', { shiftKey: true });
-    assert.equal(document.activeElement, actions.at(-1), 'Shift+Tab from the first wraps to the last');
+    assert.equal(document.activeElement, actions.at(-1), 'Keep paused, the last, has the focus');
     await key(actions.at(-1), 'Tab');
     assert.equal(document.activeElement, actions[0], 'Tab from the last wraps to the first');
+    await key(actions[0], 'Tab', { shiftKey: true });
+    assert.equal(document.activeElement, actions.at(-1), 'Shift+Tab from the first wraps to the last');
   });
 
   test('Tab wraps inside the phone sheet, and Change opens it at the times', async () => {
@@ -1032,5 +1037,13 @@ describe('modals keep focus inside', () => {
     assert.equal(document.activeElement, all[0]);
     await key(all[0], 'Tab', { shiftKey: true });
     assert.equal(document.activeElement, all.at(-1));
+  });
+
+  test('the phone sheet of a message being edited opens on its first time, not on Send now', async () => {
+    await mount(structuredClone(SCHEDULED), { mobile: true });
+    await click(chevron());
+    const sheet = document.querySelector('[role="dialog"][aria-modal="true"]');
+    assert.ok(sheet.querySelector('[data-preset="sendNow"]'));
+    assert.equal(document.activeElement, sheet.querySelector('[data-preset]:not([data-preset="sendNow"])'));
   });
 });

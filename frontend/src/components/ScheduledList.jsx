@@ -511,7 +511,9 @@ export default function ScheduledList() {
           onCancel={() => setAsk(null)}
           actions={[
             { label: ask.go, kind: ask.kind, onClick: () => { const go = ask.onGo; setAsk(null); go(); } },
-            { label: t('common.cancel'), kind: 'plain', onClick: () => setAsk(null) },
+            // Every question here would send again, send what a restore paused, or delete: the
+            // safe answer has the focus.
+            { label: t('common.cancel'), kind: 'plain', focus: true, onClick: () => setAsk(null) },
           ]}
         />
       )}
