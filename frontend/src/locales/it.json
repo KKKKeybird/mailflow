@@ -737,6 +737,7 @@
       "undoExpired": "Troppo tardi per annullare: il messaggio sta partendo.",
       "notFound": "Questo messaggio programmato non esiste più.",
       "sending": "È in fase di invio proprio ora.",
+      "aboutToSend": "Sta per essere inviato.",
       "sent": "È già stato inviato.",
       "cancelled": "È stato eliminato.",
       "editing": "È aperto in modifica in un'altra finestra.",

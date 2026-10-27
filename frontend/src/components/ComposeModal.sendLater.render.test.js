@@ -718,16 +718,56 @@ describe('Send now while editing', () => {
     assert.equal(button('compose.scheduleSend.edit.update').disabled, true);
   });
 
-  test('with changes it saves them first, at the time it had, then sends now', async () => {
+  test('with changes one save sends it now under the hold, and its toast offers the Undo', async () => {
+    answers.update = (id, { version }) => ({ id, version: version + 1, status: 'scheduled', sendAt: new Date(Date.now() + 10_000).toISOString(), undoToken: 'undo-saved' });
     await mount(structuredClone(SCHEDULED));
     await editBody(' More.');
     await click(chevron());
     await click(preset('sendNow'));
     await settle();
-    const [[, , body]] = callsTo('update');
-    assert.equal(body.sendAt, SEND_AT);
+    const [[, id, body]] = callsTo('update');
+    assert.equal(id, ID);
+    assert.equal(body.sendNow, true);
+    assert.equal(body.sendAt, undefined, 'no time to save it at: it goes now');
+    assert.equal(body.editToken, TOKEN);
     assert.match(body.body, /More\./);
-    assert.deepEqual(callsTo('sendNow')[0], ['sendNow', ID, false, undefined], 'the save ended the hold');
+    assert.equal(callsTo('sendNow').length, 0, 'one request');
+    assert.equal(callsTo('release').length, 0);
+    assert.equal(useStore.getState().composing, false);
+    const [toast] = useStore.getState().notifications;
+    assert.equal(toast.title, 'compose.undoSend.sending');
+    assert.ok(toast.undoMs > 9000 && toast.undoMs <= 10_000);
+    assert.equal(toast.scheduledUndoFor, ID);
+    await React.act(async () => { toast.onUndo(); });
+    await settle();
+    assert.deepEqual(callsTo('undoSendNow')[0], ['undoSendNow', ID, 'undo-saved']);
+  });
+
+  test('with changes and a time that has passed it goes the same way, never saved for later', async () => {
+    answers.update = (id, { version }) => ({ id, version: version + 1, status: 'scheduled', undoToken: 'undo-saved' });
+    await mount({ ...structuredClone(SCHEDULED), scheduled: { ...SCHEDULED.scheduled, sendAt: new Date(Date.now() - 60_000).toISOString() } });
+    await editBody(' More.');
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    const [[, , body]] = callsTo('update');
+    assert.equal(body.sendNow, true);
+    assert.equal(body.sendAt, undefined);
+    assert.equal(callsTo('sendNow').length, 0);
+    assert.equal(useStore.getState().notifications[0].title, 'compose.undoSend.sending');
+  });
+
+  test('with changes, a save that fails on the way leaves the message held and unsent', async () => {
+    answers.update = new TypeError('Failed to fetch');
+    await mount(structuredClone(SCHEDULED));
+    await editBody(' More.');
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    assert.ok(document.body.textContent.includes('Failed to fetch'));
+    assert.equal(useStore.getState().composing, true);
+    assert.equal(button('compose.scheduleSend.edit.update').disabled, false, 'still held');
+    assert.equal(callsTo('sendNow').length, 0);
     assert.equal(callsTo('release').length, 0);
   });
 
@@ -769,17 +809,6 @@ describe('Send now while editing', () => {
     assert.equal(button('compose.scheduleSend.edit.update').disabled, false);
     assert.equal(callsTo('sendNow').length, 1);
     assert.equal(callsTo('release').length, 0);
-  });
-
-  test('a time that has passed is saved a few minutes ahead first', async () => {
-    await mount({ ...structuredClone(SCHEDULED), scheduled: { ...SCHEDULED.scheduled, sendAt: new Date(Date.now() - 60_000).toISOString() } });
-    await editBody(' More.');
-    await click(chevron());
-    await click(preset('sendNow'));
-    await settle();
-    const ahead = new Date(callsTo('update')[0][2].sendAt).getTime() - Date.now();
-    assert.ok(ahead > 4 * 60_000 && ahead <= 5 * 60_000, `saved ${ahead} ms ahead`);
-    assert.equal(callsTo('sendNow').length, 1);
   });
 });
 

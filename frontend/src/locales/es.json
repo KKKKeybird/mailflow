@@ -737,6 +737,7 @@
       "undoExpired": "Demasiado tarde para deshacer: el mensaje está saliendo.",
       "notFound": "Este mensaje programado ya no existe.",
       "sending": "Se está enviando en este momento.",
+      "aboutToSend": "Está a punto de enviarse.",
       "sent": "Ya se envió.",
       "cancelled": "Se eliminó.",
       "editing": "Está abierto para editar en otra ventana.",

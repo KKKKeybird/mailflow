@@ -285,6 +285,7 @@
       "undoExpired": "Na vrácení je pozdě: zpráva se odesílá.",
       "notFound": "Tato naplánovaná zpráva už neexistuje.",
       "sending": "Právě teď se odesílá.",
+      "aboutToSend": "Za chvíli se odešle.",
       "sent": "Už byla odeslána.",
       "cancelled": "Byla smazána.",
       "editing": "Je otevřená k úpravám v jiném okně.",

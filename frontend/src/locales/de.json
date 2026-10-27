@@ -737,6 +737,7 @@
       "undoExpired": "Zu spät zum Rückgängigmachen: Die Nachricht geht gerade hinaus.",
       "notFound": "Diese geplante Nachricht gibt es nicht mehr.",
       "sending": "Sie wird gerade gesendet.",
+      "aboutToSend": "Sie wird gleich gesendet.",
       "sent": "Sie wurde bereits gesendet.",
       "cancelled": "Sie wurde gelöscht.",
       "editing": "Sie ist in einem anderen Fenster zum Bearbeiten geöffnet.",

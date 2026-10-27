@@ -52,6 +52,7 @@ describe('groupScheduled', () => {
 describe('rowActions', () => {
   test('each state offers what the API allows from it', () => {
     assert.deepEqual(rowActions(row()), ['edit', 'reschedule', 'sendNow', 'cancel', 'delete']);
+    assert.deepEqual(rowActions(row({ status: 'scheduled', sendingNow: true })), ['edit', 'reschedule', 'cancel', 'delete']);
     assert.deepEqual(rowActions(row({ status: 'editing' })), ['edit', 'cancel', 'delete']);
     assert.deepEqual(rowActions(row({ status: 'sending' })), []);
     assert.deepEqual(rowActions(row({ status: 'paused' })), ['edit', 'resume', 'reschedule', 'sendNow', 'cancel', 'delete']);

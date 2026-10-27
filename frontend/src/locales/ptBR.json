@@ -737,6 +737,7 @@
       "undoExpired": "Tarde demais para desfazer: a mensagem está saindo.",
       "notFound": "Esta mensagem agendada não existe mais.",
       "sending": "Ela está sendo enviada neste momento.",
+      "aboutToSend": "Ela está prestes a ser enviada.",
       "sent": "Ela já foi enviada.",
       "cancelled": "Ela foi excluída.",
       "editing": "Ela está aberta para edição em outra janela.",

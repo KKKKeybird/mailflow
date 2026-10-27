@@ -51,10 +51,12 @@ export const isRetrying = row => row?.status === 'scheduled' && Number(row.attem
 // send anyway and mark as sent for uncertain only, cancel (Delete, with Undo) from anything but
 // sending and sent, and delete for good from anything but sending. One being edited can be opened
 // (the composer offers to take it over) or deleted; one being sent, nothing; a deleted one, in its
-// window, restored or deleted for good.
+// window, restored or deleted for good. One that goes within seconds anyway (sendingNow: a Send
+// now in its window) offers no Send now: the server refuses it, as its Undo would put back the
+// first Send now's time instead of what the message was.
 export function rowActions(row) {
   switch (row?.status) {
-    case 'scheduled': return ['edit', 'reschedule', 'sendNow', 'cancel', 'delete'];
+    case 'scheduled': return ['edit', 'reschedule', ...(row.sendingNow ? [] : ['sendNow']), 'cancel', 'delete'];
     case 'editing': return ['edit', 'cancel', 'delete'];
     case 'paused':
     case 'failed': return ['edit', 'resume', 'reschedule', 'sendNow', 'cancel', 'delete'];
@@ -294,6 +296,7 @@ export function actionErrorText(err, t) {
     case 'account_disabled': return t('scheduled.errors.accountDisabled');
     case 'held_elsewhere': return t('compose.scheduleSend.errors.heldElsewhere');
     case 'undo_expired': return t('scheduled.errors.undoExpired');
+    case 'sending_now': return t('scheduled.errors.aboutToSend');
     case 'decrypt_failed': return t('scheduled.reason.decryptFailed');
     case 'too_soon':
     case 'too_far':

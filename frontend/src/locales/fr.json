@@ -737,6 +737,7 @@
       "undoExpired": "Trop tard pour annuler : le message est en train de partir.",
       "notFound": "Ce message programmé n'existe plus.",
       "sending": "Il est en train d'être envoyé.",
+      "aboutToSend": "Il est sur le point d'être envoyé.",
       "sent": "Il a déjà été envoyé.",
       "cancelled": "Il a été supprimé.",
       "editing": "Il est ouvert en modification dans une autre fenêtre.",

@@ -753,6 +753,7 @@
       "undoExpired": "Za późno na cofnięcie: wiadomość jest już wysyłana.",
       "notFound": "Ta zaplanowana wiadomość już nie istnieje.",
       "sending": "Właśnie teraz jest wysyłana.",
+      "aboutToSend": "Za chwilę zostanie wysłana.",
       "sent": "Została już wysłana.",
       "cancelled": "Została usunięta.",
       "editing": "Jest otwarta do edycji w innym oknie.",

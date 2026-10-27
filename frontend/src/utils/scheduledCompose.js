@@ -49,10 +49,6 @@ export function supersedeUndo(store, id) {
 // How long the "Scheduled for ..." toast offers Undo. Cancel works for minutes on the server; the
 // toast is what bounds it, so Undo is there exactly as long as the toast is.
 export const SCHEDULE_UNDO_MS = 10_000;
-// Send now from the composer saves changes first, and a save needs a time at least a minute
-// ahead. When the time the message had has passed, it is saved this far ahead: the 10 s Send now
-// sets comes long before, and an Undo of Send now leaves it there, said in its toast.
-export const SEND_NOW_SAVE_AHEAD_MS = 5 * 60_000;
 // A scheduled message whose time is less than this away is handed back paused when a hold is
 // given back on its own (the message changed meanwhile, or the composer closed during a release):
 // released as scheduled it would be due at once, and go out unconfirmed.

@@ -737,6 +737,7 @@
       "undoExpired": "Too late to undo: the message is going out.",
       "notFound": "This scheduled message no longer exists.",
       "sending": "It is being sent right now.",
+      "aboutToSend": "It is about to be sent.",
       "sent": "It has already been sent.",
       "cancelled": "It was deleted.",
       "editing": "It is open for editing in another window.",

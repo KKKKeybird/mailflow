@@ -36,7 +36,7 @@ import { stripTags } from '../utils/stripTags.js';
 import { aiTextToHtml } from '../utils/aiText.js';
 import { browserTimeZone, checkSendAt, formatSendAt } from '../utils/scheduleTimes.js';
 import {
-  DUE_MARGIN_MS, SCHEDULE_UNDO_MS, UNDO_FOR, SEND_NOW_SAVE_AHEAD_MS, createEditHold, isScheduledEdit, needsConfirmation, newClientKey, once,
+  DUE_MARGIN_MS, SCHEDULE_UNDO_MS, UNDO_FOR, createEditHold, isScheduledEdit, needsConfirmation, newClientKey, once,
   openScheduledView, scheduleErrorText, sendNowUndoMs, undoSchedule, undoSendNow,
 } from '../utils/scheduledCompose.js';
 import { ComposeQuestion, ScheduledStrip, SendLaterIcon, SendLaterMenu, SendLaterSheet } from './SendLater.jsx';
@@ -1251,10 +1251,11 @@ export default function ComposeModal() {
   const scheduleRef = useRef(null);
   scheduleRef.current = handleSchedule;
 
-  // Saves the edit (PUT) under the version this composer opened, to go at `at`. Resolves the
-  // server's answer, or null when it did not save: a warning to answer first, a question
-  // (`retry` is how its yes carries on), or a refusal, which is shown.
-  const saveScheduled = async ({ at, confirm, skipSubjectWarn, skipAttachWarn, resume, retry, scheduling = true }) => {
+  // Saves the edit (PUT) under the version this composer opened, to go at `at`, or with `sendNow`
+  // to go now (the server saves and sends it in one go, with an Undo). Resolves the server's
+  // answer, or null when it did not save: a warning to answer first, a question (`retry` is how
+  // its yes carries on), or a refusal, which is shown.
+  const saveScheduled = async ({ at, sendNow = false, confirm, skipSubjectWarn, skipAttachWarn, resume, retry, scheduling = true }) => {
     const hold = holdRef.current;
     const from = await readyToSubmit({ skipSubjectWarn, skipAttachWarn }, resume, { scheduling });
     if (!from) return null;
@@ -1268,7 +1269,7 @@ export default function ComposeModal() {
     try {
       const result = await api.scheduled.update(scheduledEdit.id, {
         ...payload,
-        sendAt: at.toISOString(),
+        ...(sendNow ? { sendNow: true } : { sendAt: at.toISOString() }),
         ...(timeZone ? { timeZone } : {}),
         editToken: hold.token(),
         version: scheduledEdit.version,
@@ -1318,67 +1319,71 @@ export default function ComposeModal() {
   // Send now (design 2.4, 5.1). Unchanged (or `stored`, after Discard changes), the message is
   // sent with this composer's hold token in one request: the server ends the hold and moves the
   // message to 10 s from now in the same UPDATE, so it is never released and due in between, and
-  // the Undo puts back what it was before the hold. With changes they are saved first (PUT leaves
-  // it scheduled at its time, or SEND_NOW_SAVE_AHEAD_MS ahead when that is under a minute away,
-  // never due before Send now moves it), then it is sent now.
+  // the Undo puts back what it was before the hold. With changes, the save sends it now (PUT with
+  // sendNow), also under the hold and in one request, and its Undo puts back the same: a paused or
+  // failed message stays so, with the edit kept, and one whose time passed comes back paused. A
+  // request that fails on the way changed nothing, and the composer still holds it.
   const handleSendNow = async ({ stored = false, confirm = false, skipSubjectWarn = false, skipAttachWarn = false } = {}) => {
     const hold = holdRef.current;
     if (!hold?.isHeld()) { setError(t('compose.scheduleSend.errors.notHeld')); return; }
     if (sending || sendingRef.current) return;
-    if (stored || !isDirty()) return sendNowRef.current({ confirm, held: true });
-    const due = new Date(scheduledAt);
-    const at = checkSendAt(due) ? new Date(Date.now() + SEND_NOW_SAVE_AHEAD_MS) : due;
+    if (stored || !isDirty()) return sendNowRef.current({ confirm });
     const saved = await saveScheduled({
-      at, confirm, skipSubjectWarn, skipAttachWarn, scheduling: false,
+      sendNow: true, confirm, skipSubjectWarn, skipAttachWarn, scheduling: false,
       resume: o => sendNowStartRef.current({ ...o, confirm }),
       retry: () => sendNowStartRef.current({ confirm: true, skipSubjectWarn: true, skipAttachWarn: true }),
     });
-    if (saved) return sendNowRef.current({ confirm: false, held: false });
+    if (!saved || !closeIfStillOpen()) return;
+    // The window is counted from the answer: the request carried the whole message, and its
+    // upload may have taken much of the 10 s that start when the server saved it.
+    reportSentNow(scheduledEdit.id, saved, Date.now());
   };
   const sendNowStartRef = useRef(null);
   sendNowStartRef.current = handleSendNow;
 
-  // Send now itself: `held` with this composer's hold, else of a message a save just gave up.
-  // A question the server asks keeps a held message held (No leaves the composer as it was); after
-  // a save there is no hold left, so No closes the composer.
-  const sendNowFinish = async ({ confirm, held }) => {
+  // The toast of a Send now that went through, with its Undo for what is left of the 10 s from
+  // `started`. It runs once this composer is gone, so it uses only the store and what was captured.
+  const reportSentNow = (id, result, started) => {
+    const shownSubject = subject || t('common.noSubject');
+    const owner = composeOwner;
+    addNotification({
+      title: t('compose.undoSend.sending', { subject: shownSubject }),
+      undoMs: sendNowUndoMs(started),
+      [UNDO_FOR]: id,
+      onUndo: once(() => {
+        if (useStore.getState().user?.id !== owner) return;
+        return undoSendNow({ id, undoToken: result.undoToken, subject: shownSubject }, {
+          undo: api.scheduled.undoSendNow,
+          notify: n => useStore.getState().addNotification(n),
+          t,
+        });
+      }),
+    });
+  };
+
+  // Send now itself, with this composer's hold. A question the server asks keeps the message held
+  // (No leaves the composer as it was).
+  const sendNowFinish = async ({ confirm }) => {
     const hold = holdRef.current;
     sendingRef.current = true;
     setSending(true);
     setError('');
     const started = Date.now();
     const id = scheduledEdit.id;
-    const shownSubject = subject || t('common.noSubject');
     try {
-      const result = await api.scheduled.sendNow(id, confirm, held ? hold.token() : undefined);
-      if (held) hold.settle();
+      const result = await api.scheduled.sendNow(id, confirm, hold.token());
+      hold.settle();
       setHoldReady(false);
       if (!closeIfStillOpen()) return;
-      const owner = composeOwner;
-      addNotification({
-        title: t('compose.undoSend.sending', { subject: shownSubject }),
-        undoMs: sendNowUndoMs(started),
-        [UNDO_FOR]: id,
-        onUndo: once(() => {
-          if (useStore.getState().user?.id !== owner) return;
-          return undoSendNow({ id, undoToken: result.undoToken, subject: shownSubject }, {
-            undo: api.scheduled.undoSendNow,
-            notify: n => useStore.getState().addNotification(n),
-            t,
-          });
-        }),
-      });
+      reportSentNow(id, result, started);
     } catch (err) {
       sendingRef.current = false;
       setSending(false);
       if (needsConfirmation(err)) {
-        setScheduleQuestion({
-          kind: 'confirm', text: err.message, retry: () => sendNowRef.current({ confirm: true, held }),
-          ...(held ? {} : { onCancel: () => closeCompose() }),
-        });
+        setScheduleQuestion({ kind: 'confirm', text: err.message, retry: () => sendNowRef.current({ confirm: true }) });
         return;
       }
-      if (held && err.code === 'hold_lost') { hold.markLost(); setHoldReady(false); }
+      if (err.code === 'hold_lost') { hold.markLost(); setHoldReady(false); }
       setError(scheduleErrorText(err, t));
     }
   };
@@ -1982,10 +1987,10 @@ export default function ComposeModal() {
           mobile={isMobile}
           title={t('compose.scheduleSend.confirm.title')}
           body={scheduleQuestion.text}
-          onCancel={() => { const { onCancel } = scheduleQuestion; closeQuestion(); onCancel?.(); }}
+          onCancel={closeQuestion}
           actions={[
             { label: t('compose.scheduleSend.confirm.go'), kind: 'primary', onClick: () => { const { retry } = scheduleQuestion; closeQuestion(); retry(); } },
-            { label: t('common.cancel'), kind: 'plain', onClick: () => { const { onCancel } = scheduleQuestion; closeQuestion(); onCancel?.(); } },
+            { label: t('common.cancel'), kind: 'plain', onClick: closeQuestion },
           ]}
         />
       )}

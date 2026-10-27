@@ -737,6 +737,7 @@
       "undoExpired": "来不及撤销：邮件正在发出。",
       "notFound": "这封定时邮件已不存在。",
       "sending": "它正在发送中。",
+      "aboutToSend": "即将发送。",
       "sent": "它已经发送。",
       "cancelled": "它已被删除。",
       "editing": "它正在另一个窗口中编辑。",
