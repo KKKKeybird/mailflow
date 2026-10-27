@@ -905,10 +905,13 @@ export class ScheduledSender {
     return rows.some(row => row.status === 'scheduled');
   }
 
+  // The condition is checked again on each row as it is deleted: a restore (the Undo of a delete)
+  // that revived a row after the batch was picked, but before it was deleted, keeps it.
   async purge() {
     await this.db.query(
       `DELETE FROM scheduled_messages WHERE id IN (
-         SELECT id FROM scheduled_messages WHERE purge_after < NOW() LIMIT ${PURGE_BATCH})`,
+         SELECT id FROM scheduled_messages WHERE purge_after < NOW() LIMIT ${PURGE_BATCH})
+         AND purge_after < NOW()`,
     );
   }
 

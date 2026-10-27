@@ -718,5 +718,28 @@ describe.skipIf(!ADMIN_URL)('scheduled sender on PostgreSQL (#543)', () => {
       expect(sendPushToUser).toHaveBeenCalledTimes(1);
       expect(sendPushToUser.mock.calls[0][1].body).toBe('Not sent: It was open for editing when it was due.');
     });
+
+    it('does not purge a message a restore revived while the purge waited for it', async () => {
+      const msg = await schedule({ state: { status: 'cancelled', status_before: 'scheduled', purge_after: new Date(Date.now() - 1000) } });
+      const restoring = await h.pool.connect();
+      try {
+        // A restore that read the message inside its window, holding the row until it commits.
+        await restoring.query('BEGIN');
+        await restoring.query("UPDATE scheduled_messages SET status = 'scheduled', status_before = NULL, purge_after = NULL WHERE id = $1", [msg.id]);
+        const purging = newSender().purge();
+        // The purge has picked the row (its snapshot still sees it expired) and waits for its lock.
+        for (let i = 0; i < 100; i++) {
+          const { rows } = await h.pool.query(
+            "SELECT 1 FROM pg_stat_activity WHERE wait_event_type = 'Lock' AND query LIKE 'DELETE FROM scheduled_messages%'");
+          if (rows.length) break;
+          await new Promise(resolve => setTimeout(resolve, 20));
+        }
+        await restoring.query('COMMIT');
+        await purging;
+      } finally {
+        restoring.release();
+      }
+      expect(await rowOf(msg.id)).toMatchObject({ status: 'scheduled', purge_after: null });
+    });
   });
 });
