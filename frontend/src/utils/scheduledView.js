@@ -118,6 +118,8 @@ const FAILURE_REASONS = {
   decrypt_failed: 'scheduled.reason.decryptFailed',
   account_missing: 'scheduled.reason.accountMissing',
   gave_up: 'scheduled.reason.gaveUp',
+  // The account may not send over SMTP (Microsoft): the composer's words for it.
+  smtp_auth_disabled: 'compose.smtpAuthDisabled',
 };
 
 export function reasonKey(row) {

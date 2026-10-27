@@ -274,7 +274,8 @@
       "scheduleAnyway": "Zaplanuj mimo wszystko",
       "undoFailedOpen": "Nie udało się cofnąć. Otwórz ją w Zaplanowanych."
     },
-    "selectAccount": "Wybierz konto do wysyłki"
+    "selectAccount": "Wybierz konto do wysyłki",
+    "smtpAuthDisabled": "Microsoft wyłączył wysyłanie z aplikacji pocztowych (SMTP) dla tego konta. Nadal możesz wysyłać z Outlooka w przeglądarce. W przypadku konta służbowego lub szkolnego administrator może je ponownie włączyć."
   },
   "message": {
     "find": {

@@ -784,7 +784,8 @@
       "scheduleAnyway": "Přesto naplánovat odeslání",
       "undoFailedOpen": "Vrácení se nepodařilo. Otevřete ji v Naplánovaných."
     },
-    "selectAccount": "Vyberte účet, ze kterého odeslat"
+    "selectAccount": "Vyberte účet, ze kterého odeslat",
+    "smtpAuthDisabled": "Microsoft pro tento účet vypnul odesílání z poštovních aplikací (SMTP). Z Outlooku na webu můžete odesílat dál. U pracovního nebo školního účtu ho může znovu zapnout váš správce."
   },
   "notifications": {
     "newMessage": "Nová zpráva"

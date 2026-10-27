@@ -274,7 +274,8 @@
       "scheduleAnyway": "Trotzdem planen",
       "undoFailedOpen": "Rückgängig fehlgeschlagen. Öffne sie unter Geplant."
     },
-    "selectAccount": "Wähle ein Konto zum Senden"
+    "selectAccount": "Wähle ein Konto zum Senden",
+    "smtpAuthDisabled": "Microsoft hat das Senden aus Mail-Apps (SMTP) für dieses Konto abgeschaltet. Aus Outlook im Web kannst du weiterhin senden. Bei einem Geschäfts- oder Schulkonto kann dein Admin es wieder einschalten."
   },
   "message": {
     "find": {

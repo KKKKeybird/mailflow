@@ -1,3 +1,5 @@
+import { SMTP_AUTH_DISABLED, isSmtpAuthDisabled } from './smtpRefusals.js';
+
 // The decisions of the scheduled sender (#543), kept free of I/O so each can be tested as a
 // table: how an error ends an attempt, when a retry is due, what recovery does with a send a
 // process left behind, when a message is overdue, when the next tick runs, and the push text.
@@ -50,6 +52,8 @@ const uncertain = code => ({ outcome: 'uncertain', code });
 // user (open question 11).
 export function classifySendError(err, { phase }) {
   if (err instanceof ScheduledSendError) return failed(err.scheduledCode);
+  // The account may not send over SMTP at all: no retry and no new sign-in changes that.
+  if (isSmtpAuthDisabled(err)) return failed(SMTP_AUTH_DISABLED);
   if (phase === 'prepare') {
     if (REAUTH_CODES.has(err?.accountErrorCode)) return paused('needs_reauth', err.accountErrorCode);
     // SendError: 400 is input that no longer passes the send checks, anything else an SMTP
@@ -138,6 +142,7 @@ const FAILED_TEXT = {
   decrypt_failed: 'It could not be decrypted on this server.',
   account_missing: 'Its account no longer exists.',
   gave_up: 'The mail server kept failing, so MailFlow stopped trying.',
+  smtp_auth_disabled: 'Microsoft has turned off sending from mail apps (SMTP) for this account. You can still send from Outlook on the web. For a work or school account, your admin can turn it back on.',
 };
 const PAUSED_TEXT = {
   needs_reauth: 'Sign in to the account again to send it.',

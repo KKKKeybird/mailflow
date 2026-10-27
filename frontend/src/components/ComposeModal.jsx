@@ -28,7 +28,7 @@ import { initialComposeFocus, isComposeSendShortcut, isSendLaterShortcut } from 
 import { unproxyImages } from '../utils/imageProxy.js';
 import { autoListsOf, openAutoRecipients, replyTypeFields, swapAccountFields } from '../utils/autoRecipients.js';
 import { resolveSignatureEnabled } from '../utils/composeSignature.js';
-import { UNDO_SEND_SECONDS, undoWindowMs, trackHeldSend, reopenCompose } from '../utils/heldSend.js';
+import { UNDO_SEND_SECONDS, undoWindowMs, trackHeldSend, reopenCompose, sendErrorText } from '../utils/heldSend.js';
 import { openSentMessage } from '../utils/openSentMessage.js';
 import { frameGeometry } from '../utils/frameGeometry.js';
 import { AI_MESSAGE_MAX_CHARS } from '../aiActions.js';
@@ -1156,7 +1156,7 @@ export default function ComposeModal() {
       }
       reportSent(sendResult);
     } catch (err) {
-      setError(err.message);
+      setError(sendErrorText(err, t));
       sendingRef.current = false;
       setSending(false);
     }

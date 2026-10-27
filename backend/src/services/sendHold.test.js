@@ -61,6 +61,14 @@ describe('holdSend', () => {
     await flush();
     expect(await getSendStatus('u1', id)).toEqual({ status: 'failed', error: 'Authentication failed.' });
   });
+
+  it('records the code of a failure the composer has its own words for', async () => {
+    const run = vi.fn().mockRejectedValue(Object.assign(new Error('Send failed'), { publicMessage: 'Outlook does not allow it.', publicCode: 'smtp_auth_disabled' }));
+    const { id } = await holdSend({ userId: 'u1', delayMs: 1000, run });
+    await vi.advanceTimersByTimeAsync(1000);
+    await flush();
+    expect(await getSendStatus('u1', id)).toEqual({ status: 'failed', error: 'Outlook does not allow it.', code: 'smtp_auth_disabled' });
+  });
 });
 
 describe('cancelSend', () => {

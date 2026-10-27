@@ -274,7 +274,8 @@
       "scheduleAnyway": "仍要定时发送",
       "undoFailedOpen": "撤销失败。请在“定时”中打开。"
     },
-    "selectAccount": "请选择用于发送的账户"
+    "selectAccount": "请选择用于发送的账户",
+    "smtpAuthDisabled": "Microsoft 已为此账户关闭从邮件应用（SMTP）发送。你仍可以在网页版 Outlook 中发送。如果是工作或学校账户，管理员可以重新开启。"
   },
   "message": {
     "find": {

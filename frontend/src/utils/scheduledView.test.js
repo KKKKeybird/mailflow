@@ -93,6 +93,9 @@ describe('reasons and chips', () => {
     };
     for (const [code, key] of Object.entries(failures)) assert.equal(reasonKey(row({ status: 'failed', failureCode: code })), `scheduled.reason.${key}`);
     assert.equal(reasonKey(row({ status: 'failed', failureCode: 'something_new' })), 'scheduled.reason.failed');
+    // A mailbox whose SMTP sending Outlook turned off: the composer's words, what is wrong and what to do.
+    assert.equal(reasonKey(row({ status: 'failed', failureCode: 'smtp_auth_disabled' })), 'compose.smtpAuthDisabled');
+    assert.deepEqual(rowActions(row({ status: 'failed', failureCode: 'smtp_auth_disabled' })), ['edit', 'resume', 'reschedule', 'sendNow', 'cancel', 'delete']);
     assert.equal(reasonKey(row({ status: 'paused', pauseReason: 'later' })), 'scheduled.reason.paused');
     assert.equal(reasonKey(row({ status: 'uncertain', failureCode: 'connection_lost' })), 'scheduled.reason.uncertain');
     assert.equal(reasonKey(row()), null);

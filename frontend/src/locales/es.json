@@ -274,7 +274,8 @@
       "scheduleAnyway": "Programar igualmente",
       "undoFailedOpen": "No se pudo deshacer. Ábrelo desde Programados."
     },
-    "selectAccount": "Elige una cuenta desde la que enviar"
+    "selectAccount": "Elige una cuenta desde la que enviar",
+    "smtpAuthDisabled": "Microsoft ha desactivado el envío desde aplicaciones de correo (SMTP) en esta cuenta. Puedes seguir enviando desde Outlook en la web. Si es una cuenta profesional o educativa, tu administrador puede volver a activarlo."
   },
   "message": {
     "find": {

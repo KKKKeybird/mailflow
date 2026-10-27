@@ -274,7 +274,8 @@
       "scheduleAnyway": "Schedule anyway",
       "undoFailedOpen": "Undo failed. Open it from Scheduled."
     },
-    "selectAccount": "Choose an account to send from"
+    "selectAccount": "Choose an account to send from",
+    "smtpAuthDisabled": "Microsoft has turned off sending from mail apps (SMTP) for this account. You can still send from Outlook on the web. For a work or school account, your admin can turn it back on."
   },
   "message": {
     "find": {

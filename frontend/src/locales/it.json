@@ -274,7 +274,8 @@
       "scheduleAnyway": "Programma lo stesso",
       "undoFailedOpen": "Annullamento non riuscito. Aprilo da Programmati."
     },
-    "selectAccount": "Scegli un account da cui inviare"
+    "selectAccount": "Scegli un account da cui inviare",
+    "smtpAuthDisabled": "Microsoft ha disattivato l'invio dalle app di posta (SMTP) per questo account. Puoi comunque inviare da Outlook sul web. Per un account aziendale o scolastico, l'amministratore può riattivarlo."
   },
   "message": {
     "find": {

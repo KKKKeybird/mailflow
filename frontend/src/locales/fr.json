@@ -274,7 +274,8 @@
       "scheduleAnyway": "Programmer malgré tout",
       "undoFailedOpen": "L'annulation a échoué. Ouvrez-le depuis Programmés."
     },
-    "selectAccount": "Choisissez un compte d'envoi"
+    "selectAccount": "Choisissez un compte d'envoi",
+    "smtpAuthDisabled": "Microsoft a désactivé l'envoi depuis les applications de messagerie (SMTP) pour ce compte. Vous pouvez toujours envoyer depuis Outlook sur le web. Pour un compte professionnel ou scolaire, votre administrateur peut le réactiver."
   },
   "message": {
     "find": {

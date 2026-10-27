@@ -14,6 +14,8 @@ const NONE = { mailFromSent: false, bodyStarted: false };
 const MAIL = { mailFromSent: true, bodyStarted: false };
 const DATA = { mailFromSent: true, bodyStarted: true };
 const sendError = (name, status, message = 'x') => Object.assign(new Error(message), { name, status });
+// Microsoft's reply when SMTP AUTH is turned off for the mailbox (aka.ms/smtp_auth_disabled).
+const AUTH_DISABLED = '535 5.7.139 Authentication unsuccessful, SmtpClientAuthentication is disabled for the Mailbox. Visit https://aka.ms/smtp_auth_disabled for more information.';
 
 describe('classifySendError', () => {
   it.each([
@@ -34,6 +36,13 @@ describe('classifySendError', () => {
     ['552 too large', 'send', smtpError({ responseCode: 552, code: 'EMESSAGE', command: 'DATA' }, DATA), 'failed', 'too_large'],
     ['5.3.4 too large', 'send', smtpError({ responseCode: 554, code: 'EMESSAGE', command: 'DATA', response: '554 5.3.4 Message too big' }, DATA), 'failed', 'too_large'],
     ['535 bad credentials', 'send', smtpError({ responseCode: 535, code: 'EAUTH', command: 'AUTH PLAIN' }, NONE), 'paused', 'auth_failed', 'needs_reauth'],
+    ['535 bad credentials, with an enhanced code (Outlook)', 'send', smtpError({ responseCode: 535, code: 'EAUTH', command: 'AUTH XOAUTH2', message: 'Invalid login: 535 5.7.3 Authentication unsuccessful', response: '535 5.7.3 Authentication unsuccessful' }, NONE), 'paused', 'auth_failed', 'needs_reauth'],
+    ['535 5.7.139: SMTP sending turned off for the mailbox (Outlook)', 'send', smtpError({ responseCode: 535, code: 'EAUTH', command: 'AUTH XOAUTH2', message: `Invalid login: ${AUTH_DISABLED}`, response: AUTH_DISABLED }, NONE), 'failed', 'smtp_auth_disabled'],
+    ['the same refusal for a whole tenant', 'send', smtpError({ responseCode: 535, code: 'EAUTH', command: 'AUTH XOAUTH2', message: 'Invalid login: 535 5.7.139 Authentication unsuccessful, SmtpClientAuthentication is disabled for the Tenant. Visit https://aka.ms/smtp_auth_disabled for more information.' }, NONE), 'failed', 'smtp_auth_disabled'],
+    // Other 5.7.139 refusals a new sign-in or an admin can fix: still a sign-in to redo.
+    ['535 5.7.139 basic authentication disabled', 'send', smtpError({ responseCode: 535, code: 'EAUTH', command: 'AUTH LOGIN', message: 'Invalid login: 535 5.7.139 Authentication unsuccessful, basic authentication is disabled.', response: '535 5.7.139 Authentication unsuccessful, basic authentication is disabled.' }, NONE), 'paused', 'auth_failed', 'needs_reauth'],
+    ['535 5.7.139 Conditional Access', 'send', smtpError({ responseCode: 535, code: 'EAUTH', command: 'AUTH XOAUTH2', message: 'Invalid login: 535 5.7.139 Authentication unsuccessful, the request did not meet the criteria to be authenticated successfully. Contact your administrator.', response: '535 5.7.139 Authentication unsuccessful, the request did not meet the criteria to be authenticated successfully. Contact your administrator.' }, NONE), 'paused', 'auth_failed', 'needs_reauth'],
+    ['the same refusal said only in words', 'send', smtpError({ code: 'EAUTH', command: 'AUTH XOAUTH2', message: 'Invalid login: SmtpClientAuthentication is disabled for the Mailbox' }, NONE), 'failed', 'smtp_auth_disabled'],
     ['530 authentication required', 'send', smtpError({ responseCode: 530, code: 'EENVELOPE', command: 'MAIL FROM' }, MAIL), 'paused', 'auth_failed', 'needs_reauth'],
     ['EAUTH without a reply (missing credentials)', 'send', smtpError({ code: 'EAUTH', command: 'API' }, NONE), 'paused', 'auth_failed', 'needs_reauth'],
     ['454 temporary authentication failure', 'send', smtpError({ responseCode: 454, code: 'EAUTH', command: 'AUTH XOAUTH2' }, NONE), 'retry', 'smtp_temporary'],
@@ -153,6 +162,8 @@ describe('pushFor', () => {
     expect(pushFor({ ...base, status: 'paused', pauseReason: 'overdue' }).body)
       .toBe('Not sent: was scheduled for Mon, Oct 26, 8:00 AM and is more than 6 hours late. Open to send or reschedule.');
     expect(pushFor({ ...base, status: 'uncertain' }).body).toMatch(/may or may not have been delivered/);
+    expect(pushFor({ ...base, status: 'failed', failureCode: 'smtp_auth_disabled' }).body)
+      .toBe('Not sent: Microsoft has turned off sending from mail apps (SMTP) for this account. You can still send from Outlook on the web. For a work or school account, your admin can turn it back on.');
   });
   it('falls back to a generic title and UTC for an unknown zone', () => {
     const push = pushFor({ ...base, subject: null, timeZone: 'Not/AZone', status: 'paused', pauseReason: 'overdue', offline: true });

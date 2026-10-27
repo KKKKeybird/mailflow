@@ -66,6 +66,8 @@ function start(id) {
       await writeStatus(job.userId, id, {
         status: 'failed',
         error: err?.publicMessage || 'Failed to send message. Please try again.',
+        // A failure the composer says in the user's language (outgoingMail.js publicSendCode).
+        ...(err?.publicCode ? { code: err.publicCode } : {}),
       });
     } finally {
       jobs.delete(id);

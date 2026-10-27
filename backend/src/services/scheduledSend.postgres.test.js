@@ -325,6 +325,24 @@ describe.skipIf(!ADMIN_URL)('scheduled sender on PostgreSQL (#543)', () => {
     });
   });
 
+  it('a mailbox whose SMTP sending Outlook turned off fails for good, and is never a sign-in to redo', async () => {
+    const msg = await schedule();
+    const response = '535 5.7.139 Authentication unsuccessful, SmtpClientAuthentication is disabled for the Mailbox. Visit https://aka.ms/smtp_auth_disabled for more information.';
+    behavior.set(msg.to, () => { throw smtpError({ responseCode: 535, code: 'EAUTH', command: 'AUTH XOAUTH2', message: `Invalid login: ${response}`, response }, { mailFromSent: false, bodyStarted: false }); });
+    const sender = newSender();
+    await tick(sender);
+    const row = await rowOf(msg.id);
+    expect(row).toMatchObject({ status: 'failed', failure_code: 'smtp_auth_disabled', pause_reason: null, attempts: 1 });
+    expect(resultOf(row)).toMatchObject({ code: 'smtp_auth_disabled', smtpResponse: response });
+    expect(sendPushToUser).toHaveBeenCalledOnce();
+    expect(sendPushToUser.mock.calls[0][1].body).toMatch(/^Not sent: Microsoft has turned off sending from mail apps \(SMTP\)/);
+    // Not retried: nothing is due again.
+    behavior.clear();
+    await tick(sender);
+    expect(h.sent).toEqual([]);
+    expect((await rowOf(msg.id)).status).toBe('failed');
+  });
+
   describe('recovery', () => {
     const left = (extra = {}) => ({ status: 'sending', claim_token: randomUUID(), claimed_at: new Date(Date.now() - 3_600_000), attempts: 1, ...extra });
     const started = new Date(Date.now() - 3_590_000);

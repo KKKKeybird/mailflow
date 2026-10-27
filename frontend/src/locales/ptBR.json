@@ -274,7 +274,8 @@
       "scheduleAnyway": "Agendar assim mesmo",
       "undoFailedOpen": "Não foi possível desfazer. Abra-a em Agendados."
     },
-    "selectAccount": "Escolha uma conta para enviar"
+    "selectAccount": "Escolha uma conta para enviar",
+    "smtpAuthDisabled": "A Microsoft desativou o envio por apps de e-mail (SMTP) nesta conta. Você ainda pode enviar pelo Outlook na web. Em uma conta corporativa ou de estudante, o administrador pode reativá-lo."
   },
   "message": {
     "find": {
