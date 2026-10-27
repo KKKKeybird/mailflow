@@ -132,6 +132,19 @@ describe('recipients and times', () => {
     assert.equal(formatScheduledTime(null, { t, now }), '');
   });
 
+  test('a day that is 23 or 25 hours long still counts as one, at UTC+12 and +13', () => {
+    process.env.TZ = 'Pacific/Auckland';
+    // Sun Sep 27 2026, 10:00 AM: the clocks went forward at 2:00 AM.
+    let now = new Date('2026-09-26T21:00:00Z');
+    assert.equal(plain(formatScheduledTime('2026-09-27T19:00:00Z', { t, locale: 'en-US', now })), 'scheduled.when.tomorrow:{"time":"8:00 AM"}');
+    assert.equal(plain(formatScheduledTime('2026-09-26T23:00:00Z', { t, locale: 'en-US', now })), 'scheduled.when.today:{"time":"12:00 PM"}');
+    assert.equal(plain(formatScheduledTime('2026-09-25T20:00:00Z', { t, locale: 'en-US', now })), 'scheduled.when.yesterday:{"time":"8:00 AM"}');
+    // Sun Apr 5 2026, 10:00 AM: the clocks went back at 3:00 AM.
+    now = new Date('2026-04-04T22:00:00Z');
+    assert.equal(plain(formatScheduledTime('2026-04-04T07:00:00Z', { t, locale: 'en-US', now })), 'scheduled.when.yesterday:{"time":"8:00 PM"}');
+    assert.equal(plain(formatScheduledTime('2026-04-05T20:00:00Z', { t, locale: 'en-US', now })), 'scheduled.when.tomorrow:{"time":"8:00 AM"}');
+  });
+
   test('the zone it was scheduled in shows when it is not this one and reads differently', () => {
     const at = '2026-10-26T07:00:00Z';
     assert.equal(storedZoneTime(at, 'Europe/Berlin', { locale: 'en-US', here: 'Europe/Berlin' }), null);

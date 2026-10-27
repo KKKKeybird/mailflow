@@ -161,7 +161,9 @@ export function recipientsOf(summary, max = 2) {
   return { names: shown, more };
 }
 
-const dayNumber = d => Math.round(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86_400_000);
+// The local calendar day as a number, from the date's parts: local midnights are not a whole
+// number of days apart across a change to or from summer time.
+const dayNumber = d => Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86_400_000;
 
 // A send time in the user's zone: "Today 6:00 PM", "Tomorrow 8:00 AM", "Yesterday 8:00 AM", or
 // "Tue, Oct 28, 8:00 AM" (formatSendAt).
