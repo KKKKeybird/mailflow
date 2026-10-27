@@ -124,3 +124,27 @@ describe('flushHeldSends', () => {
     expect(await flushHeldSends(5000)).toBe(0);
   });
 });
+
+describe('a send held once a shutdown has begun', () => {
+  it('is delivered at once, and the last flush before the exit waits for it', async () => {
+    // A module of its own: the shutdown flag stays set for the rest of the process.
+    vi.resetModules();
+    const hold = await import('./sendHold.js');
+    hold.beginHeldSendShutdown();
+    let finish;
+    const run = vi.fn(() => new Promise(resolve => { finish = resolve; }));
+    const { id } = await hold.holdSend({ userId: 'u1', delayMs: 10_000, run });
+    await flush();
+    expect(run).toHaveBeenCalledOnce();
+    expect(await hold.getSendStatus('u1', id)).toMatchObject({ status: 'sending' });
+    // An Undo now is too late: it is already being delivered.
+    expect(await hold.cancelSend('u1', id)).toMatchObject({ cancelled: false });
+    let done = false;
+    const flushed = hold.flushHeldSends(5000).then(n => { done = true; return n; });
+    await flush();
+    expect(done).toBe(false);
+    finish({ ok: true });
+    expect(await flushed).toBe(1);
+    expect(await hold.getSendStatus('u1', id)).toMatchObject({ status: 'sent' });
+  });
+});

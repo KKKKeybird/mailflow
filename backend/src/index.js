@@ -50,7 +50,7 @@ import { closeWebSocketClients, createWebSocketServer, setupWebSocket } from './
 import { ImapManager } from './services/imapManager.js';
 import { getUpdateStatus } from './services/updateCheck.js';
 import { recordHttp } from './services/performanceMetrics.js';
-import { flushSendsForShutdown } from './services/sendShutdown.js';
+import { shutDown } from './services/sendShutdown.js';
 import { startScheduledSender } from './services/scheduledSend.js';
 
 const packageMeta = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
@@ -311,22 +311,15 @@ httpServer.listen(PORT, () => {
 });
 
 function exitAfterClose(code, { wsCode = 1001, wsReason = 'Shutting down' } = {}) {
-  // A send held for its undo window lives only in this process: deliver it now rather than
-  // lose it with the restart (services/sendHold.js). The scheduled sender stops claiming and
-  // its sends in flight finish in the same wait. Bounded to leave room for the rest, inside the
-  // 30 s stop_grace_period the compose files give the backend.
-  const sendsFlushed = flushSendsForShutdown(25_000);
-  // The server stops taking connections and closes idle ones; requests in flight (a send among
-  // them) still finish. It is closed once the WebSockets are too, so the process exits as soon
-  // as the sends are flushed rather than at the forced exit.
-  httpServer.close(async () => {
-    await sendsFlushed;
-    try { await redisClient.quit(); } catch { /* ignore */ }
-    process.exit(code);
+  // A send held for its undo window lives only in this process: it is delivered now rather than
+  // lost with the restart, and the scheduled sender's sends in flight finish (sendShutdown.js).
+  shutDown({
+    code,
+    httpServer,
+    closeClients: () => closeWebSocketClients(wss, wsCode, wsReason),
+    quit: () => redisClient.quit(),
+    exit: c => process.exit(c),
   });
-  closeWebSocketClients(wss, wsCode, wsReason);
-  // Force exit if graceful shutdown takes more than 28 s
-  setTimeout(() => process.exit(code || 1), 28_000).unref();
 }
 
 process.on('SIGTERM', () => {
