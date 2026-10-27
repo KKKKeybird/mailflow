@@ -737,6 +737,21 @@ describe('editing a scheduled message', () => {
     assert.equal(callsTo('release').length, 1);
   });
 
+  test('a change of priority alone is a change: closing asks, and Save changes saves it', async () => {
+    await mount(structuredClone(SCHEDULED));
+    const select = document.querySelector('select[title="compose.priority"]');
+    const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, 'value').set;
+    await React.act(async () => {
+      setter.call(select, 'high');
+      select.dispatchEvent(new window.Event('change', { bubbles: true }));
+    });
+    await click(document.querySelector('button[title="compose.toolbar.close"]'));
+    assert.ok(document.querySelector('[role="alertdialog"]'), 'asks before it is lost');
+    await click(button('compose.scheduleSend.edit.saveChanges'));
+    await settle();
+    assert.equal(callsTo('update')[0][2].priority, 'high');
+  });
+
   test('a page going away releases it with keepalive', async () => {
     const close = await mount(structuredClone(SCHEDULED));
     await React.act(async () => { window.dispatchEvent(new window.Event('pagehide')); });

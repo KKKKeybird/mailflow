@@ -537,6 +537,7 @@
       "failed": "Impossibile salvare la categoria per questo mittente"
     },
     "changeLayout": "Cambia disposizione",
+    "layout": "Layout",
     "layouts": {
       "focused": {
         "label": "Concentrato",
@@ -561,7 +562,8 @@
     },
     "snoozedUntil": "Posticipato fino a {{when}}",
     "snoozedEmpty": "Niente posticipato",
-    "snoozedEmptyDesc": "Le email posticipate aspettano qui finché non tornano."
+    "snoozedEmptyDesc": "Le email posticipate aspettano qui finché non tornano.",
+    "menu": "Menu"
   },
   "lockScreen": {
     "subtitle": "Inserisci il PIN per sbloccare",
@@ -591,6 +593,8 @@
       "markAllRead": "Segna tutto come letto",
       "syncFolder": "Sincronizza cartella",
       "renameFavorite": "Rinomina preferito",
+      "favorite": "Aggiungi ai preferiti",
+      "unfavorite": "Rimuovi dai preferiti",
       "rename": "Rinomina",
       "createSubfolder": "Crea sottocartella",
       "hide": "Nascondi cartella",
@@ -623,7 +627,9 @@
     "snoozed": "Posticipati",
     "scheduled": "Programmati",
     "scheduledPending": "In attesa di invio: {{n}}",
-    "scheduledAttention": "Richiedono attenzione: {{n}}"
+    "scheduledAttention": "Richiedono attenzione: {{n}}",
+    "favorites": "Preferiti",
+    "reorderFolder": "Trascina per riordinare la cartella"
   },
   "scheduled": {
     "refresh": "Aggiorna",

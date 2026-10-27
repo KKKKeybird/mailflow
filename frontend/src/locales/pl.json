@@ -551,6 +551,7 @@
       "failed": "Nie udało się zapisać kategorii dla tego nadawcy"
     },
     "changeLayout": "Zmień układ",
+    "layout": "Układ",
     "layouts": {
       "focused": {
         "label": "Skupiony",
@@ -575,7 +576,8 @@
     },
     "snoozedUntil": "Odłożone do {{when}}",
     "snoozedEmpty": "Nic nie jest odłożone",
-    "snoozedEmptyDesc": "Odłożone wiadomości czekają tutaj, aż wrócą."
+    "snoozedEmptyDesc": "Odłożone wiadomości czekają tutaj, aż wrócą.",
+    "menu": "Menu"
   },
   "lockScreen": {
     "subtitle": "Wpisz swój PIN aby odblokować",
@@ -607,6 +609,8 @@
       "markAllRead": "Oznacz wszystkie jako przeczytane",
       "syncFolder": "Synchronizuj folder",
       "renameFavorite": "Zmień nazwę ulubionego folderu",
+      "favorite": "Dodaj do ulubionych",
+      "unfavorite": "Usuń z ulubionych",
       "rename": "Zmień nazwę",
       "createSubfolder": "Utwórz podfolder",
       "hide": "Ukryj folder",
@@ -639,7 +643,9 @@
     "snoozed": "Odłożone",
     "scheduled": "Zaplanowane",
     "scheduledPending": "Czeka na wysłanie: {{n}}",
-    "scheduledAttention": "Wymaga uwagi: {{n}}"
+    "scheduledAttention": "Wymaga uwagi: {{n}}",
+    "favorites": "Ulubione",
+    "reorderFolder": "Przeciągnij, aby zmienić kolejność folderu"
   },
   "scheduled": {
     "refresh": "Odśwież",

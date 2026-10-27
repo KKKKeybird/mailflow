@@ -537,6 +537,7 @@
       "failed": "Couldn't save the category for this sender"
     },
     "changeLayout": "Change layout",
+    "layout": "Layout",
     "layouts": {
       "focused": {
         "label": "Focused",
@@ -561,7 +562,8 @@
     },
     "snoozedUntil": "Snoozed until {{when}}",
     "snoozedEmpty": "Nothing snoozed",
-    "snoozedEmptyDesc": "Snoozed mail waits here until it comes back."
+    "snoozedEmptyDesc": "Snoozed mail waits here until it comes back.",
+    "menu": "Menu"
   },
   "lockScreen": {
     "subtitle": "Enter your PIN to unlock",
@@ -591,6 +593,8 @@
       "markAllRead": "Mark all as read",
       "syncFolder": "Sync folder",
       "renameFavorite": "Rename favorite",
+      "favorite": "Add to Favorites",
+      "unfavorite": "Remove from Favorites",
       "rename": "Rename",
       "createSubfolder": "Create subfolder",
       "hide": "Hide folder",
@@ -623,7 +627,9 @@
     "snoozed": "Snoozed",
     "scheduled": "Scheduled",
     "scheduledPending": "Waiting to be sent: {{n}}",
-    "scheduledAttention": "Need attention: {{n}}"
+    "scheduledAttention": "Need attention: {{n}}",
+    "favorites": "Favorites",
+    "reorderFolder": "Drag to reorder folder"
   },
   "scheduled": {
     "refresh": "Refresh",

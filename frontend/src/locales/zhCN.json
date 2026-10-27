@@ -537,6 +537,7 @@
       "failed": "无法保存此发件人的分类"
     },
     "changeLayout": "更改布局",
+    "layout": "布局",
     "layouts": {
       "focused": {
         "label": "专注",
@@ -561,7 +562,8 @@
     },
     "snoozedUntil": "暂停至 {{when}}",
     "snoozedEmpty": "没有暂停的邮件",
-    "snoozedEmptyDesc": "暂停的邮件会在这里等待，直到恢复。"
+    "snoozedEmptyDesc": "暂停的邮件会在这里等待，直到恢复。",
+    "menu": "菜单"
   },
   "lockScreen": {
     "subtitle": "输入 PIN 码以解锁",
@@ -591,6 +593,8 @@
       "markAllRead": "全部标为已读",
       "syncFolder": "同步此文件夹",
       "renameFavorite": "重命名收藏夹",
+      "favorite": "添加到收藏夹",
+      "unfavorite": "从收藏夹移除",
       "rename": "重命名",
       "createSubfolder": "新建子文件夹",
       "hide": "隐藏文件夹",
@@ -623,7 +627,9 @@
     "snoozed": "已暂停",
     "scheduled": "定时",
     "scheduledPending": "等待发送：{{n}}",
-    "scheduledAttention": "需要处理：{{n}}"
+    "scheduledAttention": "需要处理：{{n}}",
+    "favorites": "收藏夹",
+    "reorderFolder": "拖动以调整文件夹顺序"
   },
   "scheduled": {
     "refresh": "刷新",

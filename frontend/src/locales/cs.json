@@ -133,6 +133,8 @@
       "markAllRead": "Označit vše jako přečtené",
       "syncFolder": "Synchronizovat složku",
       "renameFavorite": "Přejmenovat oblíbenou položku",
+      "favorite": "Přidat do oblíbených",
+      "unfavorite": "Odebrat z oblíbených",
       "rename": "Přejmenovat",
       "createSubfolder": "Vytvořit podsložku",
       "hide": "Skrýt složku",
@@ -165,7 +167,9 @@
     "snoozed": "Odložené",
     "scheduled": "Naplánované",
     "scheduledPending": "Čeká na odeslání: {{n}}",
-    "scheduledAttention": "Vyžaduje pozornost: {{n}}"
+    "scheduledAttention": "Vyžaduje pozornost: {{n}}",
+    "favorites": "Oblíbené",
+    "reorderFolder": "Přetažením změníte pořadí složky"
   },
   "scheduled": {
     "refresh": "Obnovit",
@@ -427,6 +431,7 @@
       "failed": "Kategorii pro tohoto odesílatele se nepodařilo uložit"
     },
     "changeLayout": "Změnit rozvržení",
+    "layout": "Rozložení",
     "layouts": {
       "focused": {
         "label": "Soustředěné",
@@ -451,7 +456,8 @@
     },
     "snoozedUntil": "Odloženo do {{when}}",
     "snoozedEmpty": "Nic není odloženo",
-    "snoozedEmptyDesc": "Odložené zprávy tu čekají, dokud se nevrátí."
+    "snoozedEmptyDesc": "Odložené zprávy tu čekají, dokud se nevrátí.",
+    "menu": "Nabídka"
   },
   "message": {
     "find": {

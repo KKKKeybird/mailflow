@@ -537,6 +537,7 @@
       "failed": "Não foi possível salvar a categoria deste remetente"
     },
     "changeLayout": "Alterar layout",
+    "layout": "Layout",
     "layouts": {
       "focused": {
         "label": "Focado",
@@ -561,7 +562,8 @@
     },
     "snoozedUntil": "Adiado até {{when}}",
     "snoozedEmpty": "Nada adiado",
-    "snoozedEmptyDesc": "E-mails adiados esperam aqui até voltarem."
+    "snoozedEmptyDesc": "E-mails adiados esperam aqui até voltarem.",
+    "menu": "Menu"
   },
   "lockScreen": {
     "subtitle": "Digite seu PIN para desbloquear",
@@ -591,6 +593,8 @@
       "markAllRead": "Marcar todas como lidas",
       "syncFolder": "Sincronizar pasta",
       "renameFavorite": "Renomear favorito",
+      "favorite": "Adicionar aos favoritos",
+      "unfavorite": "Remover dos favoritos",
       "rename": "Renomear",
       "createSubfolder": "Criar subpasta",
       "hide": "Ocultar pasta",
@@ -623,7 +627,9 @@
     "snoozed": "Adiados",
     "scheduled": "Agendados",
     "scheduledPending": "Aguardando envio: {{n}}",
-    "scheduledAttention": "Precisam de atenção: {{n}}"
+    "scheduledAttention": "Precisam de atenção: {{n}}",
+    "favorites": "Favoritos",
+    "reorderFolder": "Arraste para reordenar a pasta"
   },
   "scheduled": {
     "refresh": "Atualizar",

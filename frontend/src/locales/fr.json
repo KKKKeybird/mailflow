@@ -537,6 +537,7 @@
       "failed": "Impossible d’enregistrer la catégorie pour cet expéditeur"
     },
     "changeLayout": "Changer la disposition",
+    "layout": "Disposition",
     "layouts": {
       "focused": {
         "label": "Concentré",
@@ -561,7 +562,8 @@
     },
     "snoozedUntil": "En attente jusqu'à {{when}}",
     "snoozedEmpty": "Rien en attente",
-    "snoozedEmptyDesc": "Les messages mis en attente patientent ici jusqu'à leur retour."
+    "snoozedEmptyDesc": "Les messages mis en attente patientent ici jusqu'à leur retour.",
+    "menu": "Menu"
   },
   "lockScreen": {
     "subtitle": "Saisissez votre PIN pour déverrouiller",
@@ -591,6 +593,8 @@
       "markAllRead": "Tout marquer comme lu",
       "syncFolder": "Synchroniser le dossier",
       "renameFavorite": "Renommer le favori",
+      "favorite": "Ajouter aux favoris",
+      "unfavorite": "Retirer des favoris",
       "rename": "Renommer",
       "createSubfolder": "Créer un sous-dossier",
       "hide": "Masquer le dossier",
@@ -623,7 +627,9 @@
     "snoozed": "En attente",
     "scheduled": "Programmés",
     "scheduledPending": "En attente d'envoi : {{n}}",
-    "scheduledAttention": "À vérifier : {{n}}"
+    "scheduledAttention": "À vérifier : {{n}}",
+    "favorites": "Favoris",
+    "reorderFolder": "Faites glisser pour réorganiser le dossier"
   },
   "scheduled": {
     "refresh": "Actualiser",

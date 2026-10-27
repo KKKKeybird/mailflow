@@ -537,6 +537,7 @@
       "failed": "Die Kategorie für diesen Absender konnte nicht gespeichert werden"
     },
     "changeLayout": "Layout ändern",
+    "layout": "Layout",
     "layouts": {
       "focused": {
         "label": "Fokussiert",
@@ -561,7 +562,8 @@
     },
     "snoozedUntil": "Zurückgestellt bis {{when}}",
     "snoozedEmpty": "Nichts zurückgestellt",
-    "snoozedEmptyDesc": "Zurückgestellte E-Mails warten hier, bis sie wiederkommen."
+    "snoozedEmptyDesc": "Zurückgestellte E-Mails warten hier, bis sie wiederkommen.",
+    "menu": "Menü"
   },
   "lockScreen": {
     "subtitle": "Gib deine PIN zum Entsperren ein",
@@ -591,6 +593,8 @@
       "markAllRead": "Alle als gelesen markieren",
       "syncFolder": "Ordner synchronisieren",
       "renameFavorite": "Favorit umbenennen",
+      "favorite": "Zu Favoriten hinzufügen",
+      "unfavorite": "Aus Favoriten entfernen",
       "rename": "Umbenennen",
       "createSubfolder": "Unterordner erstellen",
       "hide": "Ordner ausblenden",
@@ -623,7 +627,9 @@
     "snoozed": "Zurückgestellt",
     "scheduled": "Geplant",
     "scheduledPending": "Warten auf den Versand: {{n}}",
-    "scheduledAttention": "Brauchen Aufmerksamkeit: {{n}}"
+    "scheduledAttention": "Brauchen Aufmerksamkeit: {{n}}",
+    "favorites": "Favoriten",
+    "reorderFolder": "Ziehen, um den Ordner zu verschieben"
   },
   "scheduled": {
     "refresh": "Aktualisieren",

@@ -1515,6 +1515,9 @@ export default function ComposeModal() {
     attachments: attachments.map(a => a.name),
     forwardedAttachments: fwdAttachments.map(a => `${a.messageId}:${a.part}`),
     scheduledAttachments: scheduledAttachments.map(a => a.index),
+    // A scheduled message keeps its priority, so changing only that is an edit to save. Drafts do
+    // not store one, so for them it would only cost a save.
+    ...(scheduledEdit ? { priority } : {}),
   });
   unsupportedRef.current = () => sendingRef.current || attachments.length > 0 || fwdAttachments.length > 0
     || Boolean(composeData?.unresolvedExternalAttachments);

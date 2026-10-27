@@ -537,6 +537,7 @@
       "failed": "No se pudo guardar la categoría de este remitente"
     },
     "changeLayout": "Cambiar diseño",
+    "layout": "Diseño",
     "layouts": {
       "focused": {
         "label": "Enfocado",
@@ -561,7 +562,8 @@
     },
     "snoozedUntil": "Pospuesto hasta {{when}}",
     "snoozedEmpty": "Nada pospuesto",
-    "snoozedEmptyDesc": "El correo pospuesto espera aquí hasta que vuelve."
+    "snoozedEmptyDesc": "El correo pospuesto espera aquí hasta que vuelve.",
+    "menu": "Menú"
   },
   "lockScreen": {
     "subtitle": "Introduce tu PIN para desbloquear",
@@ -591,6 +593,8 @@
       "markAllRead": "Marcar todo como leído",
       "syncFolder": "Sincronizar carpeta",
       "renameFavorite": "Renombrar favorito",
+      "favorite": "Añadir a favoritos",
+      "unfavorite": "Quitar de favoritos",
       "rename": "Renombrar",
       "createSubfolder": "Crear subcarpeta",
       "hide": "Ocultar carpeta",
@@ -623,7 +627,9 @@
     "snoozed": "Pospuestos",
     "scheduled": "Programados",
     "scheduledPending": "Pendientes de envío: {{n}}",
-    "scheduledAttention": "Requieren atención: {{n}}"
+    "scheduledAttention": "Requieren atención: {{n}}",
+    "favorites": "Favoritos",
+    "reorderFolder": "Arrastra para reordenar la carpeta"
   },
   "scheduled": {
     "refresh": "Actualizar",

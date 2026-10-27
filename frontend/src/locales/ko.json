@@ -559,9 +559,11 @@
     },
     "noAccountsDesc": "시작하려면 이메일 계정을 추가하세요",
     "changeLayout": "레이아웃 변경",
+    "layout": "레이아웃",
     "snoozedUntil": "{{when}}까지 다시 알림 대기",
     "snoozedEmpty": "다시 알림 대기 중인 메일 없음",
-    "snoozedEmptyDesc": "다시 알림으로 미룬 메일은 돌아올 때까지 여기에서 기다립니다."
+    "snoozedEmptyDesc": "다시 알림으로 미룬 메일은 돌아올 때까지 여기에서 기다립니다.",
+    "menu": "메뉴"
   },
   "lockScreen": {
     "unlockButton": "잠금 해제",
@@ -587,6 +589,8 @@
       "rename": "이름 바꾸기",
       "delete": "폴더 삭제",
       "renameFavorite": "즐겨찾기 이름 바꾸기",
+      "favorite": "즐겨찾기에 추가",
+      "unfavorite": "즐겨찾기에서 제거",
       "empty": "폴더 비우기",
       "syncFolder": "폴더 동기화",
       "createSubfolder": "하위 폴더 만들기",
@@ -623,7 +627,9 @@
     "snoozed": "다시 알림",
     "scheduled": "예약됨",
     "scheduledPending": "보내기 대기 중: {{n}}",
-    "scheduledAttention": "확인 필요: {{n}}"
+    "scheduledAttention": "확인 필요: {{n}}",
+    "favorites": "즐겨찾기",
+    "reorderFolder": "끌어서 폴더 순서 변경"
   },
   "scheduled": {
     "refresh": "새로 고침",
