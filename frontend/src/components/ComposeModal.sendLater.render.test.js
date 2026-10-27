@@ -475,8 +475,22 @@ describe('Send later on a phone', () => {
     const close = await mount({ ...NEW_MESSAGE }, { mobile: true });
     const clock = chevron();
     assert.equal(clock.getAttribute('aria-label'), 'compose.scheduleSend.title');
-    assert.equal(clock.style.width, '44px');
+    assert.equal(clock.style.flexBasis, '44px');
     assert.equal(clock.style.height, '44px');
+    // A narrow phone at 130%: the title, then this, then Cancel give way; Send never does.
+    assert.equal(clock.style.minWidth, '28px');
+    assert.equal(clock.style.flexShrink, '1');
+    assert.equal(clock.parentElement.style.minWidth, '', 'the group keeps its automatic minimum');
+    const send = button('compose.send');
+    assert.equal(send.style.flexShrink, '0');
+    assert.equal(send.style.whiteSpace, 'nowrap');
+    const title = [...document.querySelectorAll('span')].find(s => s.textContent === 'compose.newMessage' && !s.children.length);
+    assert.equal(title.style.textOverflow, 'ellipsis');
+    // Too narrow, it is hidden by a container query on its box (index.css), with a gap either side.
+    const box = title.parentElement;
+    assert.equal(box.className, 'compose-phone-title');
+    assert.equal(box.style.minWidth, '0px');
+    assert.equal(box.style.padding, '0px 6px');
     await click(clock);
     const sheet = document.querySelector('[role="dialog"][aria-modal="true"]');
     assert.ok(sheet);

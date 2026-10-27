@@ -581,8 +581,16 @@ describe('conversation pane on a phone', () => {
         ['message.reply', 'message.replyOptions', 'message.forward', 'message.more', 'message.star']);
       for (const b of buttons) assert.equal(b.style.minHeight, '44px', `${b.getAttribute('aria-label')} is 44 px tall`);
       for (const b of buttons.filter(b => b.getAttribute('aria-label') !== 'message.replyOptions')) {
-        assert.equal(b.style.minWidth, '44px', `${b.getAttribute('aria-label')} is 44 px wide`);
+        assert.equal(b.style.width, '44px', `${b.getAttribute('aria-label')} is 44 px wide`);
+        // Where a larger font size leaves the row too narrow, it gives way rather than push the
+        // last buttons off screen.
+        assert.equal(b.style.minWidth, '32px');
+        assert.equal(b.style.flexShrink, '1');
       }
+      // A wrapper says its minimum outright: its automatic one would count the button's 44 px.
+      const moreButton = buttons.find(b => b.getAttribute('aria-label') === 'message.more');
+      assert.equal(moreButton.parentElement.style.minWidth, '32px');
+      assert.equal(buttons[0].parentElement.style.minWidth, '54px', 'the reply split, both halves');
       const threadBar = container.querySelector('[role="group"][aria-label="message.conversationActions"]');
       assert.deepEqual([...threadBar.querySelectorAll('button')].map(b => b.getAttribute('aria-label')), [
         'message.archive', 'contextMenu.moveToFolder', 'contextMenu.snooze.label',

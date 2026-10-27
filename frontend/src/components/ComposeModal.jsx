@@ -1944,6 +1944,9 @@ export default function ComposeModal() {
       <polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a1 1 0 011-1h4a1 1 0 011 1v2"/>
     </svg>
   );
+  // The phone header's discard and priority buttons: 27 px wide, their icon and padding, and as
+  // tall as the header's touch targets.
+  const headerIconSize = { minHeight: 44, flexShrink: 0 };
   const sendSpinner = (
     <div style={{
       width: 14, height: 14, borderRadius: '50%',
@@ -2148,19 +2151,29 @@ export default function ComposeModal() {
             style={{
               background: 'none', border: 'none',
               color: 'var(--accent)', fontSize: 16,
-              cursor: 'pointer', padding: '4px 0', minWidth: 60,
+              cursor: 'pointer', padding: '4px 0', minWidth: 0,
               WebkitTapHighlightColor: 'transparent',
+              // Gives way only once nothing else can (see below), with an ellipsis.
+              flexShrink: 0.01, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             }}
           >
             {t('common.cancel')}
           </button>
-          <span style={{
-            flex: 1, textAlign: 'center',
-            fontSize: 16, fontWeight: 600, color: 'var(--text-primary)',
-          }}>
-            {modeLabel}
+          {/* A narrow phone at a larger font size (MailApp scales the layout) has no room for
+              everything: the title gives way first, then the icon buttons down to 28 px, then
+              Cancel. The group's own minimum is its buttons' minimums and Send's label, so Send
+              never leaves the screen. Too narrow to say more than a letter, the title is hidden
+              (compose-phone-title in index.css), though still read out, rather than cut to "N…". */}
+          <span className="compose-phone-title" style={{ flex: 1, minWidth: 0, padding: '0 6px' }}>
+            <span style={{
+              display: 'block', textAlign: 'center',
+              fontSize: 16, fontWeight: 600, color: 'var(--text-primary)',
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            }}>
+              {modeLabel}
+            </span>
           </span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 60, justifyContent: 'flex-end' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 2, justifyContent: 'flex-end' }}>
             {!scheduledEdit && (
             <button
               onClick={() => requestDiscard(true)}
@@ -2168,10 +2181,11 @@ export default function ComposeModal() {
               aria-label={t('compose.discard')}
               title={t('compose.discard')}
               style={{
-                background: 'none', border: 'none', padding: '4px 8px',
-                cursor: discarding ? 'default' : 'pointer', display: 'flex', alignItems: 'center',
+                background: 'none', border: 'none', padding: '4px 6px',
+                cursor: discarding ? 'default' : 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: 'var(--text-tertiary)',
                 WebkitTapHighlightColor: 'transparent',
+                ...headerIconSize,
               }}
             >
               {trashIcon}
@@ -2179,11 +2193,13 @@ export default function ComposeModal() {
             )}
             <button
               onClick={() => setShowPrioritySheet(true)}
+              aria-label={t('compose.priority')}
               style={{
-                background: 'none', border: 'none', padding: '4px 8px',
-                cursor: 'pointer', display: 'flex', alignItems: 'center',
+                background: 'none', border: 'none', padding: '4px 6px',
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: priority === 'high' ? 'var(--red)' : priority === 'low' ? '#4dabf7' : 'var(--text-tertiary)',
                 WebkitTapHighlightColor: 'transparent',
+                ...headerIconSize,
               }}
             >
               <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor">
@@ -2201,7 +2217,8 @@ export default function ComposeModal() {
               aria-expanded={sendLaterOpen}
               data-send-later=""
               style={{
-                background: 'none', border: 'none', padding: 0, width: 44, height: 44,
+                // A basis, not a width: a set width would count in full in the group's minimum.
+                background: 'none', border: 'none', padding: 0, flex: '0 1 44px', height: 44, minWidth: 28,
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 color: sendDisabled ? 'var(--text-tertiary)' : 'var(--accent)',
                 cursor: sendDisabled ? 'default' : 'pointer',
@@ -2218,7 +2235,7 @@ export default function ComposeModal() {
                 color: sendDisabled ? 'var(--text-tertiary)' : 'var(--accent)',
                 fontSize: 16, fontWeight: 600,
                 cursor: sendDisabled ? 'default' : 'pointer',
-                padding: '4px 0', minHeight: 44,
+                padding: '4px 0', minHeight: 44, flexShrink: 0, whiteSpace: 'nowrap',
                 WebkitTapHighlightColor: 'transparent',
                 transition: 'color 0.15s',
               }}
