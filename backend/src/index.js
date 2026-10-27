@@ -46,7 +46,7 @@ import { encryptExistingCredentials, query } from './services/db.js';
 import { runMigrations } from './services/migrations.js';
 import { parseVCard } from './utils/vcard.js';
 import { reloadAuthSettings } from './services/authLimiter.js';
-import { createWebSocketServer, setupWebSocket } from './services/websocket.js';
+import { closeWebSocketClients, createWebSocketServer, setupWebSocket } from './services/websocket.js';
 import { ImapManager } from './services/imapManager.js';
 import { getUpdateStatus } from './services/updateCheck.js';
 import { recordHttp } from './services/performanceMetrics.js';
@@ -310,17 +310,21 @@ httpServer.listen(PORT, () => {
   console.log(`MailFlow backend running on port ${PORT}`);
 });
 
-function exitAfterClose(code) {
+function exitAfterClose(code, { wsCode = 1001, wsReason = 'Shutting down' } = {}) {
   // A send held for its undo window lives only in this process: deliver it now rather than
   // lose it with the restart (services/sendHold.js). The scheduled sender stops claiming and
   // its sends in flight finish in the same wait. Bounded to leave room for the rest, inside the
   // 30 s stop_grace_period the compose files give the backend.
   const sendsFlushed = flushSendsForShutdown(25_000);
+  // The server stops taking connections and closes idle ones; requests in flight (a send among
+  // them) still finish. It is closed once the WebSockets are too, so the process exits as soon
+  // as the sends are flushed rather than at the forced exit.
   httpServer.close(async () => {
     await sendsFlushed;
     try { await redisClient.quit(); } catch { /* ignore */ }
     process.exit(code);
   });
+  closeWebSocketClients(wss, wsCode, wsReason);
   // Force exit if graceful shutdown takes more than 28 s
   setTimeout(() => process.exit(code || 1), 28_000).unref();
 }
@@ -336,8 +340,7 @@ process.on('SIGTERM', () => {
 // either way.
 export function restartAfterRestore() {
   console.log('Restore complete — restarting so every connection and cache starts from the restored data');
-  wss.clients.forEach(ws => ws.close(1012, 'Restarting'));
-  exitAfterClose(3);
+  exitAfterClose(3, { wsCode: 1012, wsReason: 'Restarting' });
 }
 
 process.on('unhandledRejection', (reason) => {
