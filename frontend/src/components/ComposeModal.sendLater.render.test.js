@@ -347,6 +347,93 @@ describe('Send later on desktop', () => {
   });
 });
 
+describe('Ctrl/Cmd+Enter inside Send later', () => {
+  const dayOf = d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+  test('in the menu sends nothing; in the picker it schedules the time picked, as Enter in an input does', async () => {
+    await mount({ ...NEW_MESSAGE });
+    await click(chevron());
+    await key(menuItems()[0], 'Enter', { ctrlKey: true });
+    await key(menuItems()[0], 'Enter', { metaKey: true, shiftKey: true });
+    await settle();
+    assert.equal(callsTo('post').length, 0, 'not sent');
+    assert.equal(callsTo('create').length, 0);
+    assert.ok(document.querySelector('[role="menu"]'), 'the menu stays open');
+    await click(menuItems().at(-1));
+    const dialog = document.querySelector('[role="dialog"]');
+    const soon = new Date(Date.now() + 2 * 86_400_000);
+    await setInput(dialog.querySelector('input[type="date"]'), dayOf(soon));
+    await setInput(dialog.querySelector('input[type="time"]'), '17:45');
+    await key(dialog.querySelector('button'), 'Enter', { ctrlKey: true });
+    await settle();
+    assert.equal(callsTo('post').length, 0, 'Back with Ctrl+Enter sends nothing');
+    await key(dialog.querySelector('input[type="time"]'), 'Enter', { ctrlKey: true });
+    await settle();
+    assert.equal(callsTo('post').length, 0, 'not sent');
+    const [[, body]] = callsTo('create');
+    const at = new Date(body.sendAt);
+    assert.equal(at.getDate(), soon.getDate());
+    assert.equal(at.getHours(), 17);
+    assert.equal(at.getMinutes(), 45);
+  });
+
+  test('Enter in an input of the picker schedules too; with a time that has passed, nothing happens', async () => {
+    await mount({ ...NEW_MESSAGE });
+    await click(chevron());
+    await click(menuItems().at(-1));
+    const dialog = document.querySelector('[role="dialog"]');
+    await setInput(dialog.querySelector('input[type="date"]'), '2020-01-01');
+    await key(dialog.querySelector('input[type="date"]'), 'Enter', { ctrlKey: true });
+    await key(dialog.querySelector('input[type="date"]'), 'Enter');
+    await settle();
+    assert.equal(callsTo('create').length, 0);
+    assert.equal(callsTo('post').length, 0);
+    await setInput(dialog.querySelector('input[type="date"]'), dayOf(new Date(Date.now() + 2 * 86_400_000)));
+    await key(dialog.querySelector('input[type="date"]'), 'Enter');
+    await settle();
+    assert.equal(callsTo('create').length, 1);
+  });
+
+  test('editing, it never runs Update at the old time: the picker saves the time picked', async () => {
+    await mount(structuredClone(SCHEDULED));
+    await click(chevron());
+    await key(preset('sendNow'), 'Enter', { ctrlKey: true });
+    await click(preset('changeTime'));
+    await key(preset('tomorrowMorning'), 'Enter', { ctrlKey: true });
+    await settle();
+    assert.equal(callsTo('update').length, 0);
+    assert.equal(callsTo('sendNow').length, 0);
+    await click(preset('pick'));
+    const dialog = document.querySelector('[role="dialog"]');
+    const soon = new Date(Date.now() + 3 * 86_400_000);
+    await setInput(dialog.querySelector('input[type="date"]'), dayOf(soon));
+    await setInput(dialog.querySelector('input[type="time"]'), '10:30');
+    await key(dialog.querySelector('input[type="date"]'), 'Enter', { metaKey: true });
+    await settle();
+    const [[, , body]] = callsTo('update');
+    assert.equal(new Date(body.sendAt).getDate(), soon.getDate());
+    assert.equal(new Date(body.sendAt).getHours(), 10);
+  });
+
+  test('on a phone the sheet behaves the same', async () => {
+    await mount({ ...NEW_MESSAGE }, { mobile: true });
+    await click(chevron());
+    const sheet = document.querySelector('[role="dialog"][aria-modal="true"]');
+    await key(sheet.querySelector('[data-preset]'), 'Enter', { ctrlKey: true });
+    await settle();
+    assert.equal(callsTo('post').length, 0);
+    assert.equal(callsTo('create').length, 0);
+    await click(sheet.querySelector('[data-preset="pick"]'));
+    const soon = new Date(Date.now() + 3 * 86_400_000);
+    const input = sheet.querySelector('input[type="datetime-local"]');
+    await setInput(input, `${dayOf(soon)}T09:15`);
+    await key(input, 'Enter', { ctrlKey: true });
+    await settle();
+    assert.equal(callsTo('post').length, 0);
+    assert.equal(new Date(callsTo('create')[0][1].sendAt).getHours(), 9);
+  });
+});
+
 describe('Send later passes the same warnings as Send', () => {
   test('an empty subject asks first, and Schedule anyway schedules', async () => {
     const close = await mount({ ...NEW_MESSAGE, subject: '' });

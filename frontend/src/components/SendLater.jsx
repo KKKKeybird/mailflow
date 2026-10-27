@@ -38,9 +38,20 @@ const fieldStyle = (mobile) => ({
 });
 const labelStyle = { display: 'block', fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 };
 
+// Ctrl/Cmd+Enter, with or without Shift: the composer's Send and Send later. Inside these menus,
+// sheets and dialogs it never reaches the composer, which would send at once.
+const isSendKey = e => e.key === 'Enter' && !e.altKey && (e.ctrlKey || e.metaKey);
+const swallowSendKey = (e) => {
+  if (!isSendKey(e)) return false;
+  e.preventDefault();
+  e.stopPropagation();
+  return true;
+};
+
 // Picks a date and a time, in the browser's time zone. `variant` 'split' has a date and a time
 // input (desktop, as the snooze picker), 'single' one datetime-local input, which brings the
 // platform's own picker on iOS and Android. The limits here only guide; the server decides.
+// Ctrl/Cmd+Enter anywhere in it, and Enter in an input, confirm the time as its button does.
 export function SchedulePicker({ variant = 'split', now, onSubmit, submitLabel, busy = false, autoFocus = true }) {
   const { t } = useTranslation();
   const id = useId();
@@ -59,9 +70,19 @@ export function SchedulePicker({ variant = 'split', now, onSubmit, submitLabel, 
   const statusId = `${id}-status`;
   const mobile = variant === 'single';
 
+  const submit = () => { if (!problem && !busy) onSubmit(at); };
+  const onKeyDown = (e) => {
+    if (e.key !== 'Enter' || e.altKey) return;
+    if (!isSendKey(e) && e.target.tagName !== 'INPUT') return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!e.repeat) submit();
+  };
+
   return (
     <form
-      onSubmit={e => { e.preventDefault(); if (!problem && !busy) onSubmit(at); }}
+      onSubmit={e => { e.preventDefault(); submit(); }}
+      onKeyDown={onKeyDown}
       style={{ padding: mobile ? '12px 20px 4px' : '10px 14px 12px', display: 'flex', flexDirection: 'column', gap: 8 }}
     >
       {variant === 'single' ? (
@@ -203,6 +224,7 @@ export function SendLaterMenu({
     else if (e.key === 'ArrowUp') move(at < 0 ? list.length - 1 : at - 1);
     else if (e.key === 'Home') move(0);
     else if (e.key === 'End') move(list.length - 1);
+    else if (isSendKey(e)) { e.preventDefault(); e.stopPropagation(); }
     else if (e.key === 'Escape') {
       e.preventDefault();
       e.stopPropagation();
@@ -211,7 +233,7 @@ export function SendLaterMenu({
   };
 
   const onPickKeyDown = (e) => {
-    if (e.key !== 'Escape') return;
+    if (swallowSendKey(e) || e.key !== 'Escape') return;
     e.preventDefault();
     e.stopPropagation();
     returnToRef.current = 'pick';
@@ -319,7 +341,7 @@ export function SendLaterSheet({
       <div
         ref={sheetRef} role="dialog" aria-modal="true" aria-labelledby={titleId}
         onKeyDown={e => {
-          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } else trapTab(e, sheetRef.current);
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onClose(); } else if (!swallowSendKey(e)) trapTab(e, sheetRef.current);
         }}
         style={{
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 2101, background: 'var(--bg-elevated)',
@@ -410,7 +432,7 @@ export function ComposeQuestion({ mobile = false, title, body, actions, onCancel
       <div
         ref={boxRef} role="alertdialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={body ? bodyId : undefined}
         onKeyDown={e => {
-          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onCancel(); } else trapTab(e, boxRef.current);
+          if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); onCancel(); } else if (!swallowSendKey(e)) trapTab(e, boxRef.current);
         }}
         style={mobile ? {
           position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 2101, background: 'var(--bg-elevated)',
