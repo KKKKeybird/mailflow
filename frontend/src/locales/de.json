@@ -232,6 +232,10 @@
         "notHeld": "Diese Nachricht ist hier nicht zum Bearbeiten geöffnet. Schließe sie und öffne sie erneut unter Geplant.",
         "pickNewTime": "Der geplante Zeitpunkt ist vorbei. Wähle einen neuen.",
         "failed": "Die Nachricht konnte nicht geplant werden.",
+        "tooMany": "Du hast bereits so viele geplante Nachrichten wie möglich. Sende oder lösche zuerst einige.",
+        "tooMuchStorage": "Deine geplanten Nachrichten belegen bereits den ganzen verfügbaren Platz. Sende oder lösche zuerst einige.",
+        "rateLimited": "Zu viele Nachrichten in kurzer Zeit geplant. Versuch es in einer Minute noch einmal.",
+        "payloadTooLarge": "Diese Nachricht ist zu groß zum Planen: Text und eingebettete Bilder brauchen zu viel Platz.",
         "heldElsewhere": "Diese Nachricht ist in einem anderen Fenster geöffnet."
       },
       "edit": {

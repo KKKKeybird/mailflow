@@ -1,6 +1,6 @@
 import { appLocale } from './formatDate.js';
 import { browserTimeZone, formatSendAt } from './scheduleTimes.js';
-import { scheduleErrorText } from './scheduledCompose.js';
+import { limitErrorText, scheduleErrorText } from './scheduledCompose.js';
 
 // The Scheduled view (#543, design 5.2 and 5.3): what GET /api/mail/scheduled returns, put in the
 // view's sections, with what each message is doing and why in words, the actions its state allows
@@ -293,13 +293,13 @@ const STATE_TEXT = {
   editing: 'scheduled.errors.editing',
 };
 export function actionErrorText(err, t) {
+  const limit = limitErrorText(err, t);
+  if (limit) return limit;
   switch (err?.code) {
     case 'needs_reauth': return t('scheduled.errors.needsReauth');
     case 'account_disabled': return t('scheduled.errors.accountDisabled');
     case 'held_elsewhere': return t('compose.scheduleSend.errors.heldElsewhere');
     case 'undo_expired': return t('scheduled.errors.undoExpired');
-    case 'sending_now': return t('scheduled.errors.aboutToSend');
-    case 'decrypt_failed': return t('scheduled.reason.decryptFailed');
     case 'too_soon':
     case 'too_far':
     case 'version_conflict':

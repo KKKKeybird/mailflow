@@ -112,7 +112,8 @@ export async function undoSendNow({ id, undoToken, subject }, { undo, notify, t,
     else notify({ title: t('compose.scheduleSend.sendNow.undone'), body: subject });
     return true;
   } catch (err) {
-    const body = err?.code === 'held_elsewhere' ? t('compose.scheduleSend.errors.heldElsewhere') : err.message;
+    const body = err?.code === 'held_elsewhere' ? t('compose.scheduleSend.errors.heldElsewhere')
+      : err?.code === 'undo_expired' ? t('scheduled.errors.undoExpired') : err.message;
     notify({ type: 'error', title: t('compose.scheduleSend.sendNow.undoFailed'), body, allowWrap: true, persistent: true });
     return false;
   }
@@ -281,10 +282,23 @@ export function createEditHold({ id, version, editToken = null }, {
   };
 }
 
-// What to tell the user about a refused schedule or save. The server's own message leads, since
-// it is the authority on its limits; a too_soon or too_far that a wrong clock on this device
-// explains says so, with the server's time.
+// The server's limits and refusals that say the same whatever the message, in the user's language.
+const LIMIT_TEXT = {
+  too_many: 'compose.scheduleSend.errors.tooMany',
+  too_much_storage: 'compose.scheduleSend.errors.tooMuchStorage',
+  rate_limited: 'compose.scheduleSend.errors.rateLimited',
+  payload_too_large: 'compose.scheduleSend.errors.payloadTooLarge',
+  decrypt_failed: 'scheduled.reason.decryptFailed',
+  sending_now: 'scheduled.errors.aboutToSend',
+};
+export const limitErrorText = (err, t) => (LIMIT_TEXT[err?.code] ? t(LIMIT_TEXT[err.code]) : null);
+
+// What to tell the user about a refused schedule or save, in their language: a limit, a lost
+// hold, a newer version, and a too_soon or too_far, with the server's time when a wrong clock on
+// this device explains it.
 export function scheduleErrorText(err, t, { now = Date.now(), locale } = {}) {
+  const limit = limitErrorText(err, t);
+  if (limit) return limit;
   switch (err?.code) {
     case 'hold_lost':
       // Gone (deleted for good) or deleted with Undo elsewhere, or sent from another window, is
@@ -298,14 +312,15 @@ export function scheduleErrorText(err, t, { now = Date.now(), locale } = {}) {
       return t('compose.scheduleSend.errors.versionConflict');
     case 'too_soon':
     case 'too_far': {
+      const said = t(err.code === 'too_soon' ? 'compose.scheduleSend.errors.tooSoon' : 'compose.scheduleSend.errors.tooFar');
       const skew = clockSkewMs(err.serverNow, now);
-      if (skew == null) return err.message;
+      if (skew == null) return said;
       const minutes = Math.max(1, Math.round(Math.abs(skew) / 60_000));
       const time = formatSendAt(err.serverNow, locale, new Date(now));
       const note = skew > 0
         ? t('compose.scheduleSend.errors.clockBehind', { minutes, time })
         : t('compose.scheduleSend.errors.clockAhead', { minutes, time });
-      return `${err.message} ${note}`;
+      return `${said} ${note}`;
     }
     default:
       return err?.message || t('compose.scheduleSend.errors.failed');

@@ -254,7 +254,12 @@ describe('actionErrorText', () => {
     assert.equal(actionErrorText(err(409, { code: 'undo_expired' }), t), 'scheduled.errors.undoExpired');
     assert.equal(actionErrorText(err(409, { code: 'version_conflict' }), t), 'compose.scheduleSend.errors.versionConflict');
     assert.equal(actionErrorText(err(500, { code: 'decrypt_failed' }), t), 'scheduled.reason.decryptFailed');
-    assert.equal(actionErrorText(err(400, { code: 'too_soon' }), t), 'server words', 'no clock note without the server time');
+    assert.equal(actionErrorText(err(400, { code: 'too_soon' }), t), 'compose.scheduleSend.errors.tooSoon', 'no clock note without the server time');
+    assert.equal(actionErrorText(err(409, { code: 'sending_now', state: 'scheduled' }), t), 'scheduled.errors.aboutToSend');
+    for (const [code, key] of [
+      ['too_many', 'compose.scheduleSend.errors.tooMany'], ['too_much_storage', 'compose.scheduleSend.errors.tooMuchStorage'],
+      ['rate_limited', 'compose.scheduleSend.errors.rateLimited'], ['payload_too_large', 'compose.scheduleSend.errors.payloadTooLarge'],
+    ]) assert.equal(actionErrorText(err(422, { code }), t), key);
   });
   test('a state refusal in words, a missing message, and anything else in the server words', () => {
     assert.equal(actionErrorText(err(409, { state: 'sending' }), t), 'scheduled.errors.sending');
@@ -263,7 +268,7 @@ describe('actionErrorText', () => {
     assert.equal(actionErrorText(err(409, { state: 'editing' }), t), 'scheduled.errors.editing');
     assert.equal(actionErrorText(err(409, { state: 'paused' }), t), 'server words');
     assert.equal(actionErrorText(err(404), t), 'scheduled.errors.notFound');
-    assert.equal(actionErrorText(err(422, { code: 'too_many' }, 'You can have at most 100'), t), 'You can have at most 100');
+    assert.equal(actionErrorText(err(400, {}, 'Total attachment size exceeds 25 MB'), t), 'Total attachment size exceeds 25 MB');
     assert.equal(actionErrorText(err(500, {}, ''), t), 'scheduled.errors.failed');
   });
 });

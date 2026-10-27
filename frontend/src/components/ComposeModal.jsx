@@ -290,7 +290,7 @@ export default function ComposeModal() {
   const [sendLaterOpen, setSendLaterOpen] = useState(false);
   // Where the edit-mode menu opens: its first level, or straight at the times (Change).
   const [sendLaterView, setSendLaterView] = useState('root');
-  // What scheduling asks: { kind: 'confirm', text, retry }, 'unscheduleAttachments' or 'closeEdit'.
+  // What scheduling asks: { kind: 'confirm', code, sendNow, retry }, 'unscheduleAttachments' or 'closeEdit'.
   const [scheduleQuestion, setScheduleQuestion] = useState(null);
   // Whether this composer holds the scheduled message it edits; Update and Unschedule need it.
   const [holdReady, setHoldReady] = useState(false);
@@ -1284,7 +1284,7 @@ export default function ComposeModal() {
       sendingRef.current = false;
       setSending(false);
       if (needsConfirmation(err)) {
-        setScheduleQuestion({ kind: 'confirm', text: err.message, retry });
+        setScheduleQuestion({ kind: 'confirm', code: err.code, sendNow, retry });
         return null;
       }
       if (err.code === 'hold_lost') { hold.markLost(); setHoldReady(false); }
@@ -1380,7 +1380,7 @@ export default function ComposeModal() {
       sendingRef.current = false;
       setSending(false);
       if (needsConfirmation(err)) {
-        setScheduleQuestion({ kind: 'confirm', text: err.message, retry: () => sendNowRef.current({ confirm: true }) });
+        setScheduleQuestion({ kind: 'confirm', code: err.code, sendNow: true, retry: () => sendNowRef.current({ confirm: true }) });
         return;
       }
       if (err.code === 'hold_lost') { hold.markLost(); setHoldReady(false); }
@@ -1960,6 +1960,22 @@ export default function ComposeModal() {
   const sendDisabled = sending || noRecipients || Boolean(scheduledEdit && !holdReady);
   const sendLabel = scheduledEdit ? t('compose.scheduleSend.edit.update') : t('compose.send');
   const closeQuestion = () => setScheduleQuestion(null);
+  // The server's question about a message that may already have gone out (confirm_uncertain) or
+  // one a restored backup paused (confirm_restored), in the words of what the user was doing:
+  // sending it now, or scheduling it again (Update).
+  const confirmQuestion = (() => {
+    if (scheduleQuestion?.kind !== 'confirm') return null;
+    const uncertain = scheduleQuestion.code === 'confirm_uncertain';
+    return {
+      title: scheduleQuestion.sendNow
+        ? t(uncertain ? 'scheduled.confirm.uncertainTitle' : 'scheduled.confirm.restoredTitle')
+        : t('compose.scheduleSend.confirm.title'),
+      body: t(uncertain ? 'scheduled.confirm.uncertainBody' : 'scheduled.confirm.restoredBody'),
+      go: scheduleQuestion.sendNow
+        ? t(uncertain ? 'scheduled.actions.sendAnyway' : 'scheduled.confirm.restoredGo')
+        : t('compose.scheduleSend.confirm.go'),
+    };
+  })();
   const sendLaterDue = scheduleQuestion?.kind === 'due' ? (
     <ComposeQuestion
       mobile={isMobile}
@@ -1993,11 +2009,11 @@ export default function ComposeModal() {
       {scheduleQuestion?.kind === 'confirm' && (
         <ComposeQuestion
           mobile={isMobile}
-          title={t('compose.scheduleSend.confirm.title')}
-          body={scheduleQuestion.text}
+          title={confirmQuestion.title}
+          body={confirmQuestion.body}
           onCancel={closeQuestion}
           actions={[
-            { label: t('compose.scheduleSend.confirm.go'), kind: 'primary', onClick: () => { const { retry } = scheduleQuestion; closeQuestion(); retry(); } },
+            { label: confirmQuestion.go, kind: 'primary', onClick: () => { const { retry } = scheduleQuestion; closeQuestion(); retry(); } },
             { label: t('common.cancel'), kind: 'plain', focus: true, onClick: closeQuestion },
           ]}
         />

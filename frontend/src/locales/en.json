@@ -232,6 +232,10 @@
         "notHeld": "This message is not open for editing here. Close it and open it again from Scheduled.",
         "pickNewTime": "Its scheduled time has passed. Pick a new time.",
         "failed": "The message could not be scheduled.",
+        "tooMany": "You have as many scheduled messages as you can have. Send or delete some first.",
+        "tooMuchStorage": "Your scheduled messages take up as much space as they can. Send or delete some first.",
+        "rateLimited": "Too many messages scheduled in a short time. Try again in a minute.",
+        "payloadTooLarge": "This message is too large to schedule: its text and inline images take up too much space.",
         "heldElsewhere": "This message is open in another window."
       },
       "edit": {

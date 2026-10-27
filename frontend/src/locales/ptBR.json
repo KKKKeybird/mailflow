@@ -232,6 +232,10 @@
         "notHeld": "Esta mensagem não está aberta para edição aqui. Feche-a e abra de novo em Agendados.",
         "pickNewTime": "O horário agendado já passou. Escolha um novo.",
         "failed": "Não foi possível agendar a mensagem.",
+        "tooMany": "Você já tem o máximo de mensagens agendadas. Envie ou exclua algumas primeiro.",
+        "tooMuchStorage": "Suas mensagens agendadas já ocupam todo o espaço disponível. Envie ou exclua algumas primeiro.",
+        "rateLimited": "Mensagens demais agendadas em pouco tempo. Tente de novo em um minuto.",
+        "payloadTooLarge": "Esta mensagem é grande demais para agendar: o texto e as imagens incorporadas ocupam espaço demais.",
         "heldElsewhere": "Esta mensagem está aberta em outra janela."
       },
       "edit": {

@@ -344,7 +344,7 @@ describe('scheduleErrorText', () => {
   test('leads with the server message and explains a clock that is off', () => {
     const err = Object.assign(new Error('The scheduled time must be at least a minute from now.'), { code: 'too_soon', serverNow: '2026-10-24T10:07:00.000Z' });
     const text = scheduleErrorText(err, t, { now, locale: 'en-US' });
-    assert.match(text, /^The scheduled time must be at least a minute from now\. compose\.scheduleSend\.errors\.clockBehind:/);
+    assert.match(text, /^compose\.scheduleSend\.errors\.tooSoon compose\.scheduleSend\.errors\.clockBehind:/);
     assert.match(text, /"minutes":7/);
     const ahead = Object.assign(new Error('A message can be scheduled at most 366 days ahead.'), { code: 'too_far', serverNow: '2026-10-24T09:50:00.000Z' });
     assert.match(scheduleErrorText(ahead, t, { now, locale: 'en-US' }), /clockAhead:.*"minutes":10/);
@@ -352,7 +352,7 @@ describe('scheduleErrorText', () => {
 
   test('a clock that is right adds nothing', () => {
     const err = Object.assign(new Error('Too soon.'), { code: 'too_soon', serverNow: '2026-10-24T10:00:20.000Z' });
-    assert.equal(scheduleErrorText(err, t, { now }), 'Too soon.');
+    assert.equal(scheduleErrorText(err, t, { now }), 'compose.scheduleSend.errors.tooSoon');
   });
 
   test('a lost hold and a newer version are told in the composer text', () => {
@@ -366,10 +366,15 @@ describe('scheduleErrorText', () => {
     assert.equal(scheduleErrorText({ code: 'version_conflict', message: 'x' }, t), 'compose.scheduleSend.errors.versionConflict');
   });
 
-  test('limits and rate limits are told in the server text', () => {
-    for (const code of ['too_many', 'too_much_storage', 'payload_too_large', 'rate_limited']) {
-      assert.equal(scheduleErrorText(Object.assign(new Error(`server says ${code}`), { code }), t), `server says ${code}`);
+  test('limits and rate limits are told in the user\'s language', () => {
+    for (const [code, key] of [
+      ['too_many', 'compose.scheduleSend.errors.tooMany'], ['too_much_storage', 'compose.scheduleSend.errors.tooMuchStorage'],
+      ['payload_too_large', 'compose.scheduleSend.errors.payloadTooLarge'], ['rate_limited', 'compose.scheduleSend.errors.rateLimited'],
+      ['decrypt_failed', 'scheduled.reason.decryptFailed'], ['sending_now', 'scheduled.errors.aboutToSend'],
+    ]) {
+      assert.equal(scheduleErrorText(Object.assign(new Error(`server says ${code}`), { code }), t), key);
     }
+    assert.equal(scheduleErrorText(new Error('Total attachment size exceeds 25 MB'), t), 'Total attachment size exceeds 25 MB', 'anything else in the server words');
     assert.equal(scheduleErrorText({}, t), 'compose.scheduleSend.errors.failed');
   });
 });
@@ -523,5 +528,14 @@ describe('undoing Send now', () => {
     assert.equal(ok, false);
     assert.equal(seen[0].type, 'error');
     assert.equal(seen[0].body, 'Too late to undo: the message is going out.');
+  });
+
+  test('too late to undo is said in the user\'s language', async () => {
+    const seen = [];
+    await undoSendNow({ id: 'm1', undoToken: 'tok', subject: 'Hi' }, {
+      undo: async () => { throw Object.assign(new Error('Too late to undo: the message is going out.'), { status: 409, code: 'undo_expired' }); },
+      notify: n => seen.push(n), t,
+    });
+    assert.equal(seen[0].body, 'scheduled.errors.undoExpired');
   });
 });

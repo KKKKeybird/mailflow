@@ -736,6 +736,10 @@
         "notHeld": "Tato zpráva tu není otevřená k úpravám. Zavřete ji a otevřete znovu z Naplánovaných.",
         "pickNewTime": "Naplánovaný čas už uplynul. Vyberte nový.",
         "failed": "Zprávu se nepodařilo naplánovat.",
+        "tooMany": "Máte už tolik naplánovaných zpráv, kolik je možné. Nejprve některé odešlete nebo smažte.",
+        "tooMuchStorage": "Vaše naplánované zprávy zabírají už všechno dostupné místo. Nejprve některé odešlete nebo smažte.",
+        "rateLimited": "V krátké době bylo naplánováno příliš mnoho zpráv. Zkuste to znovu za minutu.",
+        "payloadTooLarge": "Tato zpráva je příliš velká na naplánování: její text a vložené obrázky zabírají příliš mnoho místa.",
         "heldElsewhere": "Tato zpráva je otevřená v jiném okně."
       },
       "edit": {

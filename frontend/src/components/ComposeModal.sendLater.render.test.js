@@ -292,15 +292,16 @@ describe('Send later on desktop', () => {
     await click(chevron());
     await click(preset('tomorrowMorning'));
     await settle();
-    assert.ok(document.body.textContent.includes('The scheduled time must be at least a minute from now. compose.scheduleSend.errors.clockBehind'));
+    assert.ok(document.body.textContent.includes('compose.scheduleSend.errors.tooSoon compose.scheduleSend.errors.clockBehind'));
   });
 
-  test('the server message for a limit is shown as it is', async () => {
+  test('a limit the server refuses is said in the user\'s language', async () => {
     answers.create = refusal(422, 'too_many', 'You can have at most 100 scheduled messages. Send or delete some first.');
     await click(chevron());
     await click(preset('tomorrowMorning'));
     await settle();
-    assert.ok(document.body.textContent.includes('You can have at most 100 scheduled messages.'));
+    assert.ok(document.body.textContent.includes('compose.scheduleSend.errors.tooMany'));
+    assert.equal(document.body.textContent.includes('You can have at most'), false);
   });
 
   test('Pick date and time has labeled inputs, a live line and inline errors', async () => {
@@ -592,7 +593,8 @@ describe('editing a scheduled message', () => {
     await settle();
     const dialog = document.querySelector('[role="alertdialog"]');
     assert.ok(dialog);
-    assert.equal(document.getElementById(dialog.getAttribute('aria-describedby')).textContent, message);
+    assert.equal(document.getElementById(dialog.getAttribute('aria-labelledby')).textContent, 'compose.scheduleSend.confirm.title');
+    assert.equal(document.getElementById(dialog.getAttribute('aria-describedby')).textContent, 'scheduled.confirm.uncertainBody', 'in the user\'s language');
     assert.equal(document.activeElement, button('common.cancel'), 'the safe answer has the focus');
     const held = new window.KeyboardEvent('keydown', { key: 'Enter', repeat: true, bubbles: true, cancelable: true });
     button('compose.scheduleSend.confirm.go').dispatchEvent(held);
@@ -881,6 +883,25 @@ describe('Send now while editing', () => {
     assert.equal(useStore.getState().notifications[0].title, 'compose.undoSend.sending');
   });
 
+  test('with changes, the restored-backup question is asked as a Send now, and its yes saves with confirm', async () => {
+    answers.update = [
+      refusal(409, 'confirm_restored', 'This was paused when a backup was restored.'),
+      (id, { version }) => ({ id, version: version + 1, status: 'scheduled', undoToken: 'undo-saved' }),
+    ];
+    await mount(structuredClone(SCHEDULED));
+    await editBody(' More.');
+    await click(chevron());
+    await click(preset('sendNow'));
+    await settle();
+    const dialog = document.querySelector('[role="alertdialog"]');
+    assert.equal(document.getElementById(dialog.getAttribute('aria-labelledby')).textContent, 'scheduled.confirm.restoredTitle');
+    assert.equal(document.getElementById(dialog.getAttribute('aria-describedby')).textContent, 'scheduled.confirm.restoredBody');
+    await click(button('scheduled.confirm.restoredGo'));
+    await settle();
+    assert.deepEqual(callsTo('update').map(c => [c[2].sendNow, c[2].confirm]), [[true, undefined], [true, true]]);
+    assert.equal(useStore.getState().composing, false);
+  });
+
   test('with changes, a save that fails on the way leaves the message held and unsent', async () => {
     answers.update = new TypeError('Failed to fetch');
     await mount(structuredClone(SCHEDULED));
@@ -905,7 +926,7 @@ describe('Send now while editing', () => {
     await settle();
     const [error] = useStore.getState().notifications;
     assert.equal(error.title, 'compose.scheduleSend.sendNow.undoFailed');
-    assert.equal(error.body, 'Too late to undo: the message is going out.');
+    assert.equal(error.body, 'scheduled.errors.undoExpired');
   });
 
   test('asks before sending one that may already have gone out; No leaves it held and open', async () => {
@@ -915,8 +936,11 @@ describe('Send now while editing', () => {
     await click(chevron());
     await click(preset('sendNow'));
     await settle();
-    assert.ok(document.querySelector('[role="alertdialog"]'));
-    await click(button('compose.scheduleSend.confirm.go'));
+    const dialog = document.querySelector('[role="alertdialog"]');
+    assert.equal(document.getElementById(dialog.getAttribute('aria-labelledby')).textContent, 'scheduled.confirm.uncertainTitle');
+    assert.equal(document.getElementById(dialog.getAttribute('aria-describedby')).textContent, 'scheduled.confirm.uncertainBody');
+    assert.equal(button('compose.scheduleSend.confirm.go'), undefined, 'Send now is not asked as a schedule');
+    await click(button('scheduled.actions.sendAnyway'));
     await settle();
     assert.deepEqual(callsTo('sendNow').map(c => c.slice(2)), [[false, TOKEN], [true, TOKEN]]);
     assert.equal(useStore.getState().composing, false);

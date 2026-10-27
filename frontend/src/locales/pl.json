@@ -232,6 +232,10 @@
         "notHeld": "Ta wiadomość nie jest tu otwarta do edycji. Zamknij ją i otwórz ponownie z Zaplanowanych.",
         "pickNewTime": "Zaplanowany czas już minął. Wybierz nowy.",
         "failed": "Nie udało się zaplanować wiadomości.",
+        "tooMany": "Masz już tyle zaplanowanych wiadomości, ile można. Najpierw wyślij lub usuń kilka z nich.",
+        "tooMuchStorage": "Twoje zaplanowane wiadomości zajmują już całe dostępne miejsce. Najpierw wyślij lub usuń kilka z nich.",
+        "rateLimited": "Zaplanowano zbyt wiele wiadomości w krótkim czasie. Spróbuj ponownie za minutę.",
+        "payloadTooLarge": "Ta wiadomość jest za duża, aby ją zaplanować: tekst i osadzone obrazy zajmują zbyt dużo miejsca.",
         "heldElsewhere": "Ta wiadomość jest otwarta w innym oknie."
       },
       "edit": {

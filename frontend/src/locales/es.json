@@ -232,6 +232,10 @@
         "notHeld": "Este mensaje no está abierto para editarlo aquí. Ciérralo y vuelve a abrirlo desde Programados.",
         "pickNewTime": "Su hora programada ya pasó. Elige una nueva.",
         "failed": "No se pudo programar el mensaje.",
+        "tooMany": "Ya tienes el máximo de mensajes programados. Envía o elimina algunos primero.",
+        "tooMuchStorage": "Tus mensajes programados ya ocupan todo el espacio disponible. Envía o elimina algunos primero.",
+        "rateLimited": "Demasiados mensajes programados en poco tiempo. Inténtalo de nuevo dentro de un minuto.",
+        "payloadTooLarge": "Este mensaje es demasiado grande para programarlo: su texto y sus imágenes insertadas ocupan demasiado espacio.",
         "heldElsewhere": "Este mensaje está abierto en otra ventana."
       },
       "edit": {
