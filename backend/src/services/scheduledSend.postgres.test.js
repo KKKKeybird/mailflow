@@ -580,19 +580,53 @@ describe.skipIf(!ADMIN_URL)('scheduled sender on PostgreSQL (#543)', () => {
       expect(resultOf(row).lateReason).toBeUndefined();
     });
 
-    it('sends the 4xx retry of a message first tried late, without calling it offline', async () => {
+    it('holds a retry that falls due more than 6 h late, and says why without calling it offline', async () => {
       const msg = await schedule({ sendAt: new Date(Date.now() - (6 * 3_600_000 - 60_000)) });
       behavior.set(msg.to, () => { throw smtpError({ responseCode: 451, code: 'EENVELOPE', command: 'RCPT TO' }, MAIL); });
       await tick(newSender());
       expect(await rowOf(msg.id)).toMatchObject({ status: 'scheduled', failure_code: 'smtp_temporary' });
-      // The retry falls due when the message is more than 6 h late.
+      // The retry falls due after an outage, when the message is more than 6 h late.
       behavior.clear();
       await h.pool.query("UPDATE scheduled_messages SET due_at = NOW(), send_at = NOW() - INTERVAL '7 hours' WHERE id = $1", [msg.id]);
+      await tick(newSender());
+      expect(await rowOf(msg.id)).toMatchObject({ status: 'paused', pause_reason: 'overdue', attempts: 2 });
+      expect(h.sendMail).toHaveBeenCalledTimes(1);
+      expect(sendPushToUser).toHaveBeenCalledOnce();
+      expect(sendPushToUser.mock.calls[0][1].body).toMatch(/more than 6 hours late/);
+      // Resume sets send_at to now: it goes, and is not held again.
+      await h.pool.query(`UPDATE scheduled_messages SET status = 'scheduled', pause_reason = NULL, failure_code = NULL,
+        attempts = 0, send_at = NOW(), due_at = NOW() WHERE id = $1`, [msg.id]);
+      await tick(newSender());
+      expect(await rowOf(msg.id)).toMatchObject({ status: 'sent', sent_late: false });
+    });
+
+    it('sends a retry within the grace, late because of the retry', async () => {
+      const msg = await schedule({ sendAt: new Date(Date.now() - 60_000) });
+      behavior.set(msg.to, () => { throw smtpError({ responseCode: 451, code: 'EENVELOPE', command: 'RCPT TO' }, MAIL); });
+      await tick(newSender());
+      behavior.clear();
+      await h.pool.query("UPDATE scheduled_messages SET due_at = NOW(), send_at = NOW() - INTERVAL '2 hours' WHERE id = $1", [msg.id]);
       await tick(newSender());
       const row = await rowOf(msg.id);
       expect(row).toMatchObject({ status: 'sent', sent_late: true });
       expect(resultOf(row).lateReason).toBe('retried');
       expect(sendPushToUser).not.toHaveBeenCalled();
+    });
+
+    it('a send a crash cut off before SMTP is late because MailFlow was offline, and held past the grace', async () => {
+      const left = { status: 'sending', claim_token: randomUUID(), claimed_at: new Date(Date.now() - 3_600_000), attempts: 1 };
+      const recent = await schedule({ sendAt: new Date(Date.now() - 20 * 60_000), state: left });
+      const old = await schedule({ sendAt: new Date(Date.now() - 7 * 3_600_000), state: { ...left, claim_token: randomUUID() } });
+      const sender = newSender({ maxInFlight: 10 });
+      await tick(sender);
+      await tick(sender);
+      const sent = await rowOf(recent.id);
+      expect(sent).toMatchObject({ status: 'sent', sent_late: true });
+      expect(resultOf(sent).lateReason).toBe('offline');
+      expect(await rowOf(old.id)).toMatchObject({ status: 'paused', pause_reason: 'overdue' });
+      expect(h.sent.map(m => m.opts.messageId)).toEqual([recent.messageId]);
+      expect(sendPushToUser).toHaveBeenCalledOnce();
+      expect(sendPushToUser.mock.calls[0][1].body).toMatch(/MailFlow was offline/);
     });
 
     it('calls a late first send offline only when it fell due before the sender started', async () => {

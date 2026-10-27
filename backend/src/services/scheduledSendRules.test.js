@@ -96,8 +96,8 @@ describe('recoveryAction', () => {
 });
 
 describe('lateness', () => {
-  const first = { firstAttempt: true, dueBeforeStart: true };
-  it('sends a first attempt up to 6 h late, flagged late after 5 min, and holds anything later', () => {
+  const first = { dueBeforeStart: true };
+  it('sends up to 6 h late, flagged late after 5 min, and holds anything later', () => {
     expect(lateness({ ...first, lagMs: 30_000 })).toEqual({ overdue: false, late: false, lateReason: null });
     expect(lateness({ ...first, lagMs: LATE_AFTER_MS })).toEqual({ overdue: false, late: false, lateReason: null });
     expect(lateness({ ...first, lagMs: LATE_AFTER_MS + 1 })).toEqual({ overdue: false, late: true, lateReason: 'offline' });
@@ -105,22 +105,25 @@ describe('lateness', () => {
     expect(lateness({ ...first, lagMs: OVERDUE_GRACE_MS + 1 })).toMatchObject({ overdue: true, late: true });
   });
 
-  it('never holds a retry, a Send now or a Resume, however old the message', () => {
-    expect(lateness({ lagMs: 3 * OVERDUE_GRACE_MS, firstAttempt: false, retried: true, dueBeforeStart: true }))
-      .toEqual({ overdue: false, late: true, lateReason: 'retried' });
-    expect(lateness({ lagMs: 3 * OVERDUE_GRACE_MS, firstAttempt: false, dueBeforeStart: false }).overdue).toBe(false);
+  it('holds a retry that is more than 6 h late too, but never the backoff alone', () => {
+    expect(lateness({ lagMs: OVERDUE_GRACE_MS + 1, retried: true, dueBeforeStart: false }))
+      .toEqual({ overdue: true, late: true, lateReason: 'retried' });
+    // Every backoff delay after a first attempt on time, with a minute per attempt to spare.
+    const backoff = BACKOFF_MS.reduce((sum, d) => sum + d, 0) + MAX_ATTEMPTS * 60_000;
+    expect(backoff).toBeLessThan(OVERDUE_GRACE_MS);
+    expect(lateness({ lagMs: backoff, retried: true, dueBeforeStart: false }).overdue).toBe(false);
   });
 
   it('calls it retried only when a backoff retry made it late', () => {
-    expect(lateness({ lagMs: 20 * 60_000, firstAttempt: false, retried: false, dueBeforeStart: false }).lateReason).toBe('delayed');
+    expect(lateness({ lagMs: 20 * 60_000, retried: false, dueBeforeStart: false }).lateReason).toBe('delayed');
     // Send now and Resume set send_at, so they are not late at all.
-    expect(lateness({ lagMs: 2000, firstAttempt: false, retried: false, dueBeforeStart: true }))
+    expect(lateness({ lagMs: 2000, retried: false, dueBeforeStart: true }))
       .toEqual({ overdue: false, late: false, lateReason: null });
   });
 
-  it('says offline only for a message that fell due before the sender started', () => {
-    expect(lateness({ lagMs: 20 * 60_000, firstAttempt: true, dueBeforeStart: false }).lateReason).toBe('delayed');
-    expect(lateness({ lagMs: 20 * 60_000, firstAttempt: true, dueBeforeStart: true }).lateReason).toBe('offline');
+  it('says offline only for a message whose time came before the sender started', () => {
+    expect(lateness({ lagMs: 20 * 60_000, dueBeforeStart: false }).lateReason).toBe('delayed');
+    expect(lateness({ lagMs: 20 * 60_000, dueBeforeStart: true }).lateReason).toBe('offline');
   });
 });
 

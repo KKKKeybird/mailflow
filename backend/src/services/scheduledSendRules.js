@@ -103,16 +103,17 @@ export function recoveryAction(row) {
 }
 
 // Whether a claimed message is too late to send without asking, whether it goes out late, and
-// why, measured from send_at. The grace applies only to the first attempt at the time the user
-// picked (`firstAttempt`): a retry, a Send now or a Resume is a decision to send now, and holding
-// it again would loop. Send now and Resume set send_at, so they are not late either. `retried`:
-// the last attempt ended in a backoff retry, which is why it is late. `dueBeforeStart`: it fell
-// due before this sender started, so MailFlow was offline then. Otherwise a late message waited
+// why, measured from send_at, on every attempt: a retry after a long outage, or one that recovery
+// put back after a crash, is as late as a first attempt would be. The backoff retries add up to
+// 4 h 21 min, so they alone never reach the grace, and what the user does to send it now (Send
+// now, Resume, Send anyway, a new time) sets send_at, so holding it again cannot loop. `retried`:
+// the last attempt ended in a backoff retry, which is why it is late. `dueBeforeStart`: its time
+// came before this sender started, so MailFlow was offline then. Otherwise a late message waited
 // in the queue, and nothing may tell the user it was offline.
-export function lateness({ lagMs, firstAttempt, retried = false, dueBeforeStart }) {
+export function lateness({ lagMs, retried = false, dueBeforeStart }) {
   const late = lagMs > LATE_AFTER_MS;
   return {
-    overdue: firstAttempt && lagMs > OVERDUE_GRACE_MS,
+    overdue: lagMs > OVERDUE_GRACE_MS,
     late,
     lateReason: !late ? null : retried ? 'retried' : dueBeforeStart ? 'offline' : 'delayed',
   };
