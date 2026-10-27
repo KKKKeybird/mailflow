@@ -226,6 +226,8 @@
         "clockBehind": "This device's clock is {{minutes}} min behind the server's, which says it is {{time}}.",
         "clockAhead": "This device's clock is {{minutes}} min ahead of the server's, which says it is {{time}}.",
         "holdLost": "This message was opened in another window, so it can no longer be saved here. Your text is still here to copy.",
+        "deletedElsewhere": "This message was deleted somewhere else, so it can no longer be saved here. Your text is still here to copy.",
+        "sentElsewhere": "This message was sent from another window, so it can no longer be saved here. Your text is still here to copy.",
         "versionConflict": "This message was changed somewhere else. Close it and open it again from Scheduled to see the latest version.",
         "notHeld": "This message is not open for editing here. Close it and open it again from Scheduled.",
         "pickNewTime": "Its scheduled time has passed. Pick a new time.",

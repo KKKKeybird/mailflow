@@ -226,6 +226,8 @@
         "clockBehind": "Die Uhr dieses Geräts geht {{minutes}} Min. nach gegenüber dem Server, laut dem es {{time}} ist.",
         "clockAhead": "Die Uhr dieses Geräts geht {{minutes}} Min. vor gegenüber dem Server, laut dem es {{time}} ist.",
         "holdLost": "Diese Nachricht wurde in einem anderen Fenster geöffnet und kann hier nicht mehr gespeichert werden. Dein Text bleibt hier zum Kopieren.",
+        "deletedElsewhere": "Diese Nachricht wurde an anderer Stelle gelöscht und kann hier nicht mehr gespeichert werden. Dein Text bleibt hier zum Kopieren.",
+        "sentElsewhere": "Diese Nachricht wurde aus einem anderen Fenster gesendet und kann hier nicht mehr gespeichert werden. Dein Text bleibt hier zum Kopieren.",
         "versionConflict": "Diese Nachricht wurde an anderer Stelle geändert. Schließe sie und öffne sie erneut unter Geplant, um die neueste Fassung zu sehen.",
         "notHeld": "Diese Nachricht ist hier nicht zum Bearbeiten geöffnet. Schließe sie und öffne sie erneut unter Geplant.",
         "pickNewTime": "Der geplante Zeitpunkt ist vorbei. Wähle einen neuen.",

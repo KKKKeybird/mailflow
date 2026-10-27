@@ -226,6 +226,8 @@
         "clockBehind": "El reloj de este dispositivo va {{minutes}} min por detrás del del servidor, que dice que son las {{time}}.",
         "clockAhead": "El reloj de este dispositivo va {{minutes}} min por delante del del servidor, que dice que son las {{time}}.",
         "holdLost": "Este mensaje se abrió en otra ventana, así que ya no se puede guardar aquí. Tu texto sigue aquí para copiarlo.",
+        "deletedElsewhere": "Este mensaje se eliminó en otro lugar, así que ya no se puede guardar aquí. Tu texto sigue aquí para copiarlo.",
+        "sentElsewhere": "Este mensaje se envió desde otra ventana, así que ya no se puede guardar aquí. Tu texto sigue aquí para copiarlo.",
         "versionConflict": "Este mensaje se cambió en otro lugar. Ciérralo y vuelve a abrirlo desde Programados para ver la última versión.",
         "notHeld": "Este mensaje no está abierto para editarlo aquí. Ciérralo y vuelve a abrirlo desde Programados.",
         "pickNewTime": "Su hora programada ya pasó. Elige una nueva.",

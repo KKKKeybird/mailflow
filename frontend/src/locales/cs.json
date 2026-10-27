@@ -730,6 +730,8 @@
         "clockBehind": "Hodiny tohoto zařízení se opožďují o {{minutes}} min oproti serveru, podle kterého je {{time}}.",
         "clockAhead": "Hodiny tohoto zařízení se předbíhají o {{minutes}} min oproti serveru, podle kterého je {{time}}.",
         "holdLost": "Tato zpráva byla otevřena v jiném okně, takže ji tu už nelze uložit. Váš text tu zůstává ke zkopírování.",
+        "deletedElsewhere": "Tato zpráva byla smazána jinde, takže ji tady už nelze uložit. Váš text tu zůstává ke zkopírování.",
+        "sentElsewhere": "Tato zpráva byla odeslána z jiného okna, takže ji tady už nelze uložit. Váš text tu zůstává ke zkopírování.",
         "versionConflict": "Tato zpráva byla změněna jinde. Zavřete ji a otevřete znovu z Naplánovaných, abyste viděli nejnovější verzi.",
         "notHeld": "Tato zpráva tu není otevřená k úpravám. Zavřete ji a otevřete znovu z Naplánovaných.",
         "pickNewTime": "Naplánovaný čas už uplynul. Vyberte nový.",

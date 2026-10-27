@@ -226,6 +226,8 @@
         "clockBehind": "Zegar tego urządzenia spóźnia się o {{minutes}} min względem serwera, według którego jest {{time}}.",
         "clockAhead": "Zegar tego urządzenia spieszy się o {{minutes}} min względem serwera, według którego jest {{time}}.",
         "holdLost": "Ta wiadomość została otwarta w innym oknie, więc nie można jej tu już zapisać. Twój tekst zostaje tu do skopiowania.",
+        "deletedElsewhere": "Ta wiadomość została usunięta gdzie indziej, więc nie można jej już tu zapisać. Twój tekst nadal jest tu do skopiowania.",
+        "sentElsewhere": "Ta wiadomość została wysłana z innego okna, więc nie można jej już tu zapisać. Twój tekst nadal jest tu do skopiowania.",
         "versionConflict": "Ta wiadomość została zmieniona gdzie indziej. Zamknij ją i otwórz ponownie z Zaplanowanych, aby zobaczyć najnowszą wersję.",
         "notHeld": "Ta wiadomość nie jest tu otwarta do edycji. Zamknij ją i otwórz ponownie z Zaplanowanych.",
         "pickNewTime": "Zaplanowany czas już minął. Wybierz nowy.",

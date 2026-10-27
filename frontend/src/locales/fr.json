@@ -226,6 +226,8 @@
         "clockBehind": "L'horloge de cet appareil retarde de {{minutes}} min sur celle du serveur, pour qui il est {{time}}.",
         "clockAhead": "L'horloge de cet appareil avance de {{minutes}} min sur celle du serveur, pour qui il est {{time}}.",
         "holdLost": "Ce message a été ouvert dans une autre fenêtre et ne peut plus être enregistré ici. Votre texte reste ici pour être copié.",
+        "deletedElsewhere": "Ce message a été supprimé ailleurs et ne peut plus être enregistré ici. Votre texte reste ici pour être copié.",
+        "sentElsewhere": "Ce message a été envoyé depuis une autre fenêtre et ne peut plus être enregistré ici. Votre texte reste ici pour être copié.",
         "versionConflict": "Ce message a été modifié ailleurs. Fermez-le et rouvrez-le depuis Programmés pour voir la dernière version.",
         "notHeld": "Ce message n'est pas ouvert en modification ici. Fermez-le et rouvrez-le depuis Programmés.",
         "pickNewTime": "L'heure prévue est passée. Choisissez-en une nouvelle.",

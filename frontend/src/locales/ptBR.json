@@ -226,6 +226,8 @@
         "clockBehind": "O relógio deste dispositivo está {{minutes}} min atrasado em relação ao do servidor, que diz que são {{time}}.",
         "clockAhead": "O relógio deste dispositivo está {{minutes}} min adiantado em relação ao do servidor, que diz que são {{time}}.",
         "holdLost": "Esta mensagem foi aberta em outra janela e não pode mais ser salva aqui. Seu texto continua aqui para copiar.",
+        "deletedElsewhere": "Esta mensagem foi excluída em outro lugar e não pode mais ser salva aqui. Seu texto continua aqui para copiar.",
+        "sentElsewhere": "Esta mensagem foi enviada de outra janela e não pode mais ser salva aqui. Seu texto continua aqui para copiar.",
         "versionConflict": "Esta mensagem foi alterada em outro lugar. Feche-a e abra de novo em Agendados para ver a versão mais recente.",
         "notHeld": "Esta mensagem não está aberta para edição aqui. Feche-a e abra de novo em Agendados.",
         "pickNewTime": "O horário agendado já passou. Escolha um novo.",

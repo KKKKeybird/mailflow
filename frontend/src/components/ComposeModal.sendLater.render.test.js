@@ -670,6 +670,39 @@ describe('editing a scheduled message', () => {
     assert.match(document.querySelector('.ProseMirror').textContent, /Typed here\./, 'the text is still there to copy');
   });
 
+  test('a change to it elsewhere is checked at once: deleted there, it says so and cannot be saved', async () => {
+    await mount(structuredClone(SCHEDULED));
+    const holds = () => callsTo('hold').length;
+    assert.equal(holds(), 1);
+    const changed = id => React.act(async () => {
+      window.dispatchEvent(new window.CustomEvent('mailflow:scheduled_changed', { detail: { id, status: 'cancelled' } }));
+    });
+    await changed('another-message');
+    await settle();
+    assert.equal(holds(), 1, 'another message is none of its business');
+    answers.hold = refusal(409, 'hold_lost', 'This message is no longer open for editing here.', { state: 'cancelled' });
+    await changed(ID);
+    await settle();
+    assert.deepEqual(callsTo('hold')[1], ['hold', ID, TOKEN]);
+    assert.ok(document.body.textContent.includes('compose.scheduleSend.errors.deletedElsewhere'));
+    assert.equal(document.body.textContent.includes('compose.scheduleSend.errors.holdLost'), false);
+    assert.equal(button('compose.scheduleSend.edit.update').disabled, true);
+  });
+
+  test('coming back to the page checks the hold at once', async () => {
+    await mount(structuredClone(SCHEDULED));
+    visibility = 'hidden';
+    await React.act(async () => { document.dispatchEvent(new window.Event('visibilitychange')); });
+    assert.equal(callsTo('hold').length, 1);
+    answers.hold = refusal(409, 'hold_lost', 'This message is no longer open for editing here.', { state: 'editing' });
+    visibility = 'visible';
+    await React.act(async () => { document.dispatchEvent(new window.Event('visibilitychange')); });
+    await settle();
+    assert.equal(callsTo('hold').length, 2);
+    assert.ok(document.body.textContent.includes('compose.scheduleSend.errors.holdLost'), 'taken over in another window');
+    assert.equal(button('compose.scheduleSend.edit.update').disabled, true);
+  });
+
   test('a hold the server refuses shows why and disables Update', async () => {
     answers.hold = refusal(409, undefined, 'This message is being sent now.');
     const close = await mount(structuredClone(SCHEDULED));

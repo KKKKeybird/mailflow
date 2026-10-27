@@ -1465,10 +1465,18 @@ export default function ComposeModal() {
     const leave = (options) => { if (dueWhileHeldRef.current()) hold.settle(); else hold.release(options); };
     const onPageHide = () => leave({ unloading: true });
     window.addEventListener('pagehide', onPageHide);
+    // A change to this message elsewhere (another window took it over, deleted or sent it), or the
+    // page seen again after a while away, is checked at once rather than at the next renewal.
+    const onChanged = (e) => { if (e.detail?.id === scheduledEdit.id) hold.check(); };
+    const onVisible = () => { if (document.visibilityState === 'visible') hold.check(); };
+    window.addEventListener('mailflow:scheduled_changed', onChanged);
+    document.addEventListener('visibilitychange', onVisible);
     return () => {
       live = false;
       clearTimeout(starting);
       window.removeEventListener('pagehide', onPageHide);
+      window.removeEventListener('mailflow:scheduled_changed', onChanged);
+      document.removeEventListener('visibilitychange', onVisible);
       leave();
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps -- one hold per mounted composer

@@ -277,6 +277,48 @@ describe('createEditHold', () => {
     assert.deepEqual(h.calls.at(-1), ['releaseOnUnload', 'm1', 'tok-1']);
   });
 
+  test('check() renews at once, and a message deleted or taken elsewhere is lost then', async () => {
+    let answer = null;
+    const h = harness({ hold: (token) => {
+      if (answer) throw answer;
+      return { editToken: token || 'tok-1', version: 3, statusBefore: 'scheduled' };
+    } });
+    const lost = [];
+    const hold = createEditHold({ id: 'm1', version: 3 }, { ...h.deps, onLost: err => lost.push(err) });
+    await hold.start();
+    await hold.check();
+    assert.deepEqual(h.calls.map(c => c[0]), ['hold', 'hold'], 'renewed without waiting for the timer');
+    assert.equal(h.pending().length, 1, 'one renewal armed, not two');
+    answer = Object.assign(new Error('Scheduled message not found'), { status: 404 });
+    await hold.check();
+    assert.equal(hold.isHeld(), false);
+    assert.equal(lost[0].code, 'hold_lost');
+    assert.equal(lost[0].status, 404);
+    assert.equal(h.pending().length, 0);
+    await hold.check();
+    assert.equal(h.calls.length, 3, 'nothing more once lost');
+  });
+
+  test('a check() while a renewal is out renews once more after it', async () => {
+    let resolveFirst;
+    let n = 0;
+    const h = harness({ hold: (token) => {
+      n += 1;
+      if (n === 2) return new Promise(r => { resolveFirst = () => r({ editToken: token, version: 3 }); });
+      return { editToken: token || 'tok-1', version: 3, statusBefore: 'scheduled' };
+    } });
+    const hold = createEditHold({ id: 'm1', version: 3 }, h.deps);
+    await hold.start();
+    const first = hold.check();
+    await settle();
+    hold.check();
+    resolveFirst();
+    await first;
+    await settle();
+    assert.equal(h.calls.filter(c => c[0] === 'hold').length, 3, 'the start, the renewal out, and one after it');
+    assert.equal(h.pending().length, 1);
+  });
+
   test('markLost stops the renewals for a hold a save found lost', async () => {
     const h = harness();
     const hold = createEditHold({ id: 'm1', version: 3 }, h.deps);
@@ -315,6 +357,11 @@ describe('scheduleErrorText', () => {
 
   test('a lost hold and a newer version are told in the composer text', () => {
     assert.equal(scheduleErrorText({ code: 'hold_lost', message: 'x' }, t), 'compose.scheduleSend.errors.holdLost');
+    assert.equal(scheduleErrorText({ code: 'hold_lost', status: 409, state: 'editing' }, t), 'compose.scheduleSend.errors.holdLost');
+    assert.equal(scheduleErrorText({ code: 'hold_lost', status: 404 }, t), 'compose.scheduleSend.errors.deletedElsewhere');
+    assert.equal(scheduleErrorText({ code: 'hold_lost', status: 409, state: 'cancelled' }, t), 'compose.scheduleSend.errors.deletedElsewhere');
+    assert.equal(scheduleErrorText({ code: 'hold_lost', status: 409, state: 'sent' }, t), 'compose.scheduleSend.errors.sentElsewhere');
+    assert.equal(scheduleErrorText({ code: 'hold_lost', status: 409, state: 'sending' }, t), 'compose.scheduleSend.errors.sentElsewhere');
     assert.equal(scheduleErrorText({ code: 'held_elsewhere', message: 'x' }, t), 'compose.scheduleSend.errors.heldElsewhere');
     assert.equal(scheduleErrorText({ code: 'version_conflict', message: 'x' }, t), 'compose.scheduleSend.errors.versionConflict');
   });

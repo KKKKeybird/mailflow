@@ -124,7 +124,8 @@ export const needsConfirmation = err => err?.code === 'confirm_uncertain' || err
 
 // The edit hold of one scheduled message while the composer has it open. `api` is
 // api.scheduled. start() takes the hold (or renews the one the opener took), renewals keep it
-// every HOLD_RENEW_MS, settle() ends it after a save or an unschedule (the server cleared it),
+// every HOLD_RENEW_MS, check() renews it at once (the message changed elsewhere, or the page is
+// seen again), settle() ends it after a save or an unschedule (the server cleared it),
 // handBack() releases it and resolves once the server took it back (throwing, and still holding
 // it, when a request failed on the way), and release() hands it back without waiting when the
 // composer closes. `onLost(err)` is told when a renewal finds the message is no longer this
@@ -138,6 +139,8 @@ export function createEditHold({ id, version, editToken = null }, {
   let state = 'starting'; // 'held' | 'releasing' | 'lost' | 'done'
   let statusBefore = null;
   let timer = null;
+  let renewing = null;
+  let renewAgain = false;
   // Set when the composer closes while a handBack is out: it must not come back to life.
   let closing = false;
   // What the handBack out asked for, and whether the page's last release already went.
@@ -165,8 +168,20 @@ export function createEditHold({ id, version, editToken = null }, {
     onLost(err);
   };
 
-  async function renew() {
-    if (state !== 'held') return;
+  // One renewal at a time. A check() while one is out runs another after it, as the answer out
+  // may predate the change that asked for it.
+  function renew() {
+    if (state !== 'held') return Promise.resolve();
+    if (renewing) { renewAgain = true; return renewing; }
+    renewing = renewOnce().finally(() => {
+      renewing = null;
+      if (!renewAgain) return;
+      renewAgain = false;
+      if (state === 'held') { unschedule(timer); renew(); }
+    });
+    return renewing;
+  }
+  async function renewOnce() {
     try {
       const r = await api.hold(id, token);
       // Saved, released or closed meanwhile: the server refuses a renewal of a hold that ended,
@@ -214,6 +229,13 @@ export function createEditHold({ id, version, editToken = null }, {
     },
     token: () => token,
     isHeld: () => state === 'held',
+    // Renews now rather than at the next timer, so a takeover, a delete or a send elsewhere is
+    // noticed when it happens rather than up to HOLD_RENEW_MS later.
+    check() {
+      if (state !== 'held') return Promise.resolve();
+      unschedule(timer);
+      return renew();
+    },
     statusBefore: () => statusBefore,
     // The server said this composer no longer holds it (hold_lost on a save).
     markLost() { if (state === 'held') { state = 'lost'; unschedule(timer); } },
@@ -265,6 +287,10 @@ export function createEditHold({ id, version, editToken = null }, {
 export function scheduleErrorText(err, t, { now = Date.now(), locale } = {}) {
   switch (err?.code) {
     case 'hold_lost':
+      // Gone (deleted for good) or deleted with Undo elsewhere, or sent from another window, is
+      // said as such; anything else is another window that holds it now.
+      if (err.status === 404 || err.state === 'cancelled') return t('compose.scheduleSend.errors.deletedElsewhere');
+      if (err.state === 'sending' || err.state === 'sent') return t('compose.scheduleSend.errors.sentElsewhere');
       return t('compose.scheduleSend.errors.holdLost');
     case 'held_elsewhere':
       return t('compose.scheduleSend.errors.heldElsewhere');
