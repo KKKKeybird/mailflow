@@ -2722,16 +2722,15 @@ export default function MessageList() {
     <button type="button" onClick={handleMarkAllRead} disabled={markingAllRead || !accountsReady}
       title={t('sidebar.folderMenu.markAllRead')} aria-label={t('sidebar.folderMenu.markAllRead')}
       aria-busy={markingAllRead} style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
         background: 'none', border: 'none', borderRadius: 6,
         padding: isMobile ? '5px 7px' : '4px 8px', minHeight: isMobile ? 44 : undefined,
-        color: 'var(--text-tertiary)', fontSize: 11, fontWeight: 500,
+        color: 'var(--text-tertiary)',
         cursor: markingAllRead ? 'wait' : 'pointer', opacity: markingAllRead ? 0.5 : 1,
       }}>
       <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" aria-hidden="true">
         <path d="M22 10v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/><path d="m2 5 10 8 4-3m0-5 2 2 4-4"/>
       </svg>
-      {!isMobile && t('sidebar.folderMenu.markAllRead')}
     </button>
   );
 
