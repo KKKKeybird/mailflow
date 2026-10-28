@@ -18,8 +18,12 @@ import { keepDraftsApart } from '../utils/conversationActions.js';
 import { unreadDeltaByAccount } from '../utils/countSnapshots.js';
 import { splitDraftSignature } from '../utils/draftSignature.js';
 import { useSwipeRow } from '../hooks/useSwipeRow.js';
+import { useHoverPrefetch } from '../hooks/useHoverPrefetch.js';
 import ContextMenu from './ContextMenu.jsx';
 import RowHoverActions from './RowHoverActions.jsx';
+import UndoBar from './UndoBar.jsx';
+import ScheduledList from './ScheduledList.jsx';
+import { SCHEDULED_VIEW } from '../utils/scheduledCompose.js';
 import GtdTabList from './GtdTabList.jsx';
 import { useUiScale, descale } from '../hooks/useUiScale.js';
 import {
@@ -30,7 +34,7 @@ import { SNOOZED_FOLDER, unsnooze, changeSnooze, refreshCounts } from '../utils/
 import { advanceSelectionAfterRemoval, registerRowOpener } from '../utils/listSelection.js';
 import { openReplyFromMessage, openForwardFromMessage, openForwardAsAttachmentFromMessage } from '../utils/composeFromMessage.js';
 import { selectedMessage, markMessageUnread } from '../utils/messageHotkeys.js';
-import { cancelScheduledMarkReadFor } from '../utils/markRead.js';
+import { cancelScheduledMarkRead, cancelScheduledMarkReadFor, scheduleMarkReadTimer } from '../utils/markRead.js';
 import { saveSenderCategory } from '../utils/senderCategory.js';
 import SenderAvatarImage from './SenderAvatarImage.jsx';
 import FolderPathLabel from './FolderPathLabel.jsx';
@@ -45,7 +49,8 @@ import { PluginSlot } from '../plugins/PluginSlot.jsx';
 import SpamExplainModal from './SpamExplainModal.jsx';
 import { shortcutBus } from '../utils/shortcutBus.js';
 import { createLatestRequest } from '../utils/latestRequest.js';
-import { pendingMarkReadMap, completedMarkReadMap, setPending } from '../utils/pendingReads.js';
+import { refreshListWindow, createTrailingRefresh } from '../utils/listRefresh.js';
+import { applyReadGuard as guardReads, clearReadGuard, failMarkRead, setPending, settleMarkRead } from '../utils/pendingReads.js';
 import { applyDeleteGuard, clearDeleteGuard, clearPendingDelete, setCompletedDelete, setPendingDelete, threadDeleteGuardKey } from '../utils/pendingDeletes.js';
 import {
   archiveInChunks,
@@ -58,7 +63,7 @@ import {
   isCurrentThreadLoad,
   unreadCountsByAccount,
 } from '../utils/threadedArchive.js';
-import { createUndoableCommit, UNDO_COMMIT_DELAY_MS, UNDO_WINDOW_MS } from '../utils/undoableAction.js';
+import { createUndoableCommit, UNDO_COMMIT_DELAY_MS } from '../utils/undoableAction.js';
 import { resolveConversationSelection, selectListedMessage } from '../utils/conversation.js';
 
 // Folder icon for move picker
@@ -77,6 +82,11 @@ function restoreMessagesIfViewCurrent(viewKey, currentViewKeyRef, messages) {
 }
 
 export default function MessageList() {
+  const scheduledView = useStore(s => s.selectedAccountId === null && s.selectedFolder === SCHEDULED_VIEW);
+  return scheduledView ? <ScheduledList /> : <MailboxList />;
+}
+
+function MailboxList() {
   const { t } = useTranslation();
   const uiScale = useUiScale();
   const {
@@ -135,20 +145,11 @@ export default function MessageList() {
   const isColumn = currentLayout.direction === 'column';
   const isNarrow = !isColumn && currentLayout.listWidth <= 260;
 
-  // Apply optimistic read guard to a batch of messages from the server.
-  // Prevents a concurrent sync refresh from reverting a pending or recently-completed
-  // mark-read before the IMAP flag has propagated back to the DB.
+  // Apply the optimistic delete and read guards to a batch of messages from the server
+  // (utils/pendingDeletes.js, utils/pendingReads.js), against the rows shown now.
   const applyReadGuard = useCallback((msgs) => {
-    msgs = applySpamMoveGuard(applyDeleteGuard(msgs));
-    if (pendingMarkReadMap.size === 0 && completedMarkReadMap.size === 0) return msgs;
-    return msgs.map(m => {
-      const inFlight = pendingMarkReadMap.has(m.id);
-      const inGrace  = completedMarkReadMap.has(m.id);
-      if (!inFlight && !inGrace) return m;
-      if (!m.is_read) return { ...m, is_read: true };
-      if (inGrace) completedMarkReadMap.delete(m.id);
-      return m;
-    });
+    const { messages: listed, searchResults } = useStore.getState();
+    return guardReads(applySpamMoveGuard(applyDeleteGuard(msgs)), [...listed, ...searchResults]);
   }, []);
 
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -282,6 +283,8 @@ export default function MessageList() {
   const isSearching = useStore(s => s.isSearching);
   const refreshRequestRef = useRef(null);
   if (refreshRequestRef.current === null) refreshRequestRef.current = createLatestRequest();
+  const trailingRefreshRef = useRef(null);
+  if (trailingRefreshRef.current === null) trailingRefreshRef.current = createTrailingRefresh();
   // Bumped to force the search effect to re-run (e.g. after rules move messages) so an
   // active search snapshot drops messages that no longer match. See #223.
   const [searchReloadToken, setSearchReloadToken] = useState(0);
@@ -458,17 +461,13 @@ export default function MessageList() {
     const run = async () => {
       try {
         const state = useStore.getState();
-        const ps = state.pageSize;
         const sm = state.scrollMode;
-        let params;
-        if (sm === 'paginated') {
-          const pg = currentPageRef.current;
-          params = { limit: ps, offset: (pg - 1) * ps };
-        } else {
-          const currentOffset = state.messagesOffset;
-          // Backend caps limit at 500 — don't request more or the list silently shrinks
-          params = { limit: Math.min(currentOffset || ps, 500), offset: 0 };
-        }
+        const params = refreshListWindow({
+          scrollMode: sm,
+          currentPage: currentPageRef.current,
+          pageSize: state.pageSize,
+          loadedCount: state.messagesOffset,
+        });
         scopeListParams(params, selectedAccountId, selectedFolder);
         if (unreadOnly) params.unreadOnly = 'true';
         if (state.threadedView) params.threaded = 'true';
@@ -499,7 +498,8 @@ export default function MessageList() {
     };
 
     const handler = () => {
-      if (!useStore.getState().loadingMessages && !searchQuery.trim()) {
+      if (searchQuery.trim()) return;
+      if (trailingRefreshRef.current.request(useStore.getState().loadingMessages)) {
         const delayMs = Math.max(0, recentMessageOpenUntilRef.current - Date.now());
         clearTimeout(deferredRefreshTimerRef.current);
         if (delayMs > 0) {
@@ -518,6 +518,14 @@ export default function MessageList() {
       clearTimeout(deferredRefreshTimerRef.current);
     };
   }, [selectedAccountId, selectedFolder, unreadOnly, activeCategory, searchQuery, categorizationEnabled, selectedAccount?.categorization_enabled, applyReadGuard, setHasMoreMessages, setMessages, setMessagesOffset, setMessagesTotal]);
+
+  // Run the refresh held back while a load was in flight, once that load (and any append it
+  // made) has finished.
+  useEffect(() => {
+    if (!loadingMessages && trailingRefreshRef.current.settle()) {
+      window.dispatchEvent(new CustomEvent('mailflow:refresh'));
+    }
+  }, [loadingMessages]);
 
   // Search
   useEffect(() => {
@@ -818,6 +826,8 @@ export default function MessageList() {
   }, [threadMessages, setThreadMessages, isUnified]);
 
   const setMessagesReadState = useCallback(async (message, read) => {
+    // An explicit read or unread wins over a delayed automatic read still pending for the row.
+    cancelScheduledMarkReadFor(message.id);
     const isThreadRow = isThreadListRow(message);
     const unreadCount = Number.parseInt(message.unread_count, 10);
     // Use the row's own unread_count as the immediate estimate.
@@ -867,6 +877,8 @@ export default function MessageList() {
       return;
     }
 
+    actionMessages.forEach(msg => cancelScheduledMarkReadFor(msg.id));
+
     // Compute exact delta from sub-message states (before mutating the cache).
     const actualDelta = read
       ? actionMessages.filter(msg => !msg.is_read).length
@@ -903,26 +915,20 @@ export default function MessageList() {
       adjustCategoryCount(message.category, read ? -diff : diff);
     }
 
+    let tokens = [];
     if (read) {
-      actionMessages.forEach(msg => setPending(msg.id, msg.account_id));
+      tokens = actionMessages.map(msg => setPending(msg.id, msg.account_id));
     } else {
-      actionMessages.forEach(msg => {
-        pendingMarkReadMap.delete(msg.id);
-        completedMarkReadMap.delete(msg.id);
-      });
+      actionMessages.forEach(msg => clearReadGuard(msg.id));
     }
 
     try {
       await api.bulkRead(actionMessages.map(msg => msg.id), read);
-      if (read) {
-        actionMessages.forEach(msg => {
-          pendingMarkReadMap.delete(msg.id);
-          completedMarkReadMap.set(msg.id, msg.account_id);
-          setTimeout(() => completedMarkReadMap.delete(msg.id), 10000);
-        });
-      }
+      if (read) actionMessages.forEach((msg, i) => settleMarkRead(msg.id, msg.account_id, tokens[i]));
     } catch (err) {
       console.error('markRead failed:', err);
+      // A read the user has since undone by hand is theirs now: nothing to roll back.
+      if (read && !actionMessages.map((msg, i) => failMarkRead(msg.id, tokens[i])).some(Boolean)) return;
       if (isThreadRow) {
         updateMessage(message.id, { is_read: !read, unread_count: read ? actualDelta : 0 });
         setCachedThreadRead(message, !read);
@@ -934,7 +940,6 @@ export default function MessageList() {
         if (read) incrementUnread(accountId, n); else decrementUnread(accountId, n);
       }
       if (actualDelta > 0) adjustCategoryCount(message.category, read ? actualDelta : -actualDelta);
-      if (read) actionMessages.forEach(msg => pendingMarkReadMap.delete(msg.id));
     }
   }, [
     resolveMessagesForThreadAction, isThreadListRow, updateMessage, setCachedThreadRead,
@@ -1870,7 +1875,11 @@ export default function MessageList() {
   ]);
 
   const handleBulkMarkRead = useCallback(async (ids, msgs) => {
+    ids.forEach(id => cancelScheduledMarkReadFor(id));
     const markAsRead = msgs.some(m => !m.is_read);
+    // A manual read state either way: a read still in flight from opening one of these no longer
+    // speaks for it, so its failure cannot roll this back.
+    ids.forEach(id => clearReadGuard(id));
     // Compute per-account and per-category unread deltas before mutating state
     const deltaByAccount = {};
     const deltaByCategory = {};
@@ -1922,7 +1931,7 @@ export default function MessageList() {
   }, [updateMessage]);
 
   const autoMarkReadTimerRef = useRef(null);
-  useEffect(() => () => clearTimeout(autoMarkReadTimerRef.current), []);
+  useEffect(() => () => cancelScheduledMarkRead(autoMarkReadTimerRef.current), []);
 
   // Keep refs to bulk handlers so the shortcut effect (registered once) is never stale
   const contextActionRef = useRef(null);
@@ -1945,29 +1954,25 @@ export default function MessageList() {
       if (msg.is_read) return;
       const { updateMessage, decrementUnread, incrementUnread, adjustCategoryCount, markReadBehavior, markReadDelay } = getState();
       if (markReadBehavior === 'manual') return;
-      clearTimeout(autoMarkReadTimerRef.current);
+      cancelScheduledMarkRead(autoMarkReadTimerRef.current);
       autoMarkReadTimerRef.current = null;
       const doMarkRead = () => {
         updateMessage(msg.id, { is_read: true });
         decrementUnread(msg.account_id);
         adjustCategoryCount(msg.category, -1);
-        setPending(msg.id, msg.account_id);
+        const token = setPending(msg.id, msg.account_id);
         api.bulkRead([msg.id], true)
-          .then(() => {
-            pendingMarkReadMap.delete(msg.id);
-            completedMarkReadMap.set(msg.id, msg.account_id);
-            setTimeout(() => completedMarkReadMap.delete(msg.id), 10000);
-          })
+          .then(() => settleMarkRead(msg.id, msg.account_id, token))
           .catch(e => {
             console.error('markRead failed:', e.message);
+            if (!failMarkRead(msg.id, token)) return;
             updateMessage(msg.id, { is_read: false });
             incrementUnread(msg.account_id);
             adjustCategoryCount(msg.category, 1);
-            pendingMarkReadMap.delete(msg.id);
           });
       };
       if (markReadBehavior === 'delay') {
-        autoMarkReadTimerRef.current = setTimeout(doMarkRead, (markReadDelay || 1) * 1000);
+        autoMarkReadTimerRef.current = scheduleMarkReadTimer(msg.id, doMarkRead, (markReadDelay || 1) * 1000);
       } else {
         doMarkRead();
       }
@@ -2053,6 +2058,7 @@ export default function MessageList() {
       if (!selectedMessageId) return;
       const msg = selectedListMessage(getState());
       if (!msg) return;
+      cancelScheduledMarkReadFor(msg.id);
       if (scRef.current.isThreadListRow(msg)) {
         contextActionRef.current(Number(msg.unread_count) > 0 ? 'markRead' : 'markUnread', msg);
         return;
@@ -2062,22 +2068,17 @@ export default function MessageList() {
       if (newRead) {
         decrementUnread(msg.account_id);
         adjustCategoryCount(msg.category, -1);
-        setPending(selectedMessageId, msg.account_id);
+        const token = setPending(selectedMessageId, msg.account_id);
         api.bulkRead([selectedMessageId], true)
-          .then(() => {
-            pendingMarkReadMap.delete(selectedMessageId);
-            completedMarkReadMap.set(selectedMessageId, msg.account_id);
-            setTimeout(() => completedMarkReadMap.delete(selectedMessageId), 10000);
-          })
+          .then(() => settleMarkRead(selectedMessageId, msg.account_id, token))
           .catch(err => {
             console.error('markRead failed:', err);
-            pendingMarkReadMap.delete(selectedMessageId);
+            failMarkRead(selectedMessageId, token);
           });
       } else {
         incrementUnread(msg.account_id);
         adjustCategoryCount(msg.category, 1);
-        pendingMarkReadMap.delete(selectedMessageId);
-        completedMarkReadMap.delete(selectedMessageId);
+        clearReadGuard(selectedMessageId);
         api.bulkRead([selectedMessageId], false).catch(console.error);
       }
     };
@@ -2090,10 +2091,9 @@ export default function MessageList() {
         cancel: () => {
           if (message) {
             cancelScheduledMarkReadFor(message.id);
-            pendingMarkReadMap.delete(message.id);
-            completedMarkReadMap.delete(message.id);
+            clearReadGuard(message.id);
           }
-          clearTimeout(autoMarkReadTimerRef.current);
+          cancelScheduledMarkRead(autoMarkReadTimerRef.current);
           autoMarkReadTimerRef.current = null;
         },
         update: (id, fields) => {
@@ -2600,7 +2600,7 @@ export default function MessageList() {
   // Shared by the main-pane selection (handleSelect) and the detached-window open
   // path (#219) so both routes behave identically.
   const markMessageReadOnOpen = (message) => {
-    clearTimeout(autoMarkReadTimerRef.current);
+    cancelScheduledMarkRead(autoMarkReadTimerRef.current);
     autoMarkReadTimerRef.current = null;
     if (message.is_read || markReadBehavior === 'manual') return;
     const prevUnread = message.unread_count;
@@ -2608,24 +2608,20 @@ export default function MessageList() {
       updateMessage(message.id, { is_read: true, unread_count: 0 });
       decrementUnread(message.account_id);
       adjustCategoryCount(message.category, -1);
-      setPending(message.id, message.account_id);
+      const token = setPending(message.id, message.account_id);
       api.bulkRead([message.id], true)
         .catch(() => api.bulkRead([message.id], true))
-        .then(() => {
-          pendingMarkReadMap.delete(message.id);
-          completedMarkReadMap.set(message.id, message.account_id);
-          setTimeout(() => completedMarkReadMap.delete(message.id), 10000);
-        })
+        .then(() => settleMarkRead(message.id, message.account_id, token))
         .catch(e => {
           console.error('markRead failed:', e.message);
+          if (!failMarkRead(message.id, token)) return;
           updateMessage(message.id, { is_read: false, unread_count: prevUnread });
           incrementUnread(message.account_id);
           adjustCategoryCount(message.category, 1);
-          pendingMarkReadMap.delete(message.id);
         });
     };
     if (markReadBehavior === 'delay') {
-      autoMarkReadTimerRef.current = setTimeout(doMarkRead, markReadDelay * 1000);
+      autoMarkReadTimerRef.current = scheduleMarkReadTimer(message.id, doMarkRead, markReadDelay * 1000);
     } else {
       doMarkRead();
     }
@@ -2736,6 +2732,8 @@ export default function MessageList() {
 
   // Derived bulk-selection values (computed fresh each render, no stale closure risk)
   const selectionMode = selectedIds.size > 0 || selectionModeActive;
+  // A row's body loads while the mouse rests on it, so the click shows it at once (#677).
+  const hoverPrefetch = useHoverPrefetch({ enabled: !isMobile && !selectionMode });
   const selectedMsgs = displayMessages.filter(m => selectedIds.has(m.id));
   const selectedCount = selectedIds.size;
   const allSelected = displayMessages.length > 0 && selectedIds.size === displayMessages.length;
@@ -4012,8 +4010,10 @@ export default function MessageList() {
       <div style={{ flex: 1, overflow: 'hidden', position: 'relative' }}>
         <div
           ref={listRef}
-          onScroll={handleScroll}
+          onScroll={(e) => { hoverPrefetch.onScroll(); handleScroll(e); }}
           onKeyDown={handleListKeyDown}
+          onPointerMove={hoverPrefetch.onPointerMove}
+          onPointerLeave={hoverPrefetch.onPointerLeave}
           tabIndex={0}
           style={{ height: '100%', overflowY: 'auto', overflowX: 'hidden', outline: 'none', overscrollBehavior: 'contain' }}
         >
@@ -4396,83 +4396,6 @@ export default function MessageList() {
   );
 }
 
-function UndoBar({ notification, onDismiss, showTopBorder }) {
-  const { t } = useTranslation();
-  const [exiting, setExiting] = useState(false);
-
-  const dismiss = () => {
-    setExiting(true);
-    setTimeout(onDismiss, 190);
-  };
-
-  const handleUndo = () => {
-    notification.onUndo();
-    dismiss();
-  };
-
-  // Undo send brings its own window; everything else uses the standard one.
-  const windowMs = notification.undoMs ?? UNDO_WINDOW_MS;
-  useEffect(() => {
-    const timer = setTimeout(dismiss, windowMs);
-    return () => clearTimeout(timer);
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  return (
-    <div
-      className={exiting ? 'action-bar-exit' : 'action-bar-enter'}
-      style={{
-        flexShrink: 0,
-        position: 'relative',
-        overflow: 'hidden',
-        borderTop: showTopBorder ? '1px solid var(--border-subtle)' : 'none',
-        padding: '9px 16px',
-        display: 'flex', alignItems: 'center', gap: 10,
-        background: 'var(--bg-primary)',
-      }}
-    >
-      <div style={{
-        position: 'absolute', bottom: 0, left: 0,
-        height: 2, background: 'var(--accent)',
-        animation: `action-bar-progress ${windowMs}ms linear forwards`,
-      }} />
-      <span style={{
-        flex: 1, minWidth: 0,
-        fontSize: 13, color: 'var(--text-secondary)',
-        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-      }}>
-        {notification.title}
-      </span>
-      <button
-        onClick={handleUndo}
-        style={{
-          background: 'none', border: 'none',
-          color: 'var(--accent)', fontSize: 13, fontWeight: 600,
-          cursor: 'pointer', padding: '2px 4px', flexShrink: 0,
-        }}
-        onMouseEnter={e => { e.currentTarget.style.opacity = '0.75'; }}
-        onMouseLeave={e => { e.currentTarget.style.opacity = '1'; }}
-      >
-        {t('common.undo')}
-      </button>
-      <button
-        onClick={dismiss}
-        aria-label={t('common.dismiss')}
-        style={{
-          background: 'none', border: 'none',
-          color: 'var(--text-tertiary)', cursor: 'pointer',
-          padding: 2, display: 'flex', flexShrink: 0,
-          transition: 'color 0.15s',
-        }}
-        onMouseEnter={e => { e.currentTarget.style.color = 'var(--text-primary)'; }}
-        onMouseLeave={e => { e.currentTarget.style.color = 'var(--text-tertiary)'; }}
-      >
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-        </svg>
-      </button>
-    </div>
-  );
-}
 
 // Which list to ask the server for: an account's folder, or with no account All Inboxes, or the
 // Snoozed view across every account (#269).

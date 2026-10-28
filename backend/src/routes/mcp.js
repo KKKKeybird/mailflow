@@ -1,3 +1,4 @@
+import { findOwnedAccounts, findOwnedAccount, findOwnedMessage } from '../services/ownership.js';
 import { Router } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
@@ -38,14 +39,13 @@ export function createMailMcpServer(token) {
   const request = fields => ({ session: { userId: token.user_id }, headers: {}, query: {}, params: {}, ...fields });
   const requireAccount = async id => {
     if (!token.account_ids.includes(id)) throw publicError('Mailbox is outside this token’s permissions.');
-    const result = await query('SELECT id FROM email_accounts WHERE id = $1 AND user_id = $2 AND enabled = true', [id, token.user_id]);
-    if (!result.rows.length) throw publicError('Mailbox is unavailable.');
+    const account = await findOwnedAccount(token.user_id, id, { columns: 'id', enabled: true });
+    if (!account) throw publicError('Mailbox is unavailable.');
   };
   const getMessage = async id => {
-    const result = await query(`SELECT m.* FROM messages m JOIN email_accounts a ON a.id = m.account_id
-      WHERE m.id = $1 AND a.user_id = $2 AND m.account_id = ANY($3::uuid[]) AND a.enabled = true AND m.is_deleted = false`, [id, token.user_id, token.account_ids]);
-    if (!result.rows.length) throw publicError('Message not found in allowed mailboxes.');
-    return result.rows[0];
+    const message = await findOwnedMessage(token.user_id, id, { live: true, enabledAccount: true });
+    if (!message || !token.account_ids.includes(message.account_id)) throw publicError('Message not found in allowed mailboxes.');
+    return message;
   };
   const register = (name, description, inputSchema, handler, sending = false) => {
     server.registerTool(name, {
@@ -71,8 +71,9 @@ export function createMailMcpServer(token) {
     });
   };
   register('list_accounts', 'List mailboxes this token can access. Never returns passwords or credentials.', {}, async () => {
-    const { rows } = await query('SELECT id, name, email_address FROM email_accounts WHERE user_id = $1 AND enabled = true AND id = ANY($2::uuid[]) ORDER BY name', [token.user_id, token.account_ids]);
-    return { accounts: rows };
+    const accounts = await findOwnedAccounts(token.user_id, token.account_ids, { columns: 'id, name, email_address', enabled: true });
+    accounts.sort((a, b) => String(a.name || '').localeCompare(String(b.name || '')));
+    return { accounts };
   });
   register('list_folders', 'List folders and message counts for an allowed mailbox.', accountSchema, async ({ accountId }) => {
     await requireAccount(accountId);

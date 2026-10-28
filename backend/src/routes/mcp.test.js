@@ -92,6 +92,16 @@ describe('MailFlow MCP over the official client transport', () => {
     expect((await client.callTool({ name: 'read_message', arguments: { messageId: OTHER } })).isError).toBe(true);
     expect(mocks.body).not.toHaveBeenCalled();
   });
+  it('rejects an owned message outside the token scope after the shared ownership lookup', async () => {
+    const baseQuery = mocks.query.getMockImplementation();
+    mocks.query.mockImplementation(async (sql, params) => {
+      if (sql.includes('SELECT m.* FROM messages')) return { rows: [{ id: MESSAGE, account_id: OTHER }] };
+      return baseQuery(sql, params);
+    });
+    const client = await connect();
+    expect((await client.callTool({ name: 'read_message', arguments: { messageId: MESSAGE } })).isError).toBe(true);
+    expect(mocks.body).not.toHaveBeenCalled();
+  });
   it('bounds previews and body output and treats message text as data', async () => {
     const client = await connect();
     const listed = await client.callTool({ name: 'list_messages', arguments: { accountId: ACCOUNT } });

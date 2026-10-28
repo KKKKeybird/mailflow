@@ -2,12 +2,14 @@ import { randomBytes } from 'crypto';
 import { Router } from 'express';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { query, withTransaction } from '../services/db.js';
+import { findOwnedAccount } from '../services/ownership.js';
 import { imapManager } from '../index.js';
 import { providerProfile, PROVIDERS } from '../services/imapManager.js';
 import { encrypt, decrypt } from '../services/encryption.js';
 import { redactEmail } from '../utils/redact.js';
 import { getMsConfig, getMsDeviceClient, msBuiltinAppEnabled, msRefreshClient, ownAppAdmitsPersonal } from '../services/microsoftOAuthClient.js';
 import { MAILFLOW_MS_CLIENT_ID } from '../services/microsoftBuiltinApp.js';
+import { getGoogleConfig } from '../services/oauthEnv.js';
 import { classifyRefreshFailure, clearRefreshFailure, isPersonalMicrosoftAccount, noteFreshToken, terminalRefreshError } from '../services/accountErrorCode.js';
 import { isUuid } from '../utils/uuid.js';
 import { reportConnect } from '../services/connectReport.js';
@@ -42,11 +44,9 @@ async function repairTarget(userId, accountId, provider) {
   if (accountId === undefined || accountId === null || accountId === '') return null;
   // Not a UUID cannot be an account: refuse it as one that does not exist, before the query.
   if (!isUuid(String(accountId))) throw Object.assign(new Error('Account not found'), { status: 404 });
-  const { rows } = await query(
-    'SELECT id, email_address, oauth_provider, oauth_client_id, oauth_tenant_id FROM email_accounts WHERE id = $1 AND user_id = $2',
-    [String(accountId), userId],
-  );
-  const row = rows[0];
+  const row = await findOwnedAccount(userId, String(accountId), {
+    columns: 'id, email_address, oauth_provider, oauth_client_id, oauth_tenant_id',
+  });
   if (!row || row.oauth_provider !== provider) {
     throw Object.assign(new Error('Account not found'), { status: 404 });
   }
@@ -229,31 +229,27 @@ async function processMicrosoftTokens(userId, tokens, { tenantId, clientId, publ
     // A repair updates the account it was started for, and only when the person signed in as
     // that account's address (compared without case: providers do not preserve it).
     const existing = repairAccountId
-      ? await client.query(
-        'SELECT id, imap_host, oauth_provider, email_address FROM email_accounts WHERE id = $1 AND user_id = $2',
-        [repairAccountId, userId])
-      : await client.query(
+      ? await findOwnedAccount(userId, repairAccountId, { columns: 'id, imap_host, oauth_provider, email_address', client })
+      : (await client.query(
         'SELECT id, imap_host, oauth_provider FROM email_accounts WHERE user_id = $1 AND email_address = $2',
-        [userId, email]);
+        [userId, email])).rows[0];
     if (repairAccountId) {
-      const target = existing.rows[0];
-      if (!target) throw Object.assign(new Error('Account not found'), { publicMessage: 'Account not found' });
-      if (target.email_address.trim().toLowerCase() !== email.trim().toLowerCase()) {
-        throw new WrongAccountError(email, target.email_address);
+      if (!existing) throw Object.assign(new Error('Account not found'), { publicMessage: 'Account not found' });
+      if (existing.email_address.trim().toLowerCase() !== email.trim().toLowerCase()) {
+        throw new WrongAccountError(email, existing.email_address);
       }
     }
 
     let accountId;
-    if (existing.rows.length) {
-      const row = existing.rows[0];
+    if (existing) {
       // A Microsoft account can use any address as its sign-in name, a Gmail one included.
       // Switching a mailbox hosted elsewhere to XOAUTH2 would break it, and oauth_provider
       // cannot be changed back from the account settings. The user is told why.
-      if (providerProfile(row) !== PROVIDERS.microsoft) {
+      if (providerProfile(existing) !== PROVIDERS.microsoft) {
         const reason = 'An account with this address is already set up on a non-Microsoft mail server';
         throw Object.assign(new Error(reason), { publicMessage: reason });
       }
-      accountId = row.id;
+      accountId = existing.id;
       await client.query(`
         UPDATE email_accounts SET
           oauth_provider = 'microsoft',
@@ -584,14 +580,6 @@ const GOOGLE_SCOPE = 'https://mail.google.com/ openid email profile';
 
 const googleJwks = createRemoteJWKSet(new URL('https://www.googleapis.com/oauth2/v3/certs'));
 
-function getGoogleConfig() {
-  return {
-    clientId: process.env.GOOGLE_CLIENT_ID,
-    clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-    redirectUri: process.env.GOOGLE_REDIRECT_URI,
-  };
-}
-
 // Step 1: redirect user to Google consent
 router.get('/google', async (req, res) => {
   if (!req.session?.userId) return res.status(401).json({ error: 'Not authenticated' });
@@ -720,19 +708,18 @@ async function processGoogleTokens(userId, tokens, { clientId, repairAccountId =
 
     // Same repair rule as Microsoft: update the named account, and only for its own address.
     const existing = repairAccountId
-      ? await client.query('SELECT id, email_address FROM email_accounts WHERE id = $1 AND user_id = $2', [repairAccountId, userId])
-      : await client.query('SELECT id FROM email_accounts WHERE user_id = $1 AND email_address = $2', [userId, email]);
+      ? await findOwnedAccount(userId, repairAccountId, { columns: 'id, email_address', client })
+      : (await client.query('SELECT id FROM email_accounts WHERE user_id = $1 AND email_address = $2', [userId, email])).rows[0];
     if (repairAccountId) {
-      const target = existing.rows[0];
-      if (!target) throw new Error('Account not found');
-      if (target.email_address.trim().toLowerCase() !== email.trim().toLowerCase()) {
-        throw new WrongAccountError(email, target.email_address);
+      if (!existing) throw new Error('Account not found');
+      if (existing.email_address.trim().toLowerCase() !== email.trim().toLowerCase()) {
+        throw new WrongAccountError(email, existing.email_address);
       }
     }
 
     let accountId;
-    if (existing.rows.length) {
-      accountId = existing.rows[0].id;
+    if (existing) {
+      accountId = existing.id;
       await client.query(`
         UPDATE email_accounts SET
           oauth_provider = 'google',
