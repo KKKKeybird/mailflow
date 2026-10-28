@@ -1,3 +1,4 @@
+import { findOwnedAccounts } from '../services/ownership.js';
 import { randomBytes, createHash } from 'node:crypto';
 import { Router } from 'express';
 import { z } from 'zod';
@@ -26,8 +27,8 @@ router.post('/', async (req, res) => {
   if (!input.success) return res.status(400).json({ error: 'Invalid token settings; select at least one mailbox.' });
   const { name, allowSend, expiresInDays } = input.data;
   const accountIds = [...new Set(input.data.accountIds)];
-  const owned = await query('SELECT id FROM email_accounts WHERE user_id = $1 AND enabled = true AND id = ANY($2::uuid[])', [req.session.userId, accountIds]);
-  if (owned.rows.length !== accountIds.length) return res.status(403).json({ error: 'One or more mailboxes are unavailable.' });
+  const owned = await findOwnedAccounts(req.session.userId, accountIds, { columns: 'id', enabled: true });
+  if (owned.length !== accountIds.length) return res.status(403).json({ error: 'One or more mailboxes are unavailable.' });
   const count = await query('SELECT count(*)::integer AS count FROM mcp_tokens WHERE user_id = $1 AND revoked_at IS NULL AND expires_at > NOW()', [req.session.userId]);
   if (count.rows[0].count >= 50) return res.status(400).json({ error: 'Revoke an existing token before creating another.' });
   const token = `mf_mcp_${randomBytes(32).toString('base64url')}`;

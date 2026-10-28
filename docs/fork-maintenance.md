@@ -3,7 +3,7 @@
 ## Ownership and baseline
 
 Repository: `KKKKeybird/mailflow`; maintained branch: `main`; upstream: `maathimself/mailflow`.
-Current upstream baseline: `v4.0.5`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
+Current upstream baseline: `v4.1.0`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
 
 ## Sync policy
 
@@ -83,3 +83,12 @@ Merged the stable upstream tag with ancestry preserved. Account creation retains
 Keep the complete names of new `0069_email_accounts_oauth_client` and `0070_email_accounts_sync_error_code` migrations, alongside the existing `0069_mcp_tokens`. The upstream baseline for live endpoint checks is v4.0.5. Database regressions include route, service and utility PostgreSQL tests. Dependency updates retain the MCP SDK and the IMAP proxy postinstall patch. For a custom reverse proxy, allow at least 60 seconds for `/oauth/` requests as documented upstream.
 
 Local validation: all 76 migrations applied on an empty PostgreSQL 16 database and repeated without changes; 64 database-backed regression tests and the 84,000-message endpoint comparison against v4.0.5 passed. The complete backend suite passed 3,300 tests before the final dependency refresh. Selected frontend interaction and locale tests passed 2,005 tests; an additional signed-in account proxy render regression also passed. Fix the MCP SDK's compatible transitive `body-parser` and `fast-uri` resolutions beyond upstream's dependency updates: the backend production audit then reports no vulnerabilities. The frontend audit passes the high-severity threshold with moderate React Router advisories; avoid a forced major router upgrade in this integration.
+
+
+## Integration: v4.1.0 (2026-10-28)
+
+Merged the stable v4.1.0 tag with ancestry preserved. Scheduled send and the Scheduled view use upstream's encrypted queue, edit holds, shutdown handling and at-most-once delivery safeguards. Ordinary and MCP sends share the extracted outgoing-mail pipeline; SMTP continues to use the account proxy with remote target DNS, while retaining upstream's MAIL FROM retry boundary and permanent policy-refusal classification.
+
+Account edits use the shared ownership lookup with the full account for proxy validation. MCP account/message lookups also use the shared helpers while independently enforcing each token's mailbox scope, enabled accounts, live messages and send permission. Sender grouping retains identity, aliases, account isolation, row navigation, complete action snapshots and shared swipe limits/animations. The mark-all-read toolbar control remains borderless and icon only. Upstream's ordered read-state guards compose with the pending spam-move guard, and the store keeps sender-thread aggregate updates alongside upstream's unread-count updates. Retain the model-first spam policy, browser picker, brand avatars and midnight formatting.
+
+The benchmark and CI baseline are v4.1.0. Migration `0071_scheduled_messages` keeps its full filename; no existing migration is renamed. Compose includes upstream's OAuth environment forwarding and 30-second shutdown grace period, with the fork image addresses retained. Before downgrading to 4.0.x, handle all queued scheduled messages and follow upstream's scheduled-table downgrade instructions; the old version cannot deliver the queue.

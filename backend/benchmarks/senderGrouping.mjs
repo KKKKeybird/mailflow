@@ -10,7 +10,7 @@ import assert from 'node:assert/strict';
 
 if (!process.env.DB_NAME?.includes('sender_revision')) throw new Error('Use a disposable sender_revision database');
 const base = new URL('../', import.meta.url);
-const ref = process.env.BENCH_BASE_REF || 'v4.0.5';
+const ref = process.env.BENCH_BASE_REF || 'v4.1.0';
 const directory = await mkdtemp(`${tmpdir()}/mailflow-group-bench-`);
 const original = execFileSync('git', ['show', `${ref}:backend/src/services/messageService.js`], { cwd: base, encoding: 'utf8' });
 const baselinePath = `${directory}/baseline.mjs`;

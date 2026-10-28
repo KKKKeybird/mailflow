@@ -201,7 +201,81 @@
     "recipientMenu": {
       "copy": "Adresse kopieren",
       "copyAll": "Alle in diesem Feld kopieren"
-    }
+    },
+    "scheduleSend": {
+      "title": "Später senden",
+      "tooltip": "Später senden (Strg+Umschalt+Eingabe)",
+      "tomorrowMorning": "Morgen früh",
+      "tomorrowAfternoon": "Morgen Nachmittag",
+      "mondayMorning": "Montag früh",
+      "pick": "Datum und Uhrzeit wählen",
+      "dateLabel": "Datum",
+      "timeLabel": "Uhrzeit",
+      "dateTimeLabel": "Datum und Uhrzeit",
+      "sendsAt": "Wird gesendet: {{when}}",
+      "timeZone": "Zeitzone: {{zone}}",
+      "schedule": "Senden planen",
+      "scheduledFor": "Geplant für {{when}}",
+      "change": "Ändern",
+      "changeTime": "Zeit ändern",
+      "errors": {
+        "invalid": "Gib ein Datum und eine Uhrzeit ein.",
+        "past": "Dieser Zeitpunkt ist schon vorbei.",
+        "tooSoon": "Wähle einen Zeitpunkt mindestens eine Minute ab jetzt.",
+        "tooFar": "Wähle einen Zeitpunkt innerhalb der nächsten 366 Tage.",
+        "clockBehind": "Die Uhr dieses Geräts geht {{minutes}} Min. nach gegenüber dem Server, laut dem es {{time}} ist.",
+        "clockAhead": "Die Uhr dieses Geräts geht {{minutes}} Min. vor gegenüber dem Server, laut dem es {{time}} ist.",
+        "holdLost": "Diese Nachricht wurde in einem anderen Fenster geöffnet und kann hier nicht mehr gespeichert werden. Dein Text bleibt hier zum Kopieren.",
+        "deletedElsewhere": "Diese Nachricht wurde an anderer Stelle gelöscht und kann hier nicht mehr gespeichert werden. Dein Text bleibt hier zum Kopieren.",
+        "sentElsewhere": "Diese Nachricht wurde aus einem anderen Fenster gesendet und kann hier nicht mehr gespeichert werden. Dein Text bleibt hier zum Kopieren.",
+        "versionConflict": "Diese Nachricht wurde an anderer Stelle geändert. Schließe sie und öffne sie erneut unter Geplant, um die neueste Fassung zu sehen.",
+        "notHeld": "Diese Nachricht ist hier nicht zum Bearbeiten geöffnet. Schließe sie und öffne sie erneut unter Geplant.",
+        "pickNewTime": "Der geplante Zeitpunkt ist vorbei. Wähle einen neuen.",
+        "failed": "Die Nachricht konnte nicht geplant werden.",
+        "tooMany": "Du hast bereits so viele geplante Nachrichten wie möglich. Sende oder lösche zuerst einige.",
+        "tooMuchStorage": "Deine geplanten Nachrichten belegen bereits den ganzen verfügbaren Platz. Sende oder lösche zuerst einige.",
+        "rateLimited": "Zu viele Nachrichten in kurzer Zeit geplant. Versuch es in einer Minute noch einmal.",
+        "payloadTooLarge": "Diese Nachricht ist zu groß zum Planen: Text und eingebettete Bilder brauchen zu viel Platz.",
+        "heldElsewhere": "Diese Nachricht ist in einem anderen Fenster geöffnet."
+      },
+      "edit": {
+        "update": "Aktualisieren",
+        "updating": "Wird gespeichert…",
+        "options": "Planungsoptionen",
+        "unschedule": "Planung aufheben (als Entwurf speichern)",
+        "unscheduleTitle": "Diese Nachricht in die Entwürfe verschieben?",
+        "unscheduleGo": "Als Entwurf speichern",
+        "unscheduled": "In die Entwürfe verschoben",
+        "unscheduleKept": "In den Entwürfen gespeichert, aber die geplante Nachricht ist weiter geplant: Dieses Fenster hatte sie nicht mehr. Lösche sie unter Geplant, wenn sie nicht gesendet werden soll.",
+        "closeTitle": "Änderungen an dieser geplanten Nachricht speichern?",
+        "saveChanges": "Änderungen speichern",
+        "discardChanges": "Änderungen verwerfen",
+        "switchBlocked": "Aktualisiere oder schließe zuerst die geplante Nachricht, die du bearbeitest.",
+        "sendNow": "Jetzt senden",
+        "pickNewTime": "Neuen Zeitpunkt wählen",
+        "keepPaused": "Pausiert lassen",
+        "dueTitle": "Diese Nachricht war fällig: {{when}}.",
+        "dueBody": "Wird sie jetzt geschlossen, bleibt sie pausiert und geht nie ohne dich raus.",
+        "keptPaused": "Pausiert. Setze sie unter Geplant fort, wenn sie gesendet werden soll.",
+        "heldElsewhereBody": "Bearbeite sie stattdessen hier, dann kann das andere Fenster sie nicht mehr speichern.",
+        "takeOver": "Stattdessen hier bearbeiten",
+        "close": "Schließen"
+      },
+      "confirm": {
+        "title": "Erneut planen?",
+        "go": "Trotzdem planen"
+      },
+      "laterToday": "Später heute",
+      "undoFailed": "Planung konnte nicht rückgängig gemacht werden",
+      "sendNow": {
+        "undone": "Nicht gesendet. Sie ist wieder unter Geplant, wie zuvor.",
+        "undoFailed": "Jetzt senden konnte nicht rückgängig gemacht werden"
+      },
+      "scheduleAnyway": "Trotzdem planen",
+      "undoFailedOpen": "Rückgängig fehlgeschlagen. Öffne sie unter Geplant."
+    },
+    "selectAccount": "Wähle ein Konto zum Senden",
+    "smtpAuthDisabled": "Microsoft hat das Senden aus Mail-Apps (SMTP) für dieses Konto abgeschaltet. Aus Outlook im Web kannst du weiterhin senden. Bei einem Geschäfts- oder Schulkonto kann dein Admin es wieder einschalten."
   },
   "message": {
     "find": {
@@ -251,6 +325,7 @@
     "showOriginal": "Originalfarben anzeigen",
     "cannotShowDark": "Diese E-Mail kann nicht dunkel angezeigt werden, ohne dass Text schwer lesbar wird",
     "printConversation": "Unterhaltung drucken",
+    "conversationActions": "Aktionen für die Unterhaltung",
     "preparingPrint": "Druck wird vorbereitet…",
     "more": "Mehr",
     "summarize": "Zusammenfassen",
@@ -489,7 +564,9 @@
     "snoozedEmpty": "Nichts zurückgestellt",
     "snoozedEmptyDesc": "Zurückgestellte E-Mails warten hier, bis sie wiederkommen.",
     "senderGroupCounts": "{{unread}} ungelesen · {{count}} Nachrichten",
-    "senderGroupLoadError": "Die E-Mails dieses Absenders konnten nicht geladen werden. Bitte erneut versuchen."
+    "senderGroupLoadError": "Die E-Mails dieses Absenders konnten nicht geladen werden. Bitte erneut versuchen.",
+    "layout": "Layout",
+    "menu": "Menü"
   },
   "lockScreen": {
     "subtitle": "Gib deine PIN zum Entsperren ein",
@@ -519,6 +596,8 @@
       "markAllRead": "Alle als gelesen markieren",
       "syncFolder": "Ordner synchronisieren",
       "renameFavorite": "Favorit umbenennen",
+      "favorite": "Zu Favoriten hinzufügen",
+      "unfavorite": "Aus Favoriten entfernen",
       "rename": "Umbenennen",
       "createSubfolder": "Unterordner erstellen",
       "hide": "Ordner ausblenden",
@@ -548,7 +627,12 @@
     "emptied": "Ordner geleert",
     "backToAccounts": "Zurück zu Konten",
     "updateAvailable": "Update verfügbar: v{{version}}",
-    "snoozed": "Zurückgestellt"
+    "snoozed": "Zurückgestellt",
+    "scheduled": "Geplant",
+    "scheduledPending": "Warten auf den Versand: {{n}}",
+    "scheduledAttention": "Brauchen Aufmerksamkeit: {{n}}",
+    "favorites": "Favoriten",
+    "reorderFolder": "Ziehen, um den Ordner zu verschieben"
   },
   "contextMenu": {
     "find": "Suchen",
@@ -950,7 +1034,11 @@
         }
       },
       "microsoftImapNoteReady": "Microsoft akzeptiert für Postfächer von Outlook.com, Hotmail, Live und MSN keine Passwörter mehr. Fügen Sie dieses Postfach stattdessen unter Konto hinzufügen mit „Mit Microsoft anmelden“ hinzu.",
-      "microsoftImapNoteSignIn": "Microsoft akzeptiert für Postfächer von Outlook.com, Hotmail, Live und MSN keine Passwörter mehr. Melden Sie sich stattdessen mit Microsoft an: Ein App-Passwort ist nicht nötig."
+      "microsoftImapNoteSignIn": "Microsoft akzeptiert für Postfächer von Outlook.com, Hotmail, Live und MSN keine Passwörter mehr. Melden Sie sich stattdessen mit Microsoft an: Ein App-Passwort ist nicht nötig.",
+      "deleteScheduled": "Geplante, noch nicht gesendete Nachrichten, die mit ihm gelöscht werden: {{n}}.",
+      "deleteTitle": "Konto entfernen?",
+      "deleteBody": "Alle synchronisierten Nachrichten dieses Kontos werden gelöscht. Das lässt sich nicht rückgängig machen.",
+      "deleteConfirm": "Entfernen"
     },
     "folderMappings": {
       "title": "Ordnerzuordnungen",
@@ -1926,6 +2014,7 @@
     "removed": "Label entfernt",
     "removeFailed": "Label konnte nicht entfernt werden",
     "onlyCopy": "Dies ist die einzige Kopie der Nachricht. Das Entfernen der Markierung würde sie löschen. Archivieren oder verschieben Sie sie stattdessen.",
+    "labelChanged": "Diese Markierung hat sich auf dem Server geändert und wurde nicht entfernt. Aktualisieren Sie und versuchen Sie es erneut.",
     "done": "Als erledigt markieren",
     "doneFailed": "Konnte nicht als erledigt markiert werden",
     "doneArchiveFailed": "Als erledigt markiert, aber Archivieren fehlgeschlagen – noch im Posteingang",
@@ -2124,6 +2213,7 @@
     "title": "E-Mail-Anbieter",
     "description": "Wie sich MailFlow mit den Microsoft- und Google-Postfächern verbindet. Das ist etwas anderes als Single Sign-On, mit dem sich Personen bei MailFlow selbst anmelden. Alle fügen ihre eigenen Konten unter Konten > Konto hinzufügen hinzu.",
     "required": "Füllen Sie zuerst die Pflichtfelder aus.",
+    "redirectRequired": "Google benötigt eine Weiterleitungs-URI: die beim OAuth-Client registrierte, die auf /oauth/google/callback endet.",
     "saved": "Gespeichert.",
     "ms": {
       "title": "Microsoft",
@@ -2156,5 +2246,134 @@
     "formNote": "Postfächer von Gmail und Google Workspace können sich statt mit einem App-Passwort mit Google anmelden.",
     "appPasswordNote": "Gmail braucht ein App-Passwort, nicht Ihr normales Passwort. Schalten Sie die Bestätigung in zwei Schritten für Ihr Google-Konto ein, erstellen Sie dann ein App-Passwort und geben Sie es im Passwortfeld ein.",
     "createAppPassword": "App-Passwort erstellen"
+  },
+  "scheduled": {
+    "refresh": "Aktualisieren",
+    "loadFailed": "Die geplanten Nachrichten konnten nicht geladen werden.",
+    "empty": "Nichts geplant",
+    "emptyDesc": "Nutze „Später senden“ im Editor.",
+    "moreSent": "Ältere gesendete Nachrichten werden nicht angezeigt.",
+    "sentMessage": "Gesendete Nachricht",
+    "to": "An: {{names}}",
+    "toMore": "An: {{names}} +{{more}}",
+    "detail": "Angegebener Grund: {{detail}}",
+    "zoneTime": "{{time}} ({{zone}})",
+    "sections": {
+      "attention": "Braucht Aufmerksamkeit",
+      "scheduled": "Geplant",
+      "sent": "Gesendet",
+      "deleted": "Gelöscht"
+    },
+    "when": {
+      "today": "Heute {{time}}",
+      "tomorrow": "Morgen {{time}}",
+      "yesterday": "Gestern {{time}}"
+    },
+    "chip": {
+      "sending": "Wird gesendet",
+      "editing": "Wird bearbeitet",
+      "failed": "Fehlgeschlagen",
+      "paused": "Pausiert",
+      "uncertain": "Zustellung prüfen",
+      "sent": "Gesendet",
+      "sentLate": "Verspätet gesendet",
+      "retrying": "Neuer Versuch",
+      "deleted": "Gelöscht"
+    },
+    "reason": {
+      "overdue": "Sie war über 6 Stunden zu spät, deshalb hat MailFlow sie zurückgehalten. Sende sie jetzt oder wähle eine neue Zeit.",
+      "restored": "Sie wurde beim Wiederherstellen einer Sicherung pausiert.",
+      "editAbandoned": "Sie war zum Bearbeiten geöffnet, als sie fällig war.",
+      "accountDisabled": "Ihr Konto ist ausgeschaltet.",
+      "needsReauth": "Melde dich erneut beim Konto an, um sie zu senden.",
+      "user": "Du hast sie pausiert.",
+      "paused": "Sie ist pausiert.",
+      "smtpRejected": "Der Mailserver hat sie abgelehnt.",
+      "tooLarge": "Sie ist zu groß für den Mailserver.",
+      "config": "Die Sendeeinstellungen des Kontos müssen geprüft werden.",
+      "tls": "Die sichere Verbindung zum Mailserver ist fehlgeschlagen.",
+      "invalidMessage": "Die Nachricht konnte nicht zusammengestellt werden.",
+      "aliasMissing": "Die Adresse, von der sie gesendet werden sollte, gibt es nicht mehr.",
+      "decryptFailed": "Sie konnte auf diesem Server nicht entschlüsselt werden.",
+      "accountMissing": "Ihr Konto gibt es nicht mehr.",
+      "gaveUp": "Der Mailserver ist immer wieder ausgefallen, deshalb hat MailFlow aufgegeben.",
+      "failed": "Sie konnte nicht gesendet werden.",
+      "uncertain": "MailFlow wurde während des Sendens beendet. Sie wurde vielleicht zugestellt, vielleicht nicht. Sieh im Ordner „Gesendet“ nach.",
+      "retrying": "Der letzte Versuch ist fehlgeschlagen. Nächster Versuch: {{when}}.",
+      "deleted": "Kann bis {{when}} wiederhergestellt werden."
+    },
+    "sent": {
+      "markedSent": "Du hast sie als gesendet markiert.",
+      "late": "Verspätet gesendet: geplant für {{scheduled}}, gesendet {{sent}}.",
+      "lateOffline": "Verspätet gesendet: geplant für {{scheduled}}, gesendet {{sent}}, weil MailFlow offline war.",
+      "refused": "Vom Mailserver abgelehnt für: {{list}}",
+      "deferred": "Nicht zugestellt an {{list}}: Deren Server bat um einen späteren Versuch, und MailFlow versucht es nicht erneut. Sende sie ihnen noch einmal.",
+      "noSentFolder": "Es wurde keine Kopie gespeichert: Das Konto hat keinen Ordner „Gesendet“.",
+      "noSentCopy": "Im Ordner „Gesendet“ konnte keine Kopie gespeichert werden."
+    },
+    "a11y": {
+      "scheduledFor": "Geplant für {{when}}",
+      "sentAt": "Gesendet {{when}}",
+      "to": "an {{names}}",
+      "toMore": "an {{names}} und {{more}} weitere",
+      "subject": "Betreff {{subject}}"
+    },
+    "actions": {
+      "edit": "Bearbeiten",
+      "reschedule": "Neu planen",
+      "sendNow": "Jetzt senden",
+      "resume": "Fortsetzen",
+      "retry": "Erneut versuchen",
+      "sendAnyway": "Trotzdem senden",
+      "markSent": "Als gesendet markieren",
+      "cancel": "Löschen",
+      "delete": "Endgültig löschen",
+      "viewSent": "In „Gesendet“ ansehen",
+      "remove": "Aus der Liste entfernen",
+      "more": "Weitere Aktionen",
+      "menu": "Aktionen für die geplante Nachricht",
+      "restore": "Wiederherstellen"
+    },
+    "confirm": {
+      "uncertainTitle": "Sie wurde vielleicht schon zugestellt",
+      "uncertainBody": "MailFlow wurde während des Sendens beendet. Sieh zuerst im Ordner „Gesendet“ nach. Trotzdem noch einmal senden?",
+      "restoredTitle": "Durch eine Wiederherstellung pausiert",
+      "restoredBody": "Sie wurde beim Wiederherstellen einer Sicherung pausiert. Läuft der alte Server noch, sendet er sie vielleicht auch. Von hier senden?",
+      "restoredGo": "Von hier senden",
+      "sendAnywayTitle": "Noch einmal senden?",
+      "sendAnywayBody": "Sie wurde vielleicht schon zugestellt: MailFlow wurde während des Sendens beendet. Sieh zuerst im Ordner „Gesendet“ nach. Ging sie hinaus, bekommen die Empfänger sie zweimal.",
+      "markSentTitle": "Als gesendet markieren?",
+      "markSentBody": "Tu das, wenn du sie im Ordner „Gesendet“ gefunden hast. MailFlow löscht ihren Inhalt und sendet sie nie.",
+      "deleteTitle": "Endgültig löschen?",
+      "deleteBody": "Sie wird nicht gesendet und lässt sich nicht wiederherstellen."
+    },
+    "toast": {
+      "resumed": "Fortgesetzt. Sie wird jetzt gesendet.",
+      "sendingNow": "Sie wird jetzt gesendet.",
+      "markedSent": "Als gesendet markiert",
+      "deleted": "Geplante Nachricht gelöscht",
+      "deletedForGood": "Endgültig gelöscht",
+      "restored": "Wiederhergestellt",
+      "sent": "Geplante Nachricht gesendet",
+      "notSent": "Nicht gesendet: {{reason}}",
+      "open": "Öffnen",
+      "restoredPaused": "Wiederhergestellt und pausiert. Setze sie fort, wenn sie gesendet werden soll."
+    },
+    "errors": {
+      "needsReauth": "Melde dich zuerst erneut beim Konto an und setze sie dann fort.",
+      "accountDisabled": "Schalte das Konto zuerst wieder ein und setze sie dann fort.",
+      "undoExpired": "Zu spät zum Rückgängigmachen: Die Nachricht geht gerade hinaus.",
+      "notFound": "Diese geplante Nachricht gibt es nicht mehr.",
+      "sending": "Sie wird gerade gesendet.",
+      "aboutToSend": "Sie wird gleich gesendet.",
+      "sent": "Sie wurde bereits gesendet.",
+      "cancelled": "Sie wurde gelöscht.",
+      "editing": "Sie ist in einem anderen Fenster zum Bearbeiten geöffnet.",
+      "failed": "Die geplante Nachricht konnte nicht geändert werden.",
+      "restoreFailed": "Konnte nicht wiederhergestellt werden",
+      "restoreExpired": "Sie lässt sich nicht mehr wiederherstellen.",
+      "linkNotFound": "Diese geplante Nachricht wurde nicht gefunden."
+    },
+    "serverReply": "Antwort des Servers: {{detail}}"
   }
 }
