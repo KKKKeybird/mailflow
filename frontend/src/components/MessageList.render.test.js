@@ -1565,3 +1565,70 @@ describe('MessageList: a row\'s body loads while the mouse rests on it', () => {
     }
   });
 });
+
+
+test('mobile sent swipe replies to external To using the delivery alias without a body fetch', async () => {
+  const width = window.innerWidth;
+  const openCompose = useStore.getState().openCompose;
+  let draft;
+  window.innerWidth = 375;
+  try {
+    const account = { ...ACCOUNT, email_address: 'owner@example.test', aliases: [{ id: 'delivered', email: 'alias@example.test' }] };
+    const to = [{ email: 'external@example.test' }];
+    const cc = [{ email: 'extra@example.test' }];
+    useStore.setState({ swipeActions: { left: 'reply', right: 'replyAll' }, openCompose: p => { draft = p; } });
+    for (const threadedView of [false, true]) {
+      const target = threadedView ? [{ email: 'reply@example.test' }] : to;
+      await mount({ rows: [{ ...MESSAGE, from_email: account.email_address, reply_from_email: threadedView ? 'sender@example.test' : account.email_address, reply_from_name: 'Latest', reply_to: threadedView ? target : [{ email: account.email_address }], to_addresses: threadedView ? [{ email: account.email_address }] : to, cc_addresses: cc, delivery_addresses: ['alias@example.test'], thread_id: 'synthetic-thread', message_count: threadedView ? 2 : 1 }], accounts: [account], threadedView });
+      for (const replyAll of [false, true]) {
+        draft = null;
+        CALLS = [];
+        const row = container.querySelector('[data-msgid="msg-1"] .no-callout');
+        assert.ok(row);
+        await React.act(async () => {
+          for (const [type, x] of [['touchstart', 200], ['touchmove', replyAll ? 300 : 100], ['touchend', 100]]) {
+            const event = new window.Event(type, { bubbles: true, cancelable: true });
+            Object.defineProperty(event, 'touches', { value: [{ clientX: x, clientY: 100 }] });
+            row.dispatchEvent(event);
+          }
+        });
+        assert.ok(draft, 'swipe opens compose');
+        assert.deepEqual(draft.to, target);
+        assert.deepEqual(draft.cc, replyAll ? cc : []);
+        assert.deepEqual(draft.originalFrom, target);
+        assert.deepEqual(draft.allRecipients, cc);
+        assert.equal(draft.aliasId, 'delivered');
+        assert.equal(draft.threadId, 'synthetic-thread');
+        assert.equal(CALLS.some(c => c.path.includes('/body')), false);
+      }
+    }
+  } finally {
+    window.innerWidth = width;
+    await React.act(async () => { root.unmount(); root = null; useStore.setState({ composing: false, composeData: null, openCompose, swipeActions: { left: 'archive', right: 'markRead' } }); });
+  }
+});
+
+// #701: a delete reaches the server only when its undo window closes, so a count the server
+// reports in the meantime still includes the message. It must not put it back on the badge.
+describe('MessageList — the badge after deleting the last unread message (#701)', () => {
+  const counts = (n, revision) => ({ byAccount: { 'acct-1': n }, snapshots: { 'acct-1': { revision, known: true, stale: false, observedAt: new Date().toISOString() } } });
+
+  test('a count observed before the delete was sent does not bring the badge back to 1', async (t) => {
+    const row = { ...MESSAGE, id: 'last-unread-701', uid: 701, message_id: '<last-701@example.com>' };
+    await mount({ rows: [row], threadedView: false });
+    t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+    t.after(async () => {
+      // Cancel the delete still waiting out its undo window rather than send it.
+      useStore.getState().notifications.find(n => typeof n.onUndo === 'function')?.onUndo();
+      await React.act(async () => { useStore.setState({ notifications: [], selectedMessageId: null }); });
+    });
+    useStore.getState().setUnreadCounts(counts(1, '7010'));
+    await React.act(async () => { useStore.getState().setSelectedMessage(row.id); });
+    await React.act(async () => { shortcutBus.emit('delete'); await new Promise(r => setTimeout(r, 30)); });
+    assert.equal(useStore.getState().unreadCounts.byAccount['acct-1'], 0);
+    // Past the settle floor of a change sent at the keypress, before this one is even sent.
+    t.mock.timers.tick(8000);
+    useStore.getState().setUnreadCounts(counts(1, '7011'));
+    assert.equal(useStore.getState().unreadCounts.byAccount['acct-1'], 0);
+  });
+});
