@@ -177,7 +177,7 @@ jobs:
           MAILFLOW_TEST_DATABASE_URL: postgres://postgres@localhost:5432/mailflow_migrations_test
         run: npx vitest run src/routes/*.postgres.test.js src/services/*.postgres.test.js src/utils/*.postgres.test.js
       - name: Fetch selected upstream baseline (read only)
-        run: git fetch https://github.com/maathimself/mailflow.git refs/tags/v4.1.0:refs/tags/v4.1.0
+        run: git fetch https://github.com/maathimself/mailflow.git refs/tags/v4.1.1:refs/tags/v4.1.1
       - name: Seed disposable sender grouping database
         run: |
           createdb mailflow_sender_revision
@@ -190,6 +190,6 @@ jobs:
       - name: Validate real list endpoint against upstream
         env:
           DB_NAME: mailflow_sender_revision
-          BENCH_BASE_REF: v4.1.0
+          BENCH_BASE_REF: v4.1.1
           BENCH_VALIDATE: "1"
         run: node backend/benchmarks/senderGrouping.mjs

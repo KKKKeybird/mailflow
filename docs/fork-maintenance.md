@@ -3,7 +3,7 @@
 ## Ownership and baseline
 
 Repository: `KKKKeybird/mailflow`; maintained branch: `main`; upstream: `maathimself/mailflow`.
-Current upstream baseline: `v4.1.0`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
+Current upstream baseline: `v4.1.1`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
 
 ## Sync policy
 
@@ -92,3 +92,12 @@ Merged the stable v4.1.0 tag with ancestry preserved. Scheduled send and the Sch
 Account edits use the shared ownership lookup with the full account for proxy validation. MCP account/message lookups also use the shared helpers while independently enforcing each token's mailbox scope, enabled accounts, live messages and send permission. Sender grouping retains identity, aliases, account isolation, row navigation, complete action snapshots and shared swipe limits/animations. The mark-all-read toolbar control remains borderless and icon only. Upstream's ordered read-state guards compose with the pending spam-move guard, and the store keeps sender-thread aggregate updates alongside upstream's unread-count updates. Retain the model-first spam policy, browser picker, brand avatars and midnight formatting.
 
 The benchmark and CI baseline are v4.1.0. Migration `0071_scheduled_messages` keeps its full filename; no existing migration is renamed. Compose includes upstream's OAuth environment forwarding and 30-second shutdown grace period, with the fork image addresses retained. Before downgrading to 4.0.x, handle all queued scheduled messages and follow upstream's scheduled-table downgrade instructions; the old version cannot deliver the queue.
+
+
+## Integration: v4.1.1 (2026-10-31)
+
+Merged stable v4.1.1 with ancestry preserved. Reply with AI uses upstream's writing-and-summary permission gate, conversation context bounds and explicit draft application. Replies to sent mail keep the original recipients and Cc, including the physical reply sender fields in threaded list results; grouping hydrates through that same list query. Hidden-folder counts and rename/delete handling follow upstream.
+
+The unread-count window now follows the most recent mutation and includes the undo delay where applicable. Conflict resolution retains the pending spam-move guard and sender row removal metadata while adding upstream's undoable count options. Whole-group actions already adjust counts only after server-confirmed batches, so they keep their existing timing. Proxy-side DNS, full account context, model-first anti-spam, MCP scope checks, shared swipe limits/animations, the icon-only borderless mark-all-read control and Android browser selection remain intact.
+
+README, benchmark and CI baseline use v4.1.1. No migration was added or renamed; the existing 77 migrations still apply on an empty PostgreSQL 16 database and repeat without changes. Both production audits pass the high-severity threshold; moderate archiver/glob/minimatch and React Router advisories remain and are not force-upgraded across major versions in this integration.
