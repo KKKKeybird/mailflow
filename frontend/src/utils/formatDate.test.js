@@ -1,5 +1,5 @@
 // Dates in MailFlow's language, not the browser's (#593).
-import { test, describe, afterEach } from 'node:test';
+import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import i18next from 'i18next';
 import { appLocale, formatDate, formatMessageDateTime, formatDateTime, formatDay, formatSnoozeUntil } from './formatDate.js';
@@ -61,9 +61,12 @@ describe('the other date surfaces', () => {
 });
 
 describe('formatSnoozeUntil, when snoozed mail comes back (#269)', () => {
+  beforeEach(t => {
+    t.mock.timers.enable({ apis: ['Date'], now: new Date(2026, 9, 31, 12, 0) });
+  });
   const ahead = (days, h = 9, m = 0) => { const d = new Date(); d.setDate(d.getDate() + days); d.setHours(h, m, 0, 0); return d; };
   test('the time today, Tomorrow and the time, the weekday within the week, the date beyond', () => {
-    const later = new Date(); later.setMinutes(later.getMinutes() + 5);
+    const later = ahead(0, 15, 5);
     assert.match(formatSnoozeUntil(later, 'en'), /^\d{1,2}:\d{2}\s?[AP]M$/);
     assert.equal(formatSnoozeUntil(ahead(1), 'en'), 'Tomorrow 9:00 AM');
     assert.match(formatSnoozeUntil(ahead(3), 'en'), /^(Mon|Tue|Wed|Thu|Fri|Sat|Sun) 9:00\s?AM$/);
@@ -71,6 +74,12 @@ describe('formatSnoozeUntil, when snoozed mail comes back (#269)', () => {
   });
   test('in the app language', () => {
     assert.match(formatSnoozeUntil(ahead(1), 'de'), /^Morgen 0?9:00$/);
+  });
+  test('five minutes across midnight is Tomorrow, including the month boundary', t => {
+    t.mock.timers.setTime(new Date(2026, 9, 31, 23, 57).getTime());
+    const later = new Date(Date.now() + 5 * 60_000);
+    assert.equal(formatSnoozeUntil(later, 'en'), 'Tomorrow 0:02 AM');
+    assert.equal(formatSnoozeUntil(ahead(0, 23, 59), 'en'), '11:59 PM');
   });
   test('nothing for a missing or broken value', () => {
     assert.equal(formatSnoozeUntil(null, 'en'), '');
