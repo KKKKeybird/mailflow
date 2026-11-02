@@ -184,6 +184,9 @@ export async function classifyAndTagMessage(messageId, opts = {}) {
     [verdict, mlProbability ?? rules.score, JSON.stringify(details), messageId],
   );
 
+  // Notify ingestion once the verdict is durable, before any slow/queued IMAP move.
+  opts.onVerdict?.({ verdict });
+
   let moved = false;
   if (shouldMove && opts.imap) {
     try {

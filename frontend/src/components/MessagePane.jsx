@@ -21,7 +21,7 @@ import { unsnooze, changeSnooze, refreshCounts } from '../utils/snoozeActions.js
 import { isDarkTheme, canShowDark, showDark } from '../utils/darkScheme.js';
 import { markMessageUnread } from '../utils/messageHotkeys.js';
 import { BUILTIN_SUMMARIZE } from '../aiActions.js';
-import { openReplyFromMessage, openForwardFromMessage, openForwardAsAttachmentFromMessage } from '../utils/composeFromMessage.js';
+import { openReplyFromMessage, openForwardFromMessage, openForwardAsAttachmentFromMessage, rowOwnMessage } from '../utils/composeFromMessage.js';
 import { aiReplyAvailable } from '../utils/aiReply.js';
 import MessageBodyView from './MessageBodyView.jsx';
 import { copyToClipboard } from '../utils/clipboard.js';
@@ -133,7 +133,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   const allMessages = actionableMessageRows(navigationState);
   const selected = selectedListMessage(navigationState) ?? allMessages.find(m => m.id === selectedMessageId)
     ?? Object.values(threadMessages).flat().find(m => m.id === selectedMessageId);
-  const message = useMemo(() => selected ? { ...selected, __list_kind: 'message', __list_thread: selected.__list_thread || selected.thread_id, message_count: undefined, unread_count: undefined } : selected, [selected]);
+  const message = useMemo(() => selected ? { ...rowOwnMessage(selected), __list_kind: 'message', __list_thread: selected.__list_thread || selected.thread_id, message_count: undefined, unread_count: undefined } : selected, [selected]);
 
   useEffect(() => {
     setResolvedSubject(null);
@@ -603,7 +603,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
 
   const handleReply = (replyAll = false, { aiReply = false } = {}) => {
     if (!message) return;
-    openReplyFromMessage(message, { accounts, openCompose, getMessageBody: loadedBody, replyAll, aiReply });
+    openReplyFromMessage(message, { accounts, folders: useStore.getState().folders, openCompose, getMessageBody: loadedBody, replyAll, aiReply });
   };
 
   const handleForward = () => {

@@ -31,3 +31,8 @@ MailFlow 的本地学习模型与 Gmail 服务端的垃圾邮件判定相互独�
 - [Rspamd 官方统计分类文档](https://github.com/rspamd/rspamd.com/blob/master/doc/configuration/statistic.md)：采用 OSB 稀疏双词组与逆卡方组合，示例配置包含 `min_tokens = 11`、`min_learns = 200`，以及自动学习时的类别平衡检查。
 
 本 fork 参考双向训练、证据门槛与保守回退原则，继续使用现有逐用户 MNB 词库；没有移植上述产品的完整算法，也未把这些产品的默认门槛照搬到只有少量个人反馈的场景。当前 50 条总训练门槛及文本证据门槛属于本地启发式，需要用独立标注邮件集验证实际误判率；模型概率不是校准后的准确率。自动判定继续不反向训练，防止误判自我强化。词组模型或概率校准需要单独的数据验证和词库兼容方案。
+
+
+## Notifications
+
+Live inbox notifications wait for the persisted spam verdict, without waiting for a queued or slow IMAP auto-move. A spam verdict suppresses toast, sound, desktop/Android and Web Push alerts even if the message stays in INBOX (tag-only, missing spam folder or failed move). List refresh events still arrive. A final account-scoped check also suppresses manual spam overrides, deleted rows, junk flags and messages filed into the mapped or special-use spam folder, including mail an explicit Notify rule moved there. A manual ham override takes priority over a model verdict while the message is outside spam. Ordinary ham and unsure messages retain normal notification behavior; this does not identify spam that the classifier has not recognized. Classification and secondary lookup failures are logged; known spam remains muted and ordinary mail is not globally silenced.
