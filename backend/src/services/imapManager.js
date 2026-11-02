@@ -1,3 +1,4 @@
+import { spamNotificationIds } from './spamNotificationPolicy.js';
 import { FolderStatusMonitor, checkpointFolderStatus } from './folderStatus.js';
 import { extractImapError } from './imapError.js';
 import { recordUnfetchable, suppressedUids, clearUnfetchable, hasRealGap } from './unfetchableUids.js';
@@ -4322,8 +4323,10 @@ export class ImapManager {
     this.userFolderSyncIntervalMs.set(userId, newMs);
   }
 
-  scheduleCountRefresh(accountId) {
-    if (!accountId || this._statusAccountTimers.has(accountId)) return;
+  scheduleCountRefresh(accountId, folders = []) {
+    if (!accountId) return;
+    this.folderStatusMonitor.noteChangedFolders(accountId, folders);
+    if (this._statusAccountTimers.has(accountId)) return;
     this._statusAccountTimers.set(accountId, setTimeout(() => {
       this._statusAccountTimers.delete(accountId);
       query("SELECT * FROM email_accounts WHERE id=$1 AND enabled AND protocol='imap'", [accountId])
@@ -4696,8 +4699,8 @@ export class ImapManager {
 
   /**
    * v0.2 antispam: hand a freshly-inserted message to the classification
-   * pipeline. Fire-and-forget — the sync/backfill loop must never be blocked by
-   * a classifier failure, and only accounts with antispam_enabled take part
+   * pipeline. Returns the durable verdict for notification gating, without waiting
+   * for IMAP auto-moves. Failures resolve null; only accounts with antispam_enabled take part
    * (the pipeline re-checks the per-user master switch as well).
    *
    * Shared by BOTH ingest paths: syncMessages (new mail via IDLE/poll, with the
@@ -4720,7 +4723,10 @@ export class ImapManager {
    */
   maybeClassifyNewMessage(account, messageId, parsed, { deferAutoMove = false } = {}) {
     if (!account?.antispam_enabled) return;
+    let ready;
+    const verdictReady = new Promise(resolve => { ready = resolve; });
     classifyAndTagMessage(messageId, {
+      onVerdict: ready,
       headers: parsed?.parsedHeaders || [],
       deferAutoMove,
       imap: {
@@ -4745,9 +4751,11 @@ export class ImapManager {
         _guardMoveUid: (...args) => this._guardMoveUid(...args),
         _unguardMoveUid: (...args) => this._unguardMoveUid(...args),
       },
-    }).catch(err => {
+    }).then(ready).catch(err => {
+      ready(null);
       console.warn(`spam auto-classification failed (msg ${messageId}):`, err.message);
     });
+    return verdictReady;
   }
 
   async syncMessages(account, client, folder = 'INBOX', limit = 50, prefetchBody = true, noBodyParts = false) {
@@ -4865,6 +4873,7 @@ export class ImapManager {
         let newMessages = [];
         let insertedCount = 0;
         let broadcastedNewMessages = false;
+        const spamChecks = new Map();
 
         // Inbox-ingest facts core hands to plugins after this batch (via the `inboxIngest` hook):
         //   • newInboxIds — the id of every row this sync newly inserts into INBOX, read or unread.
@@ -5029,7 +5038,7 @@ export class ImapManager {
               if (!parsed.isRead) {
                 newMessages.push({ ...parsed, id: result.rows[0].id, accountId: account.id, folder });
               }
-              this.maybeClassifyNewMessage(account, result.rows[0].id, parsed);
+              spamChecks.set(result.rows[0].id, this.maybeClassifyNewMessage(account, result.rows[0].id, parsed));
             }
             // Propagate resolved thread_id to any earlier messages that used this
             // message as a provisional thread root (out-of-order delivery / sync).
@@ -5251,7 +5260,13 @@ export class ImapManager {
           let mutedIds = new Set();
           // Mail a "Notify me" rule filed out of the Inbox (#588), alerted for like inbox mail.
           let notifyMessages = [];
+          const classifiedSpamIds = new Set();
           if (folder === 'INBOX') {
+            // The classification promise resolves at the persisted verdict, not after IMAP moves.
+            await Promise.all(newMessages.map(async message => {
+              const result = await spamChecks.get(message.id);
+              if (result?.verdict === 'spam') classifiedSpamIds.add(message.id);
+            }));
             // Snapshot the unread candidates before the block-list / rules run, so the ingest
             // re-eval below can exclude any they move out of INBOX. Only needed with an ingest plugin.
             const unreadBeforeRules = wantsInboxIngest ? newMessages.map(m => m.id) : null;
@@ -5291,6 +5306,12 @@ export class ImapManager {
           }
           // alertMessages: remaining messages not silenced by a mark_read rule, and mail a "Notify
           // me" rule filed elsewhere. A push for one of those opens it by id, in its new folder.
+          if (folder === 'INBOX') {
+            const blocked = await spamNotificationIds([...newMessages, ...notifyMessages], account, classifiedSpamIds);
+            mutedIds = new Set([...mutedIds, ...blocked]);
+            // Explicit notify rules cannot turn a spam verdict into an alert.
+            notifyMessages = notifyMessages.filter(message => !blocked.has(message.id));
+          }
           const { alertMessages, alertCount, send } = newMailAlerts({ remaining: newMessages, mutedIds, notifyMessages });
           if (send) this.broadcast({
             type: 'new_messages', accountId: account.id,
@@ -6292,6 +6313,7 @@ export class ImapManager {
     date = new Date(),
     inReplyTo = null,
     references = null,
+    hasAttachments = false,
   }) {
     if (!uid || !folder) return;
     const msgId = sanitizeStr(messageId);
@@ -6307,8 +6329,9 @@ export class ImapManager {
       INSERT INTO messages (
         account_id, uid, folder, message_id, subject,
         from_name, from_email, to_addresses, cc_addresses,
-        date, snippet, is_read, is_starred, has_attachments, flags, thread_id, bcc_addresses
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,true,false,false,'[]',$12,$13::jsonb)
+        date, snippet, is_read, is_starred, has_attachments, flags, thread_id, bcc_addresses,
+        in_reply_to, thread_references
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10,$11,true,false,$14,'[]',$12,$13::jsonb,$15,$16)
       ON CONFLICT (account_id, uid, folder) DO UPDATE SET
         message_id = COALESCE(EXCLUDED.message_id, messages.message_id),
         subject = CASE
@@ -6327,6 +6350,12 @@ export class ImapManager {
         date = EXCLUDED.date,
         snippet = CASE WHEN EXCLUDED.snippet <> '' THEN EXCLUDED.snippet ELSE messages.snippet END,
         is_read = true,
+        -- Written before a sync gets to the row, it would otherwise keep false: sync skips uids it
+        -- already holds, and storing the body later never sets it.
+        has_attachments = messages.has_attachments OR EXCLUDED.has_attachments,
+        -- Same reason: a reply to this Sent copy chains its References from them.
+        in_reply_to = COALESCE(messages.in_reply_to, EXCLUDED.in_reply_to),
+        thread_references = COALESCE(messages.thread_references, EXCLUDED.thread_references),
         -- #378: adopt the freshly computed conversation root if the stored row was self-rooted.
         thread_id = CASE
           WHEN messages.thread_id = messages.message_id
@@ -6342,6 +6371,8 @@ export class ImapManager {
       JSON.stringify(to), JSON.stringify(cc),
       safeDate(date), sanitizeStr(snippet || ''), threadId,
       Array.isArray(bcc) && bcc.length ? JSON.stringify(bcc) : null,
+      Boolean(hasAttachments),
+      sanitizeStr(inReplyTo) || null, sanitizeStr(references) || null,
     ]);
   }
 
@@ -6598,7 +6629,7 @@ export class ImapManager {
     return withFreshClient(account, async (client) => {
       const lock = await client.getMailboxLock(folder);
       try {
-        const uids = await client.search({ header: ['Message-ID', mid] }, { uid: true });
+        const uids = await client.search({ header: { 'Message-ID': mid } }, { uid: true });
         if (!uids?.length) return null;
         return uids[uids.length - 1];
       } finally {
@@ -8119,7 +8150,7 @@ export class ImapManager {
             await withFreshClient(account, async (client) => {
               const lock = await client.getMailboxLock(row.original_folder);
               try {
-                const uids = await client.search({ header: ['Message-ID', row.message_id_header] }, { uid: true });
+                const uids = await client.search({ header: { 'Message-ID': row.message_id_header } }, { uid: true });
                 if (uids.length === 1) {
                   const r = await client.messageFlagsRemove(String(uids[0]), ['\\Seen'], { uid: true });
                   if (r === false) console.warn(`Snooze wakeup: messageFlagsRemove returned false for ${row.original_folder}`);
@@ -8208,7 +8239,7 @@ export class ImapManager {
 
   broadcast(data, userId = null) {
     if (data?.accountId && ['new_messages', 'flags_synced', 'folder_updated', 'folder_emptied', 'snooze_wakeup', 'backfill_complete'].includes(data.type)) {
-      this.scheduleCountRefresh(data.accountId);
+      this.scheduleCountRefresh(data.accountId, [data.folder]);
     }
     recordBroadcast(data?.type);
     const msg = JSON.stringify(data);

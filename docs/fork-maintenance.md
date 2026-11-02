@@ -3,7 +3,7 @@
 ## Ownership and baseline
 
 Repository: `KKKKeybird/mailflow`; maintained branch: `main`; upstream: `maathimself/mailflow`.
-Current upstream baseline: `v4.1.1`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
+Current upstream baseline: `v4.1.2`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
 
 ## Sync policy
 
@@ -101,3 +101,10 @@ Merged stable v4.1.1 with ancestry preserved. Reply with AI uses upstream's writ
 The unread-count window now follows the most recent mutation and includes the undo delay where applicable. Conflict resolution retains the pending spam-move guard and sender row removal metadata while adding upstream's undoable count options. Whole-group actions already adjust counts only after server-confirmed batches, so they keep their existing timing. Proxy-side DNS, full account context, model-first anti-spam, MCP scope checks, shared swipe limits/animations, the icon-only borderless mark-all-read control and Android browser selection remain intact.
 
 README, benchmark and CI baseline use v4.1.1. No migration was added or renamed; the existing 77 migrations still apply on an empty PostgreSQL 16 database and repeat without changes. Both production audits pass the high-severity threshold; moderate archiver/glob/minimatch and React Router advisories remain and are not force-upgraded across major versions in this integration.
+
+
+## Integration: v4.1.2 and spam notifications (2026-11-02)
+
+Merged stable v4.1.2 with ancestry preserved. Retain upstream's targeted folder-count refresh, scheduled-send Message-ID recovery, sent-attachment healing, composer file drops, common-word search and newest-message conversation behavior. The pane combines `rowOwnMessage` with the fork's sender row navigation and explicit per-message action metadata. Keep migration `0072_messages_has_attachments_heal` under its original filename; earlier fork migrations are unchanged. Baseline README, benchmark and CI use v4.1.2.
+
+Fix spam alerts racing asynchronous classification: live inbox alert selection waits for the durable verdict callback before rules and notification filtering, while IMAP moves stay asynchronous. A final scoped database check filters verdicts, manual intent, junk flags and spam folders; Notify rules cannot bypass this suppression. Both WebSocket alert fields and Web Push share the filtered candidates, with list refreshes preserved. Existing proxy account context, model-first scoring, MCP account/token scope, sender identities/aliases/paging/swipe behavior, borderless icon-only mark-all-read and Android browser selection remain intact. The fixed-clock date test from PR28 remains in place.

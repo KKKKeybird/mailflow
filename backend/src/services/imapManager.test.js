@@ -7102,3 +7102,77 @@ describe('prefetchBodyVerdict', () => {
     expect(m.prefetchBodyVerdict(acct('imap.mail.yahoo.com'))).toBe('never');
   });
 });
+
+// Notification eligibility must wait for a durable verdict, not for the mailbox move.
+describe('syncMessages — spam notification race', () => {
+  const account = { id: 'spam-alert-account', user_id: 'owner', email_address: 'me@example.com',
+    imap_host: 'imap.example.com', antispam_enabled: true, folder_mappings: { spam: 'Custom Junk' } };
+  let mgr;
+  const client = () => ({
+    noop: vi.fn(async () => true), getMailboxLock: vi.fn().mockResolvedValue({ release: vi.fn() }),
+    mailbox: { exists: 1, uidValidity: 100, highestModseq: 500n },
+    fetch: vi.fn(async function* () { yield { uid: 501 }; }),
+  });
+  beforeEach(async () => {
+    vi.spyOn(pluginRegistry, 'hasActiveAsync').mockResolvedValue(false);
+    vi.spyOn(pluginRegistry, 'runHook').mockResolvedValue([]);
+    query.mockReset().mockImplementation(async sql => {
+      if (sql.includes('SELECT uid_validity, highest_modseq FROM folders')) return { rows: [{ uid_validity: 100, highest_modseq: '500' }] };
+      if (sql.includes('COUNT(*) FILTER (WHERE is_read = false)')) return { rows: [{ n: 1 }] };
+      if (sql.includes('COALESCE(MAX(uid), 0)')) return { rows: [{ max_uid: 0 }] };
+      if (sql.includes('INSERT INTO messages')) return { rows: [{ id: 'new-row', is_new: true }] };
+      return { rows: [] };
+    });
+    parseMessage.mockReset().mockResolvedValue({ uid: 501, messageId: '<new@x>', subject: 'new mail',
+      fromName: 'Sender', fromEmail: 'sender@example.com', to: [], cc: [], replyTo: [],
+      date: new Date(), snippet: 'body', isRead: false, flags: [], parsedHeaders: [] });
+    const { sendPushToUser } = await import('./pushNotifications.js');
+    sendPushToUser.mockReset().mockResolvedValue();
+    classifyAndTagMessage.mockReset();
+    mgr = new ImapManager(null);
+    vi.spyOn(mgr, 'broadcast').mockImplementation(() => {});
+    vi.spyOn(mgr, 'prefetchNewMessageBodies').mockResolvedValue();
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('waits for a delayed spam verdict and suppresses every alert without waiting for its move', async () => {
+    let verdict, finishMove;
+    classifyAndTagMessage.mockImplementation((_id, opts) => {
+      verdict = opts.onVerdict;
+      return new Promise(resolve => { finishMove = resolve; });
+    });
+    const syncing = mgr.syncMessages(account, client(), 'INBOX', 50, false, true);
+    await vi.waitFor(() => expect(classifyAndTagMessage).toHaveBeenCalledTimes(1));
+    expect(mgr.broadcast.mock.calls.some(([event]) => event.type === 'new_messages')).toBe(false);
+    try {
+      verdict({ verdict: 'spam' });
+      await syncing;
+      const event = mgr.broadcast.mock.calls.find(([event]) => event.type === 'new_messages')[0];
+      expect(event.count).toBe(1); // The list still refreshes for tagged-but-not-moved mail.
+      expect(event.alertCount).toBe(0);
+      expect(event.alertMessages).toEqual([]);
+      const { sendPushToUser } = await import('./pushNotifications.js');
+      expect(sendPushToUser).not.toHaveBeenCalled();
+    } finally { finishMove({ verdict: 'spam', moved: true }); await syncing; }
+  });
+
+  it('continues to alert normally for ham', async () => {
+    classifyAndTagMessage.mockResolvedValue({ verdict: 'ham' });
+    await mgr.syncMessages(account, client(), 'INBOX', 50, false, true);
+    const event = mgr.broadcast.mock.calls.find(([event]) => event.type === 'new_messages')[0];
+    expect(event.alertCount).toBe(1);
+    const { sendPushToUser } = await import('./pushNotifications.js');
+    await vi.waitFor(() => expect(sendPushToUser).toHaveBeenCalledWith('owner', expect.objectContaining({ body: 'new mail' })));
+  });
+
+  it('honors a persisted spam mark even when automatic classification is disabled', async () => {
+    const baseQuery = query.getMockImplementation();
+    query.mockImplementation((sql, params) => sql.includes('AS in_spam_folder')
+      ? Promise.resolve({ rows: [{ id: 'new-row', spam_user_override: 'spam' }] }) : baseQuery(sql, params));
+    await mgr.syncMessages({ ...account, antispam_enabled: false }, client(), 'INBOX', 50, false, true);
+    expect(classifyAndTagMessage).not.toHaveBeenCalled();
+    expect(mgr.broadcast.mock.calls.find(([event]) => event.type === 'new_messages')[0].alertCount).toBe(0);
+    const { sendPushToUser } = await import('./pushNotifications.js');
+    expect(sendPushToUser).not.toHaveBeenCalled();
+  });
+});

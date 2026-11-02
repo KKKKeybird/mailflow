@@ -496,3 +496,24 @@ describe('model-first ingest regression', () => {
     expect(details.blendedScore).toBeGreaterThanOrEqual(0.95);
   });
 });
+
+
+describe('durable verdict before an IMAP move', () => {
+  it('reports the persisted spam decision while the move is still pending', async () => {
+    getModelForUser.mockResolvedValue(trainedModel(200));
+    query.mockResolvedValueOnce({ rows: [messageRow({ subject: 'CHEAP VIAGRA!!! WIN $$$',
+      body_text: 'Click here. Buy now. Limited time offer, act now!', attachments: [{ filename: 'invoice.exe' }] })] });
+    const imap = imapFacade();
+    let release;
+    imap.moveMessage.mockImplementation(() => new Promise(resolve => { release = resolve; }));
+    const onVerdict = vi.fn(() => {
+      expect(query.mock.calls.some(([sql]) => sql.includes('UPDATE messages SET'))).toBe(true);
+      expect(imap.moveMessage).not.toHaveBeenCalled();
+    });
+    const work = classifyAndTagMessage(MESSAGE_ID, { imap, onVerdict });
+    await vi.waitFor(() => expect(onVerdict).toHaveBeenCalledWith({ verdict: 'spam' }));
+    expect(imap.moveMessage).toHaveBeenCalled();
+    release(200);
+    await expect(work).resolves.toMatchObject({ verdict: 'spam', moved: true });
+  });
+});
