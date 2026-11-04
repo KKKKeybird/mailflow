@@ -566,6 +566,10 @@
       "vertical": {
         "label": "División vertical",
         "description": "Lista de mensajes sobre el panel de lectura"
+      },
+      "list": {
+        "label": "Primero la lista",
+        "description": "Lista a todo lo ancho; cada mensaje se abre por separado"
       }
     },
     "snoozedUntil": "Pospuesto hasta {{when}}",
@@ -574,7 +578,24 @@
     "senderGroupCounts": "{{unread}} sin leer · {{count}} mensajes",
     "senderGroupLoadError": "No se pudieron cargar los correos de este remitente. Inténtalo de nuevo.",
     "layout": "Diseño",
-    "menu": "Menú"
+    "menu": "Menú",
+    "sort": "Ordenar",
+    "sortBy": "Ordenar por",
+    "sortDate": "Fecha",
+    "sortSender": "Remitente",
+    "sortSubject": "Asunto",
+    "sortNewestFirst": "Más recientes primero",
+    "sortOldestFirst": "Más antiguos primero",
+    "sortAToZ": "De la A a la Z",
+    "sortZToA": "De la Z a la A",
+    "starredOnTop": "Destacados arriba",
+    "sortReset": "Volver a más recientes primero",
+    "sortedBy": "Orden: {{order}}",
+    "sortSummary": "{{sort}}, {{dir}}",
+    "categoryCountTitle": "Mensajes: {{total}} · Sin leer: {{unread}}",
+    "emptyCategory": "No hay nada en {{category}}",
+    "emptyCategoryOthers": "Las otras categorías todavía tienen correo.",
+    "emptyCategoryNone": "La bandeja de entrada está vacía."
   },
   "lockScreen": {
     "subtitle": "Introduce tu PIN para desbloquear",
@@ -640,7 +661,8 @@
     "scheduledPending": "Pendientes de envío: {{n}}",
     "scheduledAttention": "Requieren atención: {{n}}",
     "favorites": "Favoritos",
-    "reorderFolder": "Arrastra para reordenar la carpeta"
+    "reorderFolder": "Arrastra para reordenar la carpeta",
+    "draftsTotal": "Borradores: {{n}}"
   },
   "contextMenu": {
     "find": "Buscar",
@@ -1372,6 +1394,8 @@
       "eventAdminUserUpdate": "Cuenta editada",
       "eventAdminTotpDisable": "2FA desactivado",
       "eventAdminUserDelete": "Cuenta eliminada",
+      "eventIdentityLinked": "Cuenta SSO vinculada",
+      "eventIdentityUnlinked": "Cuenta SSO desvinculada",
       "byActor": "por {{actor}}",
       "activityTitle": "Actividad de inicio de sesión",
       "loginProtectionTitle": "Protección de inicio de sesión",
@@ -1478,6 +1502,14 @@
       "newPassword": "Nueva contraseña",
       "newPasswordHint": "Déjala vacía para mantener la actual. Al guardar una nueva, se cierra la sesión del usuario en todos los dispositivos.",
       "newPasswordHintSelf": "Déjala vacía para mantener la actual. Se cierra la sesión en tus otros dispositivos; en este sigue abierta.",
+      "newPasswordRemovesIdentities": "Mientras el inicio de sesión con contraseña esté activado, una contraseña nueva también desvincula sus cuentas de inicio de sesión único de abajo.",
+      "identitiesTitle": "Inicio de sesión único",
+      "identitiesHint": "Cuentas en un proveedor de inicio de sesión con las que este usuario puede entrar. Desvincula la que no reconozca; también cierra su sesión en todas partes.",
+      "identityLastUsed": "Último uso {{when}}",
+      "identityNeverUsed": "Aún no se ha usado para iniciar sesión",
+      "unlinkIdentity": "Desvincular",
+      "unlinkIdentityConfirm": "Confirmar",
+      "identityUnlinkFailed": "No se pudo desvincular: {{message}}",
       "confirmPassword": "Confirmar nueva contraseña",
       "passwordTooShort": "La contraseña debe tener al menos 8 caracteres.",
       "passwordMismatch": "Las contraseñas no coinciden.",

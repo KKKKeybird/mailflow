@@ -566,6 +566,10 @@
       "vertical": {
         "label": "Divisione verticale",
         "description": "Elenco messaggi sopra il riquadro di lettura"
+      },
+      "list": {
+        "label": "Prima l'elenco",
+        "description": "Elenco a tutta larghezza; un messaggio si apre da solo"
       }
     },
     "snoozedUntil": "Posticipato fino a {{when}}",
@@ -574,7 +578,24 @@
     "senderGroupCounts": "{{unread}} non letti · {{count}} messaggi",
     "senderGroupLoadError": "Impossibile caricare le email di questo mittente. Riprova.",
     "layout": "Layout",
-    "menu": "Menu"
+    "menu": "Menu",
+    "sort": "Ordina",
+    "sortBy": "Ordina per",
+    "sortDate": "Data",
+    "sortSender": "Mittente",
+    "sortSubject": "Oggetto",
+    "sortNewestFirst": "Più recenti prima",
+    "sortOldestFirst": "Meno recenti prima",
+    "sortAToZ": "Dalla A alla Z",
+    "sortZToA": "Dalla Z alla A",
+    "starredOnTop": "Con stella in alto",
+    "sortReset": "Torna a più recenti prima",
+    "sortedBy": "Ordinati: {{order}}",
+    "sortSummary": "{{sort}}, {{dir}}",
+    "categoryCountTitle": "Messaggi: {{total}} · Da leggere: {{unread}}",
+    "emptyCategory": "Niente in {{category}}",
+    "emptyCategoryOthers": "Le altre categorie contengono ancora messaggi.",
+    "emptyCategoryNone": "La posta in arrivo è vuota."
   },
   "lockScreen": {
     "subtitle": "Inserisci il PIN per sbloccare",
@@ -640,7 +661,8 @@
     "scheduledPending": "In attesa di invio: {{n}}",
     "scheduledAttention": "Richiedono attenzione: {{n}}",
     "favorites": "Preferiti",
-    "reorderFolder": "Trascina per riordinare la cartella"
+    "reorderFolder": "Trascina per riordinare la cartella",
+    "draftsTotal": "Bozze: {{n}}"
   },
   "contextMenu": {
     "find": "Trova",
@@ -1372,6 +1394,8 @@
       "eventAdminUserUpdate": "Account modificato",
       "eventAdminTotpDisable": "2FA disattivato",
       "eventAdminUserDelete": "Account eliminato",
+      "eventIdentityLinked": "Account SSO collegato",
+      "eventIdentityUnlinked": "Account SSO scollegato",
       "byActor": "da {{actor}}",
       "activityTitle": "Attività di accesso",
       "loginProtectionTitle": "Protezione accesso",
@@ -1478,6 +1502,14 @@
       "newPassword": "Nuova password",
       "newPasswordHint": "Lascia vuoto per mantenere quella attuale. Salvandone una nuova, l’utente viene disconnesso da tutti i dispositivi.",
       "newPasswordHintSelf": "Lascia vuoto per mantenere quella attuale. Gli altri tuoi dispositivi vengono disconnessi; questo resta connesso.",
+      "newPasswordRemovesIdentities": "Finché l’accesso con password è attivo, una nuova password scollega anche i suoi account di accesso singolo qui sotto.",
+      "identitiesTitle": "Accesso singolo (SSO)",
+      "identitiesHint": "Account presso un provider di accesso con cui questo utente può entrare. Scollega quello che non riconosce; viene anche disconnesso ovunque.",
+      "identityLastUsed": "Ultimo uso {{when}}",
+      "identityNeverUsed": "Non ancora usato per accedere",
+      "unlinkIdentity": "Scollega",
+      "unlinkIdentityConfirm": "Conferma",
+      "identityUnlinkFailed": "Impossibile scollegare: {{message}}",
       "confirmPassword": "Conferma nuova password",
       "passwordTooShort": "La password deve contenere almeno 8 caratteri.",
       "passwordMismatch": "Le password non coincidono.",

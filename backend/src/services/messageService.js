@@ -1,3 +1,4 @@
+import { senderSortedCandidates } from './senderSortedCandidates.js';
 import { query } from './db.js';
 import { senderCandidates } from './senderGrouping.js';
 import { normalizeSenderIdentity, senderIdentitySql, splitSenderIdentity, validSenderGroupMap } from './senderIdentity.js';
@@ -17,7 +18,41 @@ const snoozedElsewhereSql = (accounts) =>
   + ' AND EXISTS (SELECT 1 FROM snoozed_messages own WHERE own.account_id = m.account_id'
   + ' AND own.message_id_header = m.message_id AND own.snoozed_folder = m.folder))';
 
-export async function listMessages({ userId, accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category, groupSenders, sender, candidateIds, candidateThreads, strictAccount = false }) {
+// List orders (#528). Each maps to fixed SQL, never to text from the request. Sender and Subject
+// sort on what the row shows: the sender's name, or the address when there is none, and the
+// subject without its Re:/Fwd: prefixes (normalized_subject, a generated column). A conversation
+// row shows its opener's sender and subject, so the threaded list sorts by the opener's.
+// #407: a UID-only placeholder row whose envelope has not been fetched yet (see listMessages).
+// Lists and the counts beside them leave it out.
+export const NOT_PLACEHOLDER_SQL = "NOT (m.message_id IS NULL AND (m.subject IS NULL OR m.subject = '(no subject)') AND COALESCE(m.snippet, '') = '')";
+
+export const LIST_SORTS = ['date', 'from', 'subject'];
+export const LIST_SORT_DIRS = ['asc', 'desc'];
+// A row with no sender or subject sorts last either way (NULLS LAST), as the client orders it.
+const SENDER_SQL = "nullif(lower(coalesce(nullif(m.from_name, ''), m.from_email)), '')";
+const SUBJECT_SQL = "nullif(m.normalized_subject, '')";
+const OPENER_SQL = {
+  from: `(array_agg(${SENDER_SQL} ORDER BY m.date ASC, m.id))[1]`,
+  subject: `(array_agg(${SUBJECT_SQL} ORDER BY m.date ASC, m.id))[1]`,
+};
+
+// The ORDER BY keys for a list. Every order ends on date and id, so equal keys still page stably.
+// Date newest first is exactly the order the list always had, which idx_messages_list serves.
+function listOrderSql({ sort, dir, starredFirst, threaded }) {
+  const d = dir === 'asc' ? 'ASC' : 'DESC';
+  const keys = [];
+  if (starredFirst) keys.push(threaded ? 'bool_or(m.is_starred) DESC' : 'm.is_starred DESC');
+  if (sort === 'from' || sort === 'subject') {
+    keys.push(`${threaded ? OPENER_SQL[sort] : sort === 'from' ? SENDER_SQL : SUBJECT_SQL} ${d} NULLS LAST`);
+    keys.push(threaded ? 'MAX(m.date) DESC' : 'm.date DESC');
+  } else {
+    keys.push(threaded ? `MAX(m.date) ${d}` : `m.date ${d}`);
+  }
+  keys.push(threaded ? 'm.thread_key' : 'm.id');
+  return keys.join(', ');
+}
+
+export async function listMessages({ userId, accountId, folder = 'INBOX', limit = 50, offset = 0, unreadOnly, threaded, category, sort, dir, starredFirst, groupSenders, sender, candidateIds, candidateThreads, strictAccount = false }) {
   const accountsResult = await query(
     'SELECT id, include_in_unified_inbox FROM email_accounts WHERE user_id = $1 AND enabled = true',
     [userId]
@@ -71,11 +106,18 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
   // Message-ID, a real subject, or a snippet, so this predicate only ever hides the hollow
   // placeholder, never a real message. Applies to both the flat and threaded queries (shared
   // `where`), so pagination and the threaded count stay consistent.
-  whereConditions.push(`NOT (m.message_id IS NULL AND (m.subject IS NULL OR m.subject = '(no subject)') AND COALESCE(m.snippet, '') = '')`);
+  whereConditions.push(NOT_PLACEHOLDER_SQL);
 
   if (candidateIds) { whereConditions.push(`m.id = ANY($${p++}::uuid[])`); values.push(candidateIds); }
   if (candidateThreads) { whereConditions.push(`m.thread_key = ANY($${p++}::text[])`); values.push(candidateThreads); }
   const where = whereConditions.join(' AND ');
+
+  // The Snoozed view keeps its own order: soonest back first.
+  const order = {
+    sort: !isSnoozedView && LIST_SORTS.includes(sort) ? sort : 'date',
+    dir: !isSnoozedView && dir === 'asc' ? 'asc' : 'desc',
+    starredFirst: !isSnoozedView && (starredFirst === 'true' || starredFirst === true),
+  };
 
   const safeLimit  = Math.min(Math.max(parseInt(limit)  || 50, 1), 500);
   const safeOffset = Math.max(parseInt(offset) || 0, 0);
@@ -101,12 +143,14 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
     if (!present.rows.length) senders = [];
   }
   if (sender || senders.length) {
-    const { candidates, total } = await senderCandidates({ where, values, accounts: scopedAccountIds,
+    const candidateQuery = order.sort !== 'date' || order.dir !== 'desc' || order.starredFirst ? senderSortedCandidates : senderCandidates;
+    const { candidates, total } = await candidateQuery({ where, values, accounts: scopedAccountIds,
+      order, labels: preferences.senderGroupLabels,
       senders, sender: safeSender, mappingsParam,
       threaded: isThreaded, unfiltered: !isUnreadOnly && !safeCategory, limit: safeLimit, offset: safeOffset });
     if (!candidates.length) return { messages: [], total, threaded: isThreaded, resolvedAccountId };
     const hydrated = await listMessages({ userId, accountId, folder, unreadOnly, threaded, category,
-      limit: candidates.length, offset: 0,
+      ...order, limit: candidates.length, offset: 0,
       ...(isThreaded ? { candidateThreads: candidates.map(c => c.thread_key) } : { candidateIds: candidates.map(c => c.id) }) });
     const byId = new Map(hydrated.messages.map(m => [isThreaded ? m.thread_id : m.id, m]));
     const messages = candidates.flatMap(c => {
@@ -114,6 +158,7 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
       if (!message) return [];
       return [c.sender_group ? { ...message, id: `sender:${c.sender_group}`, message_id: null,
         preview_message_id: message.id, sender_group: c.sender_group,
+        ...(c.group_starred != null ? { is_starred: c.group_starred } : {}),
         sender_group_email: splitSenderIdentity(c.sender_group).email, sender_group_name: splitSenderIdentity(c.sender_group).name,
         sender_group_label: preferences.senderGroupLabels?.[c.sender_group] || '',
         sender_message_count: c.sender_message_count, sender_unread_count: c.sender_unread_count } : message];
@@ -168,12 +213,14 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
 
     const threadResult = await query(`
       WITH paged_threads AS (
-        SELECT m.thread_key AS thread_id
+        SELECT m.thread_key AS thread_id,
+               -- The page's own order, which the rows are returned in at the end.
+               ROW_NUMBER() OVER (ORDER BY ${listOrderSql({ ...order, threaded: true })}) AS pos
         FROM messages m
         WHERE ${where}
         GROUP BY m.thread_key
         -- thread_key breaks exact date ties so paging is stable (see the flat query).
-        ORDER BY MAX(m.date) DESC, m.thread_key
+        ORDER BY ${listOrderSql({ ...order, threaded: true })}
         LIMIT $${p + 1} OFFSET $${p + 2}
       ),
       deduped AS MATERIALIZED (
@@ -253,8 +300,9 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
              message_count, unread_count,
              thread_has_contact_photo AS has_contact_photo
       FROM ranked
+      JOIN paged_threads pt USING (thread_id)
       WHERE rn = 1
-      ORDER BY date DESC, id
+      ORDER BY pt.pos
     `, [...filterValues, threadAccountParam, safeLimit, safeOffset]);
 
     const threadCountResult = await query(`
@@ -301,7 +349,7 @@ export async function listMessages({ userId, accountId, folder = 'INBOX', limit 
     -- m.id breaks exact date ties. Without it the sort is unspecified, so LIMIT/OFFSET
     -- paging could show a row twice or skip it entirely, and the client-side duplicate
     -- collapse would receive the two copies of a message in an arbitrary order.
-    ORDER BY ${isSnoozedView ? 'sz.snooze_until ASC NULLS LAST, ' : ''}m.date DESC, m.id
+    ORDER BY ${isSnoozedView ? 'sz.snooze_until ASC NULLS LAST, m.date DESC, m.id' : listOrderSql(order)}
     LIMIT $${limitParam} OFFSET $${offsetParam}
   `, values);
 
