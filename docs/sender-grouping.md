@@ -14,6 +14,8 @@ In **Settings → Layout**, **Sender groups** lists the saved rules. You can cha
 
 Whole-group actions capture all matching inbox message IDs, including unloaded pages, then process batches of at most 500 through existing ownership-checked mutation endpoints. In conversation mode they act on the complete inbox conversations belonging to that sender. The inbox account/category scope still applies; the list's unread display filter does not restrict whole-group archive. Mark-read skips messages already read. New arrivals after the snapshot are not included. An Undo bar allows cancellation before the delayed commit starts; after that point the batches cannot be undone. Archive failures (including missing archive folders) report partial completion and remove only server-confirmed messages. Ordinary select-all still applies only to loaded visible rows.
 
+Folder sorting and starred-on-top apply before paging, both to the grouped inbox and the separate sender list. Group cards keep the most recent preview. Sender sort uses the displayed group alias or canonical sender identity; subject sort uses that preview's normalized subject. A group is pinned with starred mail when a matching member is starred. Non-default sorting scans and sorts the complete scoped candidate-key set before hydrating the page, so it can cost more than the optimized default newest-first order. Undo keeps the originating sender-list and folder order, and browser Back unwinds message → sender list → inbox in desktop List first as well as on mobile.
+
 ## Query and interaction design
 
 The grouping-off path keeps main's SQL unchanged. Grouping uses compact candidate keys, an ordinary candidate page, and one latest head per grouped sender. Flat candidates use bounded per-account lateral queries before the merge. A normalized-sender covering index supports head lookup. Only the selected page is hydrated through the existing mail/conversation query; no message bodies are copied into a second view.
@@ -40,7 +42,7 @@ DB_NAME=mailflow_sender_revision DB_HOST=localhost DB_USER="$USER" BENCH_VALIDAT
 DB_NAME=mailflow_sender_revision DB_HOST=localhost DB_USER="$USER" BENCH_OUTPUT=endpoint-results.json node backend/benchmarks/senderGrouping.mjs
 ```
 
-Set `DB_PORT` and `DB_PASSWORD` as appropriate for the disposable database. `BENCH_BASE_REF` defaults to `v4.1.2`; fetch it first or set an exact baseline ref.
+Set `DB_PORT` and `DB_PASSWORD` as appropriate for the disposable database. `BENCH_BASE_REF` defaults to `v4.2.0`; fetch it first or set an exact baseline ref.
 
 The driver mounts the **actual `/api/mail/messages` router** and calls it over HTTP. It uses a fixture session but runs normal database authorization, scope resolution, queries and JSON serialization. IMAP body prefetch is stubbed so no external mail server is contacted. The baseline implementation is read from Git and runs against the same database, route and pool. Timings cover flat/threaded mode, grouping off/on, six senders at 90%/99.9% density, and offsets 0/1000, with two warm-ups followed by ten measured requests. The grouping-on parameter is ignored by main because main has no such feature.
 

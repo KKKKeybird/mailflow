@@ -3,7 +3,7 @@ import { messageRowTree, actionableMessageRows, selectedListMessage, uniqueActio
 import SenderGroup from './SenderGroup.jsx';
 import { getSwipeActionView, SwipeBackground } from './SwipeActions.jsx';
 import { markFolderScopeRead } from '../utils/markFolderScopeRead.js';
-import { Fragment, useEffect, useLayoutEffect, useRef, useCallback, useState } from 'react';
+import { Fragment, useEffect, useLayoutEffect, useRef, useCallback, useMemo, useState } from 'react';
 import AccountMark from './AccountMark.jsx';
 import { useTranslation } from 'react-i18next';
 import { useStore, selectSelectedMessageMid, selectSelectedMessageAccountId } from '../store/index.js';
@@ -24,6 +24,9 @@ import RowHoverActions from './RowHoverActions.jsx';
 import UndoBar from './UndoBar.jsx';
 import ScheduledList from './ScheduledList.jsx';
 import { SCHEDULED_VIEW } from '../utils/scheduledCompose.js';
+import { applyListOrder, isSortableList, listOrderFor } from '../utils/listSort.js';
+import ListSortMenu from './ListSortMenu.jsx';
+import { useListFirst } from '../hooks/useListFirst.js';
 import GtdTabList from './GtdTabList.jsx';
 import { useUiScale, descale } from '../hooks/useUiScale.js';
 import {
@@ -105,7 +108,7 @@ function MailboxList() {
     hoverQuickActions, hoverActionSet, showMobileAvatars, showMessagePreviews,
     swipeActions,
     folders, favoriteFolders, recentFolders, addFavoriteFolder, removeFavoriteFolder, setSelectedAccount,
-    categorizationEnabled, categoryCounts, setCategoryCounts, adjustCategoryCount,
+    categorizationEnabled, categoryCounts, categoryTotals, setCategoryCounts, adjustCategoryCount,
     markReadBehavior, markReadDelay,
     searchAllFolders,
     activeGtdTab, setActiveGtdTab, gtdSections, enabledPlugins,
@@ -125,6 +128,10 @@ function MailboxList() {
   const isUnified = selectedAccountId === null;
   // The Snoozed view (#269): an account's Snoozed folder, or with no account every account's.
   const isSnoozedView = selectedFolder === SNOOZED_FOLDER;
+  // This folder's order (#528, #196). Kept as a string so the list reloads when it changes, not
+  // on every new object.
+  const listOrderKey = useStore(s => JSON.stringify(listOrderFor(s.listSort, selectedAccountId, selectedFolder)));
+  const listOrder = useMemo(() => JSON.parse(listOrderKey), [listOrderKey]);
   const isAllInboxes = isUnified && !isSnoozedView;
   // The Snoozed view lists single messages, each with when it comes back, and the server never
   // groups it; drawn as conversation rows it showed unread mail as read and repeated row keys.
@@ -143,7 +150,9 @@ function MailboxList() {
 
   const currentLayout = LAYOUTS[layout] || LAYOUTS.comfortable;
   const isColumn = currentLayout.direction === 'column';
-  const isNarrow = !isColumn && currentLayout.listWidth <= 260;
+  const listFirst = useListFirst();
+  // List first has no fixed width (null): it is the widest list, not a narrow one.
+  const isNarrow = !isColumn && currentLayout.listWidth != null && currentLayout.listWidth <= 260;
 
   // Apply the optimistic delete and read guards to a batch of messages from the server
   // (utils/pendingDeletes.js, utils/pendingReads.js), against the rows shown now.
@@ -156,6 +165,11 @@ function MailboxList() {
   const [markingAllRead, setMarkingAllRead] = useState(false);
   const markAllReadPending = useRef(false);
   const [activeCategory, setActiveCategory] = useState('primary');
+  // The category tab and unread filter are this list's own state; the store keys an Undo by them
+  // too, so a message goes back only into the tab it left (#630).
+  useEffect(() => {
+    useStore.setState({ listFilter: `${activeCategory || ''}|${unreadOnly ? 'unread' : 'all'}` });
+  }, [activeCategory, unreadOnly]);
   const [currentPage, setCurrentPage] = useState(1);
   const currentPageRef = useRef(1);
   const archiveViewKeyRef = useRef(null);
@@ -237,6 +251,7 @@ function MailboxList() {
   // While a GTD tab is selected the list body shows that section instead of the
   // folder listing. Same visibility envelope as the tab strip (INBOX, no search).
   const showGtdTab = gtdActive && !!activeGtdTab && selectedFolder === 'INBOX' && !searchQuery.trim();
+  const sortable = isSortableList({ accountId: selectedAccountId, folder: selectedFolder, searchQuery, gtdTab: showGtdTab });
   // Unread badge per GTD tab, from the shared sections store (Waiting merged).
   const gtdTabUnread = (() => {
     const map = {};
@@ -266,15 +281,22 @@ function MailboxList() {
   });
   useEffect(() => {
     if (!categorizationActive || selectedFolder !== 'INBOX') {
-      setCategoryCounts({});
+      setCategoryCounts({}, {});
       return;
     }
     let cancelled = false;
+    let timer = null;
     const params = selectedAccountId ? { accountId: selectedAccountId } : {};
-    api.getCategoryCounts(params)
-      .then(data => { if (!cancelled) setCategoryCounts(data.counts || {}); })
+    // A reply for an account or user no longer showing is dropped: the effect has re-run since.
+    const load = () => api.getCategoryCounts(params)
+      .then(data => { if (!cancelled) setCategoryCounts(data.counts || {}, data.totals || {}); })
       .catch(() => {});
-    return () => { cancelled = true; };
+    load();
+    // Totals change with what changes the list: new mail, moves and deletes here or on another
+    // device, sync (#597). A burst of refreshes asks once.
+    const onRefresh = () => { clearTimeout(timer); timer = setTimeout(load, 400); };
+    window.addEventListener('mailflow:refresh', onRefresh);
+    return () => { cancelled = true; clearTimeout(timer); window.removeEventListener('mailflow:refresh', onRefresh); };
   }, [categorizationActive, selectedAccountId, selectedFolder, messagesRefreshToken, unifiedInboxAccountKey, setCategoryCounts]);
 
   // Bumped by every new search, by clearing the query, and by a change of account or folder, so a
@@ -384,6 +406,7 @@ function MailboxList() {
       try {
         const params = { limit: pageSize, offset: 0 };
         scopeListParams(params, selectedAccountId, selectedFolder);
+        applyListOrder(params, listOrder);
         if (unreadOnly) params.unreadOnly = 'true';
         if (threadedView) params.threaded = 'true';
         if (selectedFolder === 'INBOX' && (categorizationEnabled || selectedAccount?.categorization_enabled)) params.category = activeCategory;
@@ -429,7 +452,7 @@ function MailboxList() {
     };
     run();
     return () => { cancelled = true; };
-  }, [selectedAccountId, selectedFolder, unreadOnly, activeCategory, pageSize, scrollMode, accountsReady, unifiedInboxAccountKey, messagesRefreshToken, threadedView, categorizationEnabled, selectedAccount?.categorization_enabled, applyReadGuard, setHasMoreMessages, setLoadingMessages, setMessages, setMessagesOffset, setMessagesTotal]);
+  }, [selectedAccountId, selectedFolder, unreadOnly, activeCategory, pageSize, scrollMode, accountsReady, unifiedInboxAccountKey, messagesRefreshToken, threadedView, listOrder, categorizationEnabled, selectedAccount?.categorization_enabled, applyReadGuard, setHasMoreMessages, setLoadingMessages, setMessages, setMessagesOffset, setMessagesTotal]);
 
   // Load next page (called by scroll or button)
   const loadMore = useCallback(async () => {
@@ -440,6 +463,7 @@ function MailboxList() {
       const currentOffset = useStore.getState().messagesOffset;
       const params = { limit: pageSize, offset: currentOffset };
       scopeListParams(params, selectedAccountId, selectedFolder);
+      applyListOrder(params, listOrder);
       if (unreadOnly) params.unreadOnly = 'true';
       if (useStore.getState().threadedView) params.threaded = 'true';
       if (selectedFolder === 'INBOX' && (categorizationEnabled || selectedAccount?.categorization_enabled)) params.category = activeCategory;
@@ -453,7 +477,7 @@ function MailboxList() {
     } finally {
       setLoadingMessages(false);
     }
-  }, [selectedAccountId, selectedFolder, unreadOnly, activeCategory, pageSize, loadingMessages, hasMoreMessages, categorizationEnabled, selectedAccount?.categorization_enabled, applyReadGuard, appendMessages, setHasMoreMessages, setLoadingMessages, setMessagesOffset]);
+  }, [selectedAccountId, selectedFolder, unreadOnly, activeCategory, pageSize, loadingMessages, hasMoreMessages, listOrder, categorizationEnabled, selectedAccount?.categorization_enabled, applyReadGuard, appendMessages, setHasMoreMessages, setLoadingMessages, setMessagesOffset]);
 
   // Listen for background refresh events from WebSocket. If a message was just
   // opened, give its body request a brief head start before reloading the full list.
@@ -469,6 +493,7 @@ function MailboxList() {
           loadedCount: state.messagesOffset,
         });
         scopeListParams(params, selectedAccountId, selectedFolder);
+        applyListOrder(params, listOrder);
         if (unreadOnly) params.unreadOnly = 'true';
         if (state.threadedView) params.threaded = 'true';
         if (selectedFolder === 'INBOX' && (categorizationEnabled || selectedAccount?.categorization_enabled)) params.category = activeCategory;
@@ -517,7 +542,7 @@ function MailboxList() {
       window.removeEventListener('mailflow:sender_refresh', groupHandler);
       clearTimeout(deferredRefreshTimerRef.current);
     };
-  }, [selectedAccountId, selectedFolder, unreadOnly, activeCategory, searchQuery, categorizationEnabled, selectedAccount?.categorization_enabled, applyReadGuard, setHasMoreMessages, setMessages, setMessagesOffset, setMessagesTotal]);
+  }, [selectedAccountId, selectedFolder, unreadOnly, activeCategory, searchQuery, listOrder, categorizationEnabled, selectedAccount?.categorization_enabled, applyReadGuard, setHasMoreMessages, setMessages, setMessagesOffset, setMessagesTotal]);
 
   // Run the refresh held back while a load was in flight, once that load (and any append it
   // made) has finished.
@@ -652,6 +677,7 @@ function MailboxList() {
     try {
       const params = { limit: pageSize, offset: (pageNum - 1) * pageSize };
       scopeListParams(params, selectedAccountId, selectedFolder);
+      applyListOrder(params, listOrder);
       if (unreadOnly) params.unreadOnly = 'true';
       if (threadedView) params.threaded = 'true';
       if (selectedFolder === 'INBOX' && (categorizationEnabled || selectedAccount?.categorization_enabled)) params.category = activeCategory;
@@ -671,7 +697,7 @@ function MailboxList() {
     } finally {
       setLoadingMessages(false);
     }
-  }, [selectedAccountId, selectedFolder, unreadOnly, activeCategory, pageSize, loadingMessages, threadedView, categorizationEnabled, selectedAccount?.categorization_enabled, applyReadGuard, setExpandedThreadId, setHasMoreMessages, setLoadingMessages, setMessages, setMessagesOffset, setMessagesTotal]);
+  }, [selectedAccountId, selectedFolder, unreadOnly, activeCategory, pageSize, loadingMessages, threadedView, listOrder, categorizationEnabled, selectedAccount?.categorization_enabled, applyReadGuard, setExpandedThreadId, setHasMoreMessages, setLoadingMessages, setMessages, setMessagesOffset, setMessagesTotal]);
 
   const handleSync = async () => {
     if (syncing) return;
@@ -1350,12 +1376,12 @@ function MailboxList() {
 
   // Derived from store — must be declared before callbacks that use it in dependency arrays
   const listRows = searchQuery.trim() ? searchResults : messages;
-  const senderParams = {
+  const senderParams = applyListOrder({
     ...(selectedAccountId ? { accountId: selectedAccountId, folder: selectedFolder } : {}),
     ...(unreadOnly ? { unreadOnly: 'true' } : {}),
     ...(threadedView ? { threaded: 'true' } : {}),
     ...(selectedFolder === 'INBOX' && categorizationActive ? { category: activeCategory } : {}),
-  };
+  }, listOrder);
   const senderContext = JSON.stringify(senderParams);
   useEffect(() => {
     if (useStore.getState().senderGroupContext !== senderContext) { setExpandedSenders(new Set()); setSenderListGroup(null); }
@@ -2432,7 +2458,7 @@ function MailboxList() {
           }
           // Refresh category counts badge
           const countParams = selectedAccountId ? { accountId: selectedAccountId } : {};
-          api.getCategoryCounts(countParams).then(d => setCategoryCounts(d.counts || {})).catch(() => {});
+          api.getCategoryCounts(countParams).then(d => setCategoryCounts(d.counts || {}, d.totals)).catch(() => {});
         } catch (err) {
           console.error('setCategory failed:', err?.message);
         }
@@ -2451,7 +2477,7 @@ function MailboxList() {
         });
         if (saved) {
           const countParams = selectedAccountId ? { accountId: selectedAccountId } : {};
-          api.getCategoryCounts(countParams).then(d => setCategoryCounts(d.counts || {})).catch(() => {});
+          api.getCategoryCounts(countParams).then(d => setCategoryCounts(d.counts || {}, d.totals)).catch(() => {});
         }
         break;
       }
@@ -2656,7 +2682,8 @@ function MailboxList() {
   const headerCountKnown = headerSamples.length > 0 && headerSamples.every(s => s?.known && s.totalCount != null);
   const headerCountStale = headerSamples.some(s => !s?.known || s?.stale);
   const headerServerTotal = headerSamples.reduce((sum, s) => sum + (s?.totalCount || 0), 0);
-  const filteredCount = unreadOnly || (activeCategory && categorizationEnabled);
+  // A category tab lists one category, whether categorization is on everywhere or for this account.
+  const filteredCount = unreadOnly || (activeCategory && categorizationActive && selectedFolder === 'INBOX');
 
   const handleMarkAllRead = async () => {
     if (markAllReadPending.current) return;
@@ -3186,7 +3213,7 @@ function MailboxList() {
 
   return (
     <div style={{
-      width: isMobile ? '100%' : (isColumn ? '100%' : 'var(--list-width)'),
+      width: isMobile || isColumn || listFirst ? '100%' : 'var(--list-width)',
       minWidth: isMobile ? undefined : (isColumn ? undefined : 180),
       flex: isMobile ? 1 : (isColumn ? '0 0 42%' : undefined),
       minHeight: isColumn && !isMobile ? 0 : undefined,
@@ -3260,6 +3287,8 @@ function MailboxList() {
               </span>
             )}
           </div>
+
+          {sortable && <ListSortMenu accountId={selectedAccountId} folder={selectedFolder} compact />}
 
           {/* Unread filter */}
           {markAllReadButton}
@@ -3499,6 +3528,7 @@ function MailboxList() {
             {/* In wide layouts, keep filter + page size inline */}
             {!isNarrow && (
               <>
+                {sortable && <ListSortMenu accountId={selectedAccountId} folder={selectedFolder} />}
                 {/* Filter unread */}
                 {markAllReadButton}
                 <button
@@ -3559,6 +3589,7 @@ function MailboxList() {
         {/* Narrow layouts: filter + page size + layout picker on their own row */}
         {isNarrow && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginBottom: 6 }}>
+            {sortable && <ListSortMenu accountId={selectedAccountId} folder={selectedFolder} />}
             {markAllReadButton}
             <button
               onClick={() => setUnreadOnly(!unreadOnly)}
@@ -3841,11 +3872,16 @@ function MailboxList() {
           >
             {categorizationActive && ['primary', 'newsletter', 'promotion', 'automated', 'social'].map(cat => {
               const unread = categoryCounts[cat] || 0;
+              const total = categoryTotals[cat] || 0;
               const isActive = activeCategory === cat && !activeGtdTab;
+              const countTitle = t('messageList.categoryCountTitle', { total, unread });
+              const totalsKnown = Object.keys(categoryTotals).length > 0;
               return (
                 <button
                   key={cat}
                   onClick={() => { setActiveGtdTab(null); setActiveCategory(cat); }}
+                  title={countTitle}
+                  aria-label={`${t(`messageList.categories.${cat}`)}, ${countTitle}`}
                   style={{
                     padding: '3px 11px', flexShrink: 0,
                     borderRadius: 100,
@@ -3859,6 +3895,12 @@ function MailboxList() {
                   }}
                 >
                   {t(`messageList.categories.${cat}`)}
+                  {/* How many it holds, read or not (#597); unread is the filled badge after it. */}
+                  {totalsKnown && (
+                    <span aria-hidden="true" style={{ fontSize: 10, color: 'var(--text-tertiary)', fontVariantNumeric: 'tabular-nums' }}>
+                      {total > 9999 ? '9999+' : total}
+                    </span>
+                  )}
                   {unread > 0 && (
                     <span style={{
                       fontSize: 10, fontWeight: 600, lineHeight: 1,
@@ -4111,6 +4153,8 @@ function MailboxList() {
             unreadOnly={unreadOnly}
             selectedFolder={selectedFolder}
             accounts={accounts}
+            category={filteredCount && !unreadOnly && !searchQuery.trim() ? activeCategory : null}
+            otherCategoriesHaveMail={Object.entries(categoryTotals).some(([cat, n]) => cat !== activeCategory && n > 0)}
             onClearSearch={() => { setSearchQuery(''); }}
             onRetrySearch={() => setSearchReloadToken(token => token + 1)}
             onShowAll={() => setUnreadOnly(false)}
@@ -4381,7 +4425,7 @@ function RowTime({ message }) {
   );
 }
 
-function EmptyState({ folderSyncing, searchQuery, searching, searchError, unreadOnly, selectedFolder, accounts, onClearSearch, onRetrySearch, onShowAll, onCompose }) {
+function EmptyState({ folderSyncing, searchQuery, searching, searchError, unreadOnly, selectedFolder, accounts, category, otherCategoriesHaveMail, onClearSearch, onRetrySearch, onShowAll, onCompose }) {
   const { t } = useTranslation();
 
   // A search still waiting for its debounce or its response has no results yet, not none (#592).
@@ -4501,6 +4545,20 @@ function EmptyState({ folderSyncing, searchQuery, searching, searchError, unread
         </svg>
         <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 6 }}>{t('messageList.snoozedEmpty')}</div>
         <div style={{ fontSize: 13 }}>{t('messageList.snoozedEmptyDesc')}</div>
+      </div>
+    );
+  }
+  // A category tab with nothing in it says so, not that the whole Inbox is empty (#597).
+  if (category) {
+    const name = t(`messageList.categories.${category}`);
+    return (
+      <div style={{ padding: '60px 24px', textAlign: 'center' }}>
+        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--text-primary)', marginBottom: 6 }}>
+          {t('messageList.emptyCategory', { category: name })}
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>
+          {otherCategoriesHaveMail ? t('messageList.emptyCategoryOthers') : t('messageList.emptyCategoryNone')}
+        </div>
       </div>
     );
   }

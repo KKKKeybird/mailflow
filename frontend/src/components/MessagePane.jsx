@@ -9,6 +9,8 @@ import { formatMessageDateTime } from '../utils/formatDate.js';
 import { shortcutBus } from '../utils/shortcutBus.js';
 import { canHandlePaneShortcut } from '../utils/shortcutApplicability.js';
 import { useMobile } from '../hooks/useMobile.js';
+import { useListFirst } from '../hooks/useListFirst.js';
+import { closeOpenMessage } from '../utils/closeMessage.js';
 import { useSwipeBack } from '../hooks/useSwipeBack.js';
 import SwipePager from './SwipePager.jsx';
 import { clearDeleteGuard, clearPendingDelete, setCompletedDelete, setPendingDelete } from '../utils/pendingDeletes.js';
@@ -99,6 +101,8 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
   }, [windowMode, onWindowClose]);
 
   const isMobile = useMobile();
+  // List first (#596): the message has the content area to itself, with a Back bar as on a phone.
+  const listFirst = useListFirst();
   // A tooltip with the action's keyboard shortcut, on a desktop.
   const withShortcut = useShortcutTitle();
   const defaultReplyAll = replyDefault === 'replyAll';
@@ -593,7 +597,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
     enabled: isMobile && !windowMode,
     rootRef: paneRef,
     navKey: selectedMessageId,
-    onBack: () => history.back(),
+    onBack: closeOpenMessage,
   });
 
   // Both drafts are built by the shared util, so replying from the list, from the
@@ -727,8 +731,8 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
       },
       incrementUnread, decrementUnread, adjustCategoryCount,
       patch: api.bulkRead,
-    }) && isMobile) setSelectedMessage(null);
-  }, [message, updateMessage, incrementUnread, decrementUnread, adjustCategoryCount, isMobile, setSelectedMessage]);
+    }) && (isMobile || (listFirst && !windowMode))) setSelectedMessage(null);
+  }, [message, updateMessage, incrementUnread, decrementUnread, adjustCategoryCount, isMobile, listFirst, windowMode, setSelectedMessage]);
 
   // The toolbar's read toggle. It used to render only for a read message, so it vanished the
   // moment "Mark as unread" worked and the message could not be marked read again from here
@@ -1026,8 +1030,8 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
       onUndo: () => {
         undone = true;
         clearTimeout(timer);
-        const state = useStore.getState();
-        state.setMessages([...state.messages, archived].sort((a, b) => new Date(b.date) - new Date(a.date)));
+        // Back into the list it left, not into one opened since (#630).
+        useStore.getState().restoreMessages([archived]);
         if (!archived.is_read) incrementUnread(archived.account_id);
       },
     });
@@ -1154,7 +1158,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
           await api.setMessageCategory(message.id, newCategory);
           updateMessage(message.id, { category: newCategory });
           const params = message.account_id ? { accountId: message.account_id } : {};
-          api.getCategoryCounts(params).then(d => setCategoryCounts(d.counts || {})).catch(() => {});
+          api.getCategoryCounts(params).then(d => setCategoryCounts(d.counts || {}, d.totals)).catch(() => {});
         } catch (err) {
           console.error('setCategory failed:', err?.message);
         }
@@ -1169,7 +1173,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
         if (saved) {
           updateMessage(message.id, { category });
           const params = message.account_id ? { accountId: message.account_id } : {};
-          api.getCategoryCounts(params).then(d => setCategoryCounts(d.counts || {})).catch(() => {});
+          api.getCategoryCounts(params).then(d => setCategoryCounts(d.counts || {}, d.totals)).catch(() => {});
         }
         break;
       }
@@ -1242,7 +1246,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
         const acct = accounts.find(a => a.id === message.account_id);
         if (acct) {
           const params = message.account_id ? { accountId: message.account_id } : {};
-          api.getCategoryCounts(params).then(d => setCategoryCounts(d.counts || {})).catch(() => {});
+          api.getCategoryCounts(params).then(d => setCategoryCounts(d.counts || {}, d.totals)).catch(() => {});
         }
         addNotification({ title: t('message.aiClassify.done', { category: t(`messageList.categories.${result.category}`) }) });
       }
@@ -1344,8 +1348,8 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
     >
       {isMobile && <style>{`@keyframes mobileSlideIn { from { transform: translateX(100%) } to { transform: translateX(0) } }`}</style>}
 
-      {/* Mobile back bar */}
-      {isMobile && (
+      {/* Back bar: on a phone, and in List first (#596) */}
+      {(isMobile || listFirst) && !windowMode && (
         <div style={{
           display: 'flex', alignItems: 'center', gap: 8,
           paddingTop: 'calc(var(--sat) + 10px)',
@@ -1356,7 +1360,7 @@ export default function MessagePane({ windowMessageId = null, onWindowClose = nu
           transition: 'box-shadow 0.2s ease',
         }}>
           <button
-            onClick={() => history.back()}
+            onClick={closeOpenMessage}
             style={{
               background: 'none', border: 'none', color: 'var(--accent)',
               cursor: 'pointer', display: 'flex', alignItems: 'center',

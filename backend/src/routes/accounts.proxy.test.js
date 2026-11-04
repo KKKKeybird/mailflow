@@ -33,12 +33,13 @@ describe('account proxy settings', () => {
     const response = await fetch(base, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...account, proxy_password: 'secret@%' }) });
     expect(response.status).toBe(200);
     const insert = query.mock.calls.find(([sql]) => sql.includes('INSERT INTO email_accounts'));
-    const columns = insert[0].match(/INSERT INTO email_accounts\s*\(([^)]+)\)/)[1].split(',').map(column => column.trim());
+    const columns = insert[0].match(/INSERT INTO email_accounts\s*\(([^)]+)\)/)[1].split(',').map(column => column.trim()).filter(column => column !== 'sort_order');
     const password = insert[1][columns.indexOf('proxy_password')];
     expect(decrypt(password)).toBe('secret@%');
     expect(password).toMatch(/^enc:v1:/);
     expect(columns).toHaveLength(insert[1].length);
-    expect(insert[0].match(/VALUES\s*\(([^)]+)\)/)[1].split(',')).toHaveLength(insert[1].length);
+    expect(new Set(insert[0].match(/\$\d+/g)).size).toBe(insert[1].length);
+    expect(insert[0]).toContain('MAX(sort_order)');
     expect(await response.json()).not.toHaveProperty('proxy_password');
   });
   it('updates and encrypts the password, marks it as stored and reconnects', async () => {

@@ -580,6 +580,10 @@
       "vertical": {
         "label": "Podział pionowy",
         "description": "Lista wiadomości nad panelem czytania"
+      },
+      "list": {
+        "label": "Najpierw lista",
+        "description": "Lista na całą szerokość; wiadomość otwiera się osobno"
       }
     },
     "snoozedUntil": "Odłożone do {{when}}",
@@ -588,7 +592,24 @@
     "senderGroupCounts": "{{unread}} nieprzeczytanych · {{count}} wiadomości",
     "senderGroupLoadError": "Nie udało się wczytać wiadomości od tego nadawcy. Spróbuj ponownie.",
     "layout": "Układ",
-    "menu": "Menu"
+    "menu": "Menu",
+    "sort": "Sortuj",
+    "sortBy": "Sortuj według",
+    "sortDate": "Data",
+    "sortSender": "Nadawca",
+    "sortSubject": "Temat",
+    "sortNewestFirst": "Najnowsze na górze",
+    "sortOldestFirst": "Najstarsze na górze",
+    "sortAToZ": "Od A do Z",
+    "sortZToA": "Od Z do A",
+    "starredOnTop": "Oznaczone gwiazdką na górze",
+    "sortReset": "Wróć do najnowszych na górze",
+    "sortedBy": "Sortowanie: {{order}}",
+    "sortSummary": "{{sort}}, {{dir}}",
+    "categoryCountTitle": "Wiadomości: {{total}} · Nieprzeczytane: {{unread}}",
+    "emptyCategory": "Brak wiadomości w kategorii {{category}}",
+    "emptyCategoryOthers": "W innych kategoriach są jeszcze wiadomości.",
+    "emptyCategoryNone": "Skrzynka odbiorcza jest pusta."
   },
   "lockScreen": {
     "subtitle": "Wpisz swój PIN aby odblokować",
@@ -656,7 +677,8 @@
     "scheduledPending": "Czeka na wysłanie: {{n}}",
     "scheduledAttention": "Wymaga uwagi: {{n}}",
     "favorites": "Ulubione",
-    "reorderFolder": "Przeciągnij, aby zmienić kolejność folderu"
+    "reorderFolder": "Przeciągnij, aby zmienić kolejność folderu",
+    "draftsTotal": "Szkice: {{n}}"
   },
   "contextMenu": {
     "find": "Znajdź",
@@ -1393,6 +1415,8 @@
       "eventAdminUserUpdate": "Edytowano konto",
       "eventAdminTotpDisable": "Wyłączono 2FA",
       "eventAdminUserDelete": "Usunięto konto",
+      "eventIdentityLinked": "Połączono konto SSO",
+      "eventIdentityUnlinked": "Odłączono konto SSO",
       "byActor": "przez {{actor}}",
       "qrCodeAlt": "Kod QR",
       "mailPolicyTitle": "Zasady połączeń z serwerem pocztowym",
@@ -1497,6 +1521,14 @@
       "newPassword": "Nowe hasło",
       "newPasswordHint": "Pozostaw puste, aby zachować obecne. Zapisanie nowego wyloguje użytkownika na wszystkich urządzeniach.",
       "newPasswordHintSelf": "Pozostaw puste, aby zachować obecne. Pozostałe Twoje urządzenia zostaną wylogowane; to pozostanie zalogowane.",
+      "newPasswordRemovesIdentities": "Dopóki logowanie hasłem jest włączone, nowe hasło odłącza też jego konta logowania jednokrotnego poniżej.",
+      "identitiesTitle": "Logowanie jednokrotne (SSO)",
+      "identitiesHint": "Konta u dostawcy logowania, którymi ten użytkownik może się logować. Odłącz to, którego nie rozpoznaje; zostanie też wylogowany wszędzie.",
+      "identityLastUsed": "Ostatnio użyte {{when}}",
+      "identityNeverUsed": "Jeszcze nieużyte do logowania",
+      "unlinkIdentity": "Odłącz",
+      "unlinkIdentityConfirm": "Potwierdź",
+      "identityUnlinkFailed": "Nie udało się odłączyć: {{message}}",
       "confirmPassword": "Potwierdź nowe hasło",
       "passwordTooShort": "Hasło musi mieć co najmniej 8 znaków.",
       "passwordMismatch": "Hasła nie są identyczne.",

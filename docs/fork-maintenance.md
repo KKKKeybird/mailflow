@@ -3,7 +3,7 @@
 ## Ownership and baseline
 
 Repository: `KKKKeybird/mailflow`; maintained branch: `main`; upstream: `maathimself/mailflow`.
-Current upstream baseline: `v4.1.2`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
+Current upstream baseline: `v4.2.0`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
 
 ## Sync policy
 
@@ -108,3 +108,14 @@ README, benchmark and CI baseline use v4.1.1. No migration was added or renamed;
 Merged stable v4.1.2 with ancestry preserved. Retain upstream's targeted folder-count refresh, scheduled-send Message-ID recovery, sent-attachment healing, composer file drops, common-word search and newest-message conversation behavior. The pane combines `rowOwnMessage` with the fork's sender row navigation and explicit per-message action metadata. Keep migration `0072_messages_has_attachments_heal` under its original filename; earlier fork migrations are unchanged. Baseline README, benchmark and CI use v4.1.2.
 
 Fix spam alerts racing asynchronous classification: live inbox alert selection waits for the durable verdict callback before rules and notification filtering, while IMAP moves stay asynchronous. A final scoped database check filters verdicts, manual intent, junk flags and spam folders; Notify rules cannot bypass this suppression. Both WebSocket alert fields and Web Push share the filtered candidates, with list refreshes preserved. Existing proxy account context, model-first scoring, MCP account/token scope, sender identities/aliases/paging/swipe behavior, borderless icon-only mark-all-read and Android browser selection remain intact. The fixed-clock date test from PR28 remains in place.
+
+
+## Integration: v4.2.0 (2026-11-04)
+
+Merged stable v4.2.0 with ancestry preserved: per-folder orders and starred-on-top, List first layout, category totals, drafts counts, transactional account ordering and SSO ownership/audit fixes. Account INSERT retains all proxy columns and appends the computed next account position without shifting proxy bindings; preferences retain grouped senders, aliases/labels, after-remove and dark bodies alongside listSort at parameter 51.
+
+Grouping participates in the new folder orders before pagination. The default newest-first path keeps its existing indexed candidate queries. Other orders sort the complete scoped candidate-key set, then hydrate only the page. A group keeps its latest preview; sender sorting uses its alias or canonical name/address, subject sorting uses the preview's normalized subject, and starred-on-top includes a group when a matching member is starred. These non-default orders can scan/sort the folder and are more expensive than the default optimized path. Group member lists inherit the folder's order; account/category/unread scope and manual mappings still apply.
+
+Undo records the originating folder, search, sort and sender-list context, then restores sender caches/counts only in that context and the folder order. Single-view browser history covers mobile and desktop List first while retaining the sender-list layer. The spam notification verdict gate from v4.1.2, proxy DNS/TLS, model-first policy, MCP permissions, avatars, icon-only borderless mark-all-read and shared swipe limits/animations remain intact.
+
+Keep new migration `0073_email_accounts_sort_order_renumber` under its full filename; no earlier fork migration is renamed. Empty PostgreSQL 16 startup applies all 79 migrations and repeats without changes. README, endpoint benchmark and CI use v4.2.0. Production audits meet the high threshold with existing moderate dependency advisories.

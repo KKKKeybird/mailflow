@@ -566,6 +566,10 @@
       "vertical": {
         "label": "Divisão vertical",
         "description": "Lista de mensagens acima do painel de leitura"
+      },
+      "list": {
+        "label": "Lista primeiro",
+        "description": "Lista em largura total; a mensagem abre sozinha"
       }
     },
     "snoozedUntil": "Adiado até {{when}}",
@@ -574,7 +578,24 @@
     "senderGroupCounts": "{{unread}} não lidas · {{count}} mensagens",
     "senderGroupLoadError": "Não foi possível carregar os e-mails deste remetente. Tente novamente.",
     "layout": "Layout",
-    "menu": "Menu"
+    "menu": "Menu",
+    "sort": "Classificar",
+    "sortBy": "Classificar por",
+    "sortDate": "Data",
+    "sortSender": "Remetente",
+    "sortSubject": "Assunto",
+    "sortNewestFirst": "Mais recentes primeiro",
+    "sortOldestFirst": "Mais antigos primeiro",
+    "sortAToZ": "De A a Z",
+    "sortZToA": "De Z a A",
+    "starredOnTop": "Com estrela no topo",
+    "sortReset": "Voltar para mais recentes primeiro",
+    "sortedBy": "Classificação: {{order}}",
+    "sortSummary": "{{sort}}, {{dir}}",
+    "categoryCountTitle": "Mensagens: {{total}} · Não lidas: {{unread}}",
+    "emptyCategory": "Nada em {{category}}",
+    "emptyCategoryOthers": "As outras categorias ainda têm e-mails.",
+    "emptyCategoryNone": "A caixa de entrada está vazia."
   },
   "lockScreen": {
     "subtitle": "Digite seu PIN para desbloquear",
@@ -640,7 +661,8 @@
     "scheduledPending": "Aguardando envio: {{n}}",
     "scheduledAttention": "Precisam de atenção: {{n}}",
     "favorites": "Favoritos",
-    "reorderFolder": "Arraste para reordenar a pasta"
+    "reorderFolder": "Arraste para reordenar a pasta",
+    "draftsTotal": "Rascunhos: {{n}}"
   },
   "contextMenu": {
     "find": "Localizar",
@@ -1374,6 +1396,8 @@
       "eventAdminUserUpdate": "Conta editada",
       "eventAdminTotpDisable": "2FA desativado",
       "eventAdminUserDelete": "Conta excluída",
+      "eventIdentityLinked": "Conta SSO vinculada",
+      "eventIdentityUnlinked": "Conta SSO desvinculada",
       "byActor": "por {{actor}}",
       "qrCodeAlt": "QR code",
       "mailPolicyTitle": "Política de conexão com servidores de e-mail",
@@ -1478,6 +1502,14 @@
       "newPassword": "Nova senha",
       "newPasswordHint": "Deixe em branco para manter a atual. Ao salvar uma nova, o usuário é desconectado de todos os dispositivos.",
       "newPasswordHintSelf": "Deixe em branco para manter a atual. Seus outros dispositivos são desconectados; este continua conectado.",
+      "newPasswordRemovesIdentities": "Enquanto o login com senha estiver ativado, uma nova senha também desvincula as contas de login único abaixo.",
+      "identitiesTitle": "Login único (SSO)",
+      "identitiesHint": "Contas em um provedor de login com as quais este usuário pode entrar. Desvincule a que ele não reconhecer; isso também o desconecta de tudo.",
+      "identityLastUsed": "Usada por último {{when}}",
+      "identityNeverUsed": "Ainda não usada para entrar",
+      "unlinkIdentity": "Remover vínculo",
+      "unlinkIdentityConfirm": "Confirmar remoção",
+      "identityUnlinkFailed": "Não foi possível desvincular: {{message}}",
       "confirmPassword": "Confirmar nova senha",
       "passwordTooShort": "A senha deve ter pelo menos 8 caracteres.",
       "passwordMismatch": "As senhas não coincidem.",

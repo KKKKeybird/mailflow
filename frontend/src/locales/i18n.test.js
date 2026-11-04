@@ -118,6 +118,9 @@ const SAME_VALUE_ALLOWED = {
   'admin.accounts.proxy.port': [['cs', 'de', 'en', 'fr', 'pl'], ['it', 'ptBR']], // shared technical term
   'admin.accounts.proxy.host': [['it', 'pl']], // Host proxy
 
+  // ── List sort menu (#528) ───────────────────────────────────────────────────
+  'messageList.sortSummary':                'any', // "{{sort}}, {{dir}}": only the placeholders and a comma
+  'messageList.sortDate':                   [['en', 'fr'], ['it', 'ptBR', 'pl'], ['cs', 'de']], // Date / Data / Datum
   // ── Universal placeholders / brand names (all locales share) ───────────────
   'admin.about.kofi':                       'any', // Ko-fi — brand name, same everywhere
   'admin.about.githubSponsors':             'any', // GitHub Sponsors — product name, same everywhere
