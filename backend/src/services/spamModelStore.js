@@ -1,3 +1,4 @@
+import { createBoundedCache } from './boundedCache.js';
 // spam_models DB access + in-memory cache (v0.2) — V2-4.
 //
 // Separates DB I/O from the pure math in spamModel.js. Reads go through a
@@ -19,10 +20,19 @@ import {
 } from './spamModel.js';
 
 const CACHE_TTL_MS = 5 * 60 * 1000; // 5 minutes
-const modelCache = new Map(); // userId -> { model, expiry }
+const modelCache = createBoundedCache({
+  ttlMs: CACHE_TTL_MS, maxEntries: 32, maxWeight: 64 * 1024 * 1024,
+  weightOf: model => {
+    let bytes = 512;
+    for (const token of Object.keys(model?.vocabulary || {})) bytes += 256 + 2 * token.length;
+    return bytes;
+  },
+});
+const pendingLoads = new Map();
 
 export function invalidateModelCache(userId) {
   modelCache.delete(userId);
+  pendingLoads.delete(userId);
 }
 
 // Map a DB row to the in-memory model shape.
@@ -46,13 +56,18 @@ function rowToModel(row) {
  */
 export async function getModelForUser(userId) {
   const cached = modelCache.get(userId);
-  if (cached && cached.expiry > Date.now()) return cached.model;
-
-  const result = await query('SELECT * FROM spam_models WHERE user_id = $1', [userId]);
-  const row = result.rows[0];
-  const model = row ? rowToModel(row) : null;
-  modelCache.set(userId, { model, expiry: Date.now() + CACHE_TTL_MS });
-  return model;
+  if (cached !== undefined) return cached;
+  if (pendingLoads.has(userId)) return pendingLoads.get(userId);
+  const work = query('SELECT * FROM spam_models WHERE user_id = $1', [userId]).then(result => {
+    const model = result.rows[0] ? rowToModel(result.rows[0]) : null;
+    // Feedback invalidation must not be undone by an older SELECT finishing afterwards.
+    if (pendingLoads.get(userId) === work) modelCache.set(userId, model);
+    return model;
+  }).finally(() => {
+    if (pendingLoads.get(userId) === work) pendingLoads.delete(userId);
+  });
+  pendingLoads.set(userId, work);
+  return work;
 }
 
 /** Map the in-memory model shape to the DB columns. */

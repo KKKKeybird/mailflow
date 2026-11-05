@@ -1,3 +1,4 @@
+import { createBoundedCache, detachCacheString } from '../services/boundedCache.js';
 import { senderGroupTargets } from '../services/senderGroupTargets.js';
 import { STATUS_STALE_MS } from '../services/folderStatus.js';
 import { Router } from 'express';
@@ -17,7 +18,7 @@ import { fitInlineImages } from '../services/inlineImageFit.js';
 import { needsCidRefetch, needsImageRefetch, settleCids, settledEarlier, withoutCidMarker } from '../utils/cidRefs.js';
 import { sanitizeDbText, storeFetchedBody } from '../services/messageBodyStore.js';
 import { snippetFromBody, decodeMimeWords, parseRawHeaders, parseMailboxList, buildHeadersFromMessage } from '../services/messageParser.js';
-import { draftMessageSql, resolveTrashFolder, resolveAllTrashPaths, resolveAllDraftsPaths, resolveArchiveFolder, isAllMailFolder, resolveSpamFolder, resolveAllSpamPaths, getDeleteStrategy, adjustFolderCounts, fanOutReadToSiblings, fanOutStarToSiblings, fanOutBulkReadToSiblings, readCopyTargets, pushSeen } from '../utils/mailUtils.js';
+import { draftMessageSql, trashMessageSql, resolveTrashFolder, resolveAllTrashPaths, resolveAllDraftsPaths, resolveArchiveFolder, isAllMailFolder, resolveSpamFolder, resolveAllSpamPaths, getDeleteStrategy, adjustFolderCounts, fanOutReadToSiblings, fanOutStarToSiblings, fanOutBulkReadToSiblings, readCopyTargets, pushSeen } from '../utils/mailUtils.js';
 import { pluginRegistry } from '../plugins/registry.js';
 import { listMessages, LIST_SORTS, LIST_SORT_DIRS, NOT_PLACEHOLDER_SQL } from '../services/messageService.js';
 import { normalizeSenderIdentity } from '../services/senderIdentity.js';
@@ -43,13 +44,15 @@ const accountMaintainsLabelSiblings = (accountId) =>
   pluginRegistry.hasActiveAsync('inboxIngest', { account: { id: accountId } });
 
 // Validate a folder name / path component: no control chars, max 255 chars.
-function isValidFolderName(name) {
+// Exported with areValidUUIDs for middleware/apiTokenGuards.js, which leaves to these routes
+// whatever input they refuse.
+export function isValidFolderName(name) {
   // eslint-disable-next-line no-control-regex -- intentionally rejecting control characters
   return typeof name === 'string' && name.length > 0 && name.length <= 255 && !/[\x00-\x1f\x7f]/.test(name);
 }
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function areValidUUIDs(ids) {
+export function areValidUUIDs(ids) {
   return ids.every(id => typeof id === 'string' && UUID_RE.test(id));
 }
 
@@ -87,7 +90,7 @@ async function runInBatches(items, concurrency, fn) {
 // then forwarded_from_name/forwarded_from_email/forwarded_via (0059). mail.relocate.test.js now
 // reads every migration and fails on any messages column that is neither here nor excluded.
 const RELOCATE_COPY_COLS = [
-  'message_id', 'subject', 'from_name', 'from_email', 'to_addresses', 'cc_addresses',
+  'message_id', 'provider_msgid', 'subject', 'from_name', 'from_email', 'to_addresses', 'cc_addresses',
   'reply_to', 'in_reply_to', 'date', 'snippet', 'is_read', 'is_starred', 'has_attachments',
   'flags', 'body_html', 'body_text', 'attachments', 'thread_references', 'thread_id', 'is_bulk',
   'read_changed_at', 'star_changed_at', 'spam_score_sa', 'spam_score_ml', 'spam_verdict',
@@ -339,8 +342,10 @@ async function getThread(req, res, threadId) {
                m.has_attachments, m.account_id, m.category,
                m.list_unsubscribe, m.list_unsubscribe_post, m.unsubscribed_at, m.delivery_addresses,
                a.name AS account_name, a.email_address AS account_email, a.color AS account_color,
-               -- Deleting or moving the conversation leaves its drafts alone (utils/conversationActions.js).
-               ${draftMessageSql('m')} AS is_draft
+               -- Deleting or moving the conversation leaves its drafts alone, and its copies already
+               -- in Trash, where a delete expunges (utils/conversationActions.js).
+               ${draftMessageSql('m')} AS is_draft,
+               ${trashMessageSql('m')} AS in_trash
         FROM messages m
         JOIN email_accounts a ON m.account_id = a.id
         WHERE m.is_deleted = false
@@ -942,21 +947,24 @@ router.get('/messages/:id/attachments/:part', async (req, res) => {
 // changes for a given message, reference and width, so the browser may keep it a month without
 // asking, and asking with its ETag is answered at once.
 const imageProxyLimiter = createUserLimiter();
-const imageRefsCache = new Map();
-const IMAGE_REFS_TTL_MS = 5 * 60_000;
-const IMAGE_REFS_MAX = 200;
+const imageRefsCache = createBoundedCache({
+  ttlMs: 5 * 60_000, maxEntries: 200, maxWeight: 16 * 1024 * 1024,
+  weightOf: refs => {
+    let bytes = 128;
+    for (const [key, value] of refs) bytes += 96 + 2 * (key.length + value.length);
+    return bytes;
+  },
+});
 const IMAGE_CACHE_CONTROL = 'private, max-age=2592000, immutable';
 const IMAGE_FAILURE_CACHE_CONTROL = 'private, max-age=600';
 function cachedImageRefs(key) {
-  const hit = imageRefsCache.get(key);
-  return hit && Date.now() - hit.at < IMAGE_REFS_TTL_MS ? hit.refs : null;
+  return imageRefsCache.get(key) || null;
 }
 function imageRefsFor(key, stored) {
   const served = rewriteAnchorHrefs(rewriteEbayImageserUrls(stripEmailHead(stored)));
-  const refs = new Map([...remoteImageRefs(served), ...remoteImageRefs(stored)]);
-  imageRefsCache.delete(key);
-  imageRefsCache.set(key, { refs, at: Date.now() });
-  if (imageRefsCache.size > IMAGE_REFS_MAX) imageRefsCache.delete(imageRefsCache.keys().next().value);
+  const refs = new Map([...remoteImageRefs(served), ...remoteImageRefs(stored)]
+    .map(([raw, url]) => [detachCacheString(raw), detachCacheString(url)]));
+  imageRefsCache.set(key, refs);
   return refs;
 }
 

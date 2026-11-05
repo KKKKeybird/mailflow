@@ -8,6 +8,8 @@ Open **Settings → Integrations → Apps → AI harness / MCP**. Enter a name, 
 
 Tokens default to **read only**. Check **Allow sending email** when creating a token if the client should be able to send. This exposes the send tool for the selected mailboxes only. Newly added mailboxes are not automatically included. Tokens expire after at most one year and can be revoked immediately from the same screen. The activity list records tool names and outcomes, without mail content or recipients.
 
+Upstream v4.3.0 also offers personal API tokens (`mfat_`) for REST API access. Those are distinct from fork MCP tokens (`mf_mcp_`): they do not authorize `/api/mcp` and never grant sending. MCP keeps its own mailbox scope, revocation, rate limit and authenticated 1 MiB request-body limit.
+
 ## Codex
 
 Add this to `~/.codex/config.toml`, replacing the example origin with your deployment:

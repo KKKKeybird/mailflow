@@ -3,7 +3,7 @@
 ## Ownership and baseline
 
 Repository: `KKKKeybird/mailflow`; maintained branch: `main`; upstream: `maathimself/mailflow`.
-Current upstream baseline: `v4.2.0`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
+Current upstream baseline: `v4.3.0`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
 
 ## Sync policy
 
@@ -119,3 +119,12 @@ Grouping participates in the new folder orders before pagination. The default ne
 Undo records the originating folder, search, sort and sender-list context, then restores sender caches/counts only in that context and the folder order. Single-view browser history covers mobile and desktop List first while retaining the sender-list layer. The spam notification verdict gate from v4.1.2, proxy DNS/TLS, model-first policy, MCP permissions, avatars, icon-only borderless mark-all-read and shared swipe limits/animations remain intact.
 
 Keep new migration `0073_email_accounts_sort_order_renumber` under its full filename; no earlier fork migration is renamed. Empty PostgreSQL 16 startup applies all 79 migrations and repeats without changes. README, endpoint benchmark and CI use v4.2.0. Production audits meet the high threshold with existing moderate dependency advisories.
+
+
+## Integration: v4.3.0 (2026-11-05)
+
+Merged stable v4.3.0 with ancestry preserved: personal API tokens, fresh authentication for token creation and SSO linking, Gmail provider message IDs, draft attachments and desktop printing. Keep migrations `0074_api_tokens.sql` and `0075_gmail_provider_msgid.sql` under their complete filenames. The baseline for README, CI and the real endpoint benchmark is v4.3.0. An empty PostgreSQL 16 database applies all 81 migrations and repeats without changes.
+
+The upstream REST API authentication chain coexists with the separately authenticated fork MCP endpoint, mounted first and parsing its bounded JSON body only after bearer validation. REST API tokens receive upstream's restricted account projection; browser account settings retain proxy fields. Sender grouping and sorting, aliases, account isolation, shared swipe behavior, icon-only mark-all-read, proxy DNS/TLS, model-first spam and the spam notification verdict gate remain in place.
+
+Bounded idle-expiring caches address retained spam vocabularies, image URL slices retaining complete HTML strings, and avatar buffers. Concurrent cold model loads are deduplicated with invalidation protection. See [memory investigation](memory-investigation.md) for the isolated backend-image reproduction, measured results and production limits. Production audits pass the high threshold; moderate upstream advisories remain.

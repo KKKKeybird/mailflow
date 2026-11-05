@@ -1,5 +1,5 @@
 import { findOwnedAccounts, findOwnedAccount, findOwnedMessage } from '../services/ownership.js';
-import { Router } from 'express';
+import { Router, json } from 'express';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { z } from 'zod';
@@ -139,6 +139,8 @@ router.use(async (req, res, next) => {
   await query('UPDATE mcp_tokens SET last_used_at = NOW() WHERE id = $1', [req.mcpToken.id]);
   next();
 });
+
+router.use(json({ limit: '1mb' }));
 
 router.post('/', async (req, res) => {
   const server = createMailMcpServer(req.mcpToken);
