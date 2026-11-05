@@ -1,3 +1,4 @@
+import { createBoundedCache } from '../services/boundedCache.js';
 import { Router } from 'express';
 import { query } from '../services/db.js';
 import { findOwnedContact, CONTACT_READ_ONLY } from '../services/ownership.js';
@@ -12,16 +13,14 @@ router.use(requireAuth);
 // In-memory cache for Gravatar lookups (hash -> { buf, type } hit or { miss:true }).
 // Bounded + TTL'd so we don't re-hit Gravatar for every list render and so the number of
 // third-party requests stays minimal (a privacy consideration — see the /gravatar route).
-const gravatarCache = new Map();
 const GRAVATAR_TTL_MS      = 24 * 60 * 60 * 1000; // hits: 24h
 const GRAVATAR_MISS_TTL_MS =  6 * 60 * 60 * 1000; // 404s: 6h
-const GRAVATAR_MAX_ENTRIES = 2000;
+const gravatarCache = createBoundedCache({
+  ttlMs: GRAVATAR_TTL_MS, maxEntries: 2000, maxWeight: 16 * 1024 * 1024,
+  weightOf: entry => 256 + (entry.buf?.byteLength || 0),
+});
 function gravatarCacheSet(hash, entry) {
-  if (gravatarCache.size >= GRAVATAR_MAX_ENTRIES) {
-    const oldest = gravatarCache.keys().next().value;
-    if (oldest !== undefined) gravatarCache.delete(oldest);
-  }
-  gravatarCache.set(hash, entry);
+  gravatarCache.set(hash, entry, { ttlMs: entry.miss ? GRAVATAR_MISS_TTL_MS : GRAVATAR_TTL_MS });
 }
 
 // Resolve the user's default address book id, creating it if needed.

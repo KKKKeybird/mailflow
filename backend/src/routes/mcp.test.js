@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ query: vi.fn(), consume: vi.fn(), send: vi.fn(), body: vi.fn(), search: vi.fn(), list: vi.fn() }));
 vi.mock('../services/db.js', () => ({ query: mocks.query }));
+vi.mock('../index.js', () => ({ imapManager: {} }));
 vi.mock('../services/rateLimiter.js', () => ({ consume: mocks.consume }));
 vi.mock('./send.js', () => ({ sendMessage: mocks.send }));
 vi.mock('./mail.js', () => ({ getMessageBody: mocks.body }));
@@ -8,6 +9,7 @@ vi.mock('./search.js', () => ({ searchMessages: mocks.search }));
 vi.mock('../services/messageService.js', () => ({ listMessages: mocks.list }));
 vi.mock('../middleware/auth.js', () => ({ requireAuth: (req, res, next) => req.session?.userId ? next() : res.status(401).json({ error: 'Not authenticated' }) }));
 import express from 'express';
+import { mountApiAuth } from '../middleware/apiChain.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import mcpRouter from './mcp.js';
@@ -36,7 +38,7 @@ beforeAll(async () => {
   app.use(express.json());
   app.use((req, _res, next) => { if (req.get('x-test-user')) req.session = { userId: req.get('x-test-user') }; next(); });
   app.use('/api/mcp', mcpRouter);
-  app.use('/api', (req, res, next) => req.method === 'GET' || req.get('X-Requested-With') ? next() : res.status(403).json({ error: 'CSRF' }));
+  mountApiAuth(app, (_req, _res, next) => next());
   app.use('/api/mcp-tokens', tokenRouter);
   await new Promise(resolve => { server = app.listen(0, resolve); });
   base = `http://127.0.0.1:${server.address().port}`;

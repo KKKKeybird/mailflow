@@ -92,4 +92,17 @@ describe('GET /api/contacts/gravatar', () => {
     }
     expect(safeFetch).toHaveBeenCalledTimes(1);
   });
+  it('evicts avatar bytes under pressure rather than retaining up to 2000 large buffers', async () => {
+    safeFetch.mockResolvedValue({ status: 200, ok: true, headers: new Headers({ 'content-type': 'image/png' }),
+      arrayBuffer: async () => new Uint8Array(512 * 1024).buffer });
+    for (let n = 0; n < 34; n++) {
+      const response = await fetch(`${base}/api/contacts/gravatar?email=memory-${n}%40example.com`);
+      expect(response.status).toBe(200); await response.arrayBuffer();
+    }
+    const before = safeFetch.mock.calls.length;
+    const response = await fetch(`${base}/api/contacts/gravatar?email=memory-0%40example.com`);
+    expect(response.status).toBe(200); await response.arrayBuffer();
+    expect(safeFetch.mock.calls.length).toBe(before + 1);
+  });
+
 });

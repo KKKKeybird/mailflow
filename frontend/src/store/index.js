@@ -6,6 +6,7 @@ import { create } from 'zustand';
 import { resolveConversationMode, groupsMessageList, conversationModeTransition, isConversationMode } from '../utils/conversationMode.js';
 import { applyMessageUpdate } from '../utils/readState.js';
 import { api } from '../utils/api.js';
+import { signOut as signOutAndLeave } from '../utils/signOut.js';
 import { mergeCountSnapshots, adjustCountPending, expireCountPending, settleCountPending, displayCountSnapshot, mergeFolderSnapshots } from '../utils/countSnapshots.js';
 import { resolveSelectedAccount, pruneFolders } from '../utils/accountScope.js';
 import { UNDO_COMMIT_DELAY_MS } from '../utils/undoableAction.js';
@@ -146,9 +147,7 @@ export const useStore = create((set, get) => ({
       // run that outlived a logout would finish and write the previous user's result into this
       // device's cache, under their message id, for whoever signs in next.
       aiRuns.abortAll();
-      // The message remembered for the lock screen is the leaving user's too. After a lockout,
-      // App.jsx clears the lock right after it clears the user, and setLocked(false) would
-      // restore that message for whoever signs in next.
+      // The message remembered for the lock screen is the leaving user's too.
       if (get().user) localStorage.removeItem('mailflow_locked_message');
     }
     set(state => ({
@@ -191,6 +190,24 @@ export const useStore = create((set, get) => ({
     }));
   },
   updateUser: (updates) => set(state => ({ user: state.user ? { ...state.user, ...updates } : state.user })),
+  // The sidebar and the lock screen sign out here, through the shared helper (#523, #310).
+  signOut: async () => {
+    // Before the request, not after it: if the page reloads while the request is out and the
+    // server did sign out, the next load clears the lock with no user signed in, which reopens
+    // this message for whoever signs in next.
+    localStorage.removeItem('mailflow_locked_message');
+    let loggedOut = false;
+    await signOutAndLeave({
+      setUser: get().setUser,
+      logout: async () => { const res = await api.logout(); loggedOut = true; return res; },
+      navigate: (url) => {
+        // If the sign-out failed, the session may still be alive, and unlocked if the lock
+        // request failed too. Keep the lock then, so the next load sends it again.
+        if (loggedOut) get().setLocked(false);
+        window.location.href = url;
+      },
+    });
+  },
 
   // Plugin activation — the per-user set of activated plugin ids (users.preferences.enabledPlugins).
   // Hydrated in loadPreferences and mutated only via setPluginActivated (the Plugins settings
@@ -240,7 +257,10 @@ export const useStore = create((set, get) => ({
         gtdSections: null, categoryCounts: {}, categoryTotals: {}, activeGtdTab: null,
       });
     } else {
-      const restoredMessageId = localStorage.getItem('mailflow_locked_message') || null;
+      // Only for a signed-in user, who is the one unlocking. With nobody signed in (after a
+      // lockout, or on a cold load that found the locked session expired), it is the previous
+      // user's message, and it would open for whoever signs in next: signing in doesn't reload.
+      const restoredMessageId = (get().user && localStorage.getItem('mailflow_locked_message')) || null;
       localStorage.removeItem('mailflow_locked_message');
       localStorage.removeItem('mailflow_locked');
       set({ isLocked: false, selectedMessageId: restoredMessageId });

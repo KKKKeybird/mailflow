@@ -193,3 +193,47 @@ describe('getAllUsersWithTraining / getAllUsersWithTrainingLog', () => {
     await expect(getAllUsersWithTrainingLog()).resolves.toEqual(['c']);
   });
 });
+describe('model cache pressure and concurrent loading', () => {
+  it('shares one vocabulary object and one query for concurrent cold reads', async () => {
+    const key = 'memory-concurrent'; invalidateModelCache(key);
+    let release;
+    query.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    const reads = Array.from({ length: 50 }, () => getModelForUser(key));
+    expect(query).toHaveBeenCalledTimes(1);
+    release({ rows: [row()] });
+    const results = await Promise.all(reads);
+    expect(results.every(model => model === results[0])).toBe(true);
+    invalidateModelCache(key);
+  });
+  it('does not re-cache a stale load that finished after feedback invalidation', async () => {
+    const key = 'memory-invalidated'; invalidateModelCache(key);
+    let release;
+    query.mockImplementationOnce(() => new Promise(resolve => { release = resolve; }));
+    const stale = getModelForUser(key);
+    invalidateModelCache(key);
+    query.mockResolvedValueOnce({ rows: [row({ training_records: 20 })] });
+    expect((await getModelForUser(key)).trainingRecords).toBe(20);
+    release({ rows: [row({ training_records: 1 })] }); await stale;
+    expect((await getModelForUser(key)).trainingRecords).toBe(20);
+    expect(query).toHaveBeenCalledTimes(2);
+    invalidateModelCache(key);
+  });
+  it('limits the number of retained user models', async () => {
+    query.mockResolvedValue({ rows: [row()] });
+    for (let n = 0; n < 40; n++) await getModelForUser(`memory-user-${n}`);
+    const count = query.mock.calls.length;
+    await getModelForUser('memory-user-39');
+    expect(query).toHaveBeenCalledTimes(count);
+    await getModelForUser('memory-user-0');
+    expect(query).toHaveBeenCalledTimes(count + 1);
+    for (let n = 0; n < 40; n++) invalidateModelCache(`memory-user-${n}`);
+  });
+  it('releases a failed in-flight load so a later request can retry', async () => {
+    const key = 'memory-failed'; invalidateModelCache(key);
+    query.mockRejectedValueOnce(new Error('offline'));
+    await expect(getModelForUser(key)).rejects.toThrow('offline');
+    query.mockResolvedValueOnce({ rows: [row()] });
+    expect(await getModelForUser(key)).toBeTruthy();
+    invalidateModelCache(key);
+  });
+});
