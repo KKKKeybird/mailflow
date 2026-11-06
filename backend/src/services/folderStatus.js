@@ -88,8 +88,9 @@ export async function checkpointFolderStatus(accountId, path, status) {
 }
 
 export class FolderStatusMonitor {
-  constructor({ withClient, enqueueSync, broadcast }) {
+  constructor({ withClient, withFolderClient = null, enqueueSync, broadcast }) {
     this.withClient = withClient;
+    this.withFolderClient = withFolderClient;
     this.enqueueSync = enqueueSync;
     this.broadcast = broadcast;
     this.running = new Map();
@@ -139,7 +140,8 @@ export class FolderStatusMonitor {
   }
   async _refresh(account) {
     this.nextCheck.set(account.id, Date.now() + STATUS_INTERVAL_MS);
-    let any = false, failed = false;
+    let any = false, failed = false, inboxObserved = false;
+    const changed = [];
     const pending = this.changedFolders.get(account.id);
     const first = pending ? [...pending].slice(0, STATUS_FOLDER_BATCH) : [];
     for (const p of first) pending.delete(p);
@@ -152,26 +154,54 @@ export class FolderStatusMonitor {
         ORDER BY (f.path='INBOX') DESC, (f.path = ANY($3::text[])) DESC, f.status_attempted_at ASC NULLS FIRST, f.path
         LIMIT $2`, [account.id, STATUS_FOLDER_BATCH + first.length, first]);
       if (!rows.length) return;
-      const changed = [];
       // On the fresh-login path this connection stays AUTHENTICATED (no selected mailbox, no
       // interference with IDLE). A secondaryOverPool provider hands us a POOLED client
       // instead, which may have a mailbox selected — STATUS tolerates that (#474 round 5).
-      await this.withClient(account, async client => {
-        for (const row of rows) {
-          try {
-            const status = await observeFolder(client, account.id, row.path);
-            if (!status) continue;
-            any = true;
-            if (folderNeedsSync(row, status)) changed.push({ row, status });
-          } catch (err) {
-            failed = true;
-            console.warn(`Folder status check failed for account ${account.id}: ${err.message}`);
-            // A timed-out command destroys this connection; later folders wait for next cycle.
-            if (!client.usable) break;
+      const check = async (client, row) => {
+        try {
+          const status = await observeFolder(client, account.id, row.path);
+          if (!status) return;
+          any = true;
+          if (row.path === 'INBOX') {
+            inboxObserved = true;
+            // Publish the durable inbox sample before a slow rotating folder can delay it.
+            this.broadcast({ type: 'folder_counts', accountId: account.id }, account.user_id);
           }
+          if (folderNeedsSync(row, status)) changed.push({ row, status });
+        } catch (err) {
+          failed = true;
+          console.warn(`Folder status check failed for account ${account.id}: ${err.message}`);
         }
-      });
-      // Close the status transport BEFORE starting potentially long ingestion work.
+      };
+      const perFolder = this.withFolderClient?.(account);
+      if (perFolder) {
+        for (const row of rows) {
+          await perFolder(async client => {
+            await check(client, row);
+            // Evict a failed pooled lease even if STATUS failed without closing its socket.
+            if (client.usable === false) throw new Error('Folder status connection closed');
+          });
+        }
+      } else {
+        await this.withClient(account, async client => {
+          for (const row of rows) {
+            await check(client, row);
+            if (client.usable === false) break;
+          }
+        });
+      }
+      if (failed && !inboxObserved) throw new Error('One or more folder status checks failed');
+      this.failures.delete(account.id);
+    } catch (err) {
+      // A changed folder this cycle never reached is still owed its check.
+      this.noteChangedFolders(account.id, first);
+      const failures = (this.failures.get(account.id) || 0) + 1;
+      this.failures.set(account.id, failures);
+      this.nextCheck.set(account.id, Date.now() + (inboxObserved ? STATUS_INTERVAL_MS : Math.min(600000, STATUS_INTERVAL_MS * 2 ** Math.min(failures - 1, 4))));
+      console.warn(`Folder status cycle failed for account ${account.id}: ${extractImapError(err)}`);
+    } finally {
+      // All transports are released, including when a later lease failed. Keep earlier
+      // successful observations eligible for repair instead of dropping their work.
       let queued = 0;
       // Failed ingestion must remain retryable without monopolizing the account.
       // An attempt is separate from a successful checkpoint and is used only for fairness.
@@ -186,16 +216,6 @@ export class FolderStatusMonitor {
         if (queued >= 2) break;
         if (this.enqueueSync(account, item.row.path, item.status)) queued++;
       }
-      if (failed) throw new Error('One or more folder status checks failed');
-      this.failures.delete(account.id);
-    } catch (err) {
-      // A changed folder this cycle never reached is still owed its check.
-      this.noteChangedFolders(account.id, first);
-      const failures = (this.failures.get(account.id) || 0) + 1;
-      this.failures.set(account.id, failures);
-      this.nextCheck.set(account.id, Date.now() + Math.min(600000, STATUS_INTERVAL_MS * 2 ** Math.min(failures - 1, 4)));
-      console.warn(`Folder status cycle failed for account ${account.id}: ${extractImapError(err)}`);
-    } finally {
       if (any || failed) this.broadcast({ type: 'folder_counts', accountId: account.id }, account.user_id);
     }
   }

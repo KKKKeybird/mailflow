@@ -240,3 +240,59 @@ describe('freshness allowance tracks the rotation the monitor actually performs'
     expect(publicFolderCounts(row, 200000, { selectableFolders: 6 }).counts_stale).toBe(true);
   });
 });
+
+describe('responsive proxy folder observations', () => {
+  function arrange({ status }) {
+    let revision = 0;
+    query.mockImplementation(async sql => sql.includes('SELECT f.*')
+      ? { rows: [{ path: 'INBOX' }, { path: 'Archive' }] }
+      : sql.includes('nextval') ? { rows: [{ revision: String(++revision), started_at: new Date() }] }
+        : { rows: [{ id: 'f' }] });
+    const events = [];
+    const monitor = new FolderStatusMonitor({
+      withClient: vi.fn(async () => { throw new Error('Unexpected fresh connection'); }),
+      withFolderClient: () => async fn => {
+        events.push('lease');
+        try { await fn({ usable: true, status }); } finally { events.push('release'); }
+      },
+      enqueueSync: () => false,
+      broadcast: () => events.push('broadcast'),
+    });
+    return { monitor, events, account: { id: 'proxy', user_id: 'u' } };
+  }
+  it('publishes INBOX immediately and releases its lease before a slow later folder', async () => {
+    let finish;
+    const archive = new Promise(resolve => { finish = resolve; });
+    const status = vi.fn(path => path === 'INBOX' ? Promise.resolve(good) : archive);
+    const { monitor, account, events } = arrange({ status });
+    const work = monitor.refresh(account);
+    await vi.waitFor(() => expect(status).toHaveBeenCalledTimes(2));
+    expect(events).toEqual(['lease', 'broadcast', 'release', 'lease']);
+    finish(good);
+    await work;
+    expect(events.at(-2)).toBe('release');
+  });
+  it('still repairs an observed inbox when acquiring a later folder lease fails', async () => {
+    const { monitor, account } = arrange({ status: async () => good });
+    let leases = 0;
+    monitor.withFolderClient = () => async fn => {
+      if (++leases > 1) throw new Error('Proxy connection lost');
+      await fn({ usable: true, status: async () => good });
+    };
+    monitor.enqueueSync = vi.fn(() => true);
+    await monitor.refresh(account);
+    expect(monitor.enqueueSync).toHaveBeenCalledWith(account, 'INBOX', good);
+    expect(monitor.nextCheck.get(account.id) - Date.now()).toBeLessThanOrEqual(60000);
+  });
+  it('keeps observing INBOX every minute when another folder repeatedly fails', async () => {
+    vi.useFakeTimers();
+    const status = vi.fn(async path => { if (path === 'Archive') throw new Error('NO folder unavailable'); return good; });
+    const { monitor, account } = arrange({ status });
+    for (let i = 0; i < 5; i++) {
+      await monitor.refresh(account);
+      await vi.advanceTimersByTimeAsync(60000);
+    }
+    expect(status.mock.calls.filter(([path]) => path === 'INBOX')).toHaveLength(5);
+    expect(monitor.failures.has(account.id)).toBe(false);
+  });
+});

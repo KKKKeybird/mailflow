@@ -103,6 +103,25 @@ describe('connection fan-out when the pool is stalled (#474)', () => {
     await settled;
   });
 
+  it('serves foreground actions ahead of queued count scans and prefetches without growing', async () => {
+    const held = [];
+    for (let i = 0; i < POOL_SIZE; i++) held.push(await acquirePooledClient(ACCOUNT));
+    const seen = [];
+    const background = acquirePooledClient(ACCOUNT, { priority: 'background' }).then(c => { seen.push('counts'); return c; });
+    const prefetch = acquirePooledClient(ACCOUNT, { background: true }).then(c => { seen.push('prefetch'); return c; });
+    const action = acquirePooledClient(ACCOUNT).then(c => { seen.push('delete'); return c; });
+    releasePooledClient(ACCOUNT, held[0]);
+    const foregroundClient = await action;
+    expect(seen).toEqual(['delete']);
+    releasePooledClient(ACCOUNT, foregroundClient);
+    const countClient = await background;
+    expect(seen).toEqual(['delete', 'counts']);
+    releasePooledClient(ACCOUNT, countClient);
+    releasePooledClient(ACCOUNT, await prefetch);
+    for (const c of held.slice(1)) releasePooledClient(ACCOUNT, c);
+    expect(ImapFlow).toHaveBeenCalledTimes(POOL_SIZE);
+  });
+
   it('holds the ceiling no matter how much work piles up', async () => {
     // The count must track the limit, not demand. A folder status cycle alone queues one
     // per folder, which is what made this a storm rather than a slowdown.
