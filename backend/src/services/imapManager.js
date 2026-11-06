@@ -2170,7 +2170,7 @@ export function registerPoolSecondaryGate(gate) { Object.assign(poolSecondaryGat
 // queues only when nothing is idle at the ceiling. A background grow that fails transiently is
 // retried by fetchMessageBody on a fresh login, so it can cost two logins (never while the backoff
 // is armed, which stops the grow).
-export async function acquirePooledClient(account, { background = false } = {}) {
+export async function acquirePooledClient(account, { background = false, priority = 'normal' } = {}) {
   const id = account.id;
   if (!connectionPools.has(id)) {
     connectionPools.set(id, { clients: [], inUse: new Set(), waiters: [], pending: 0 });
@@ -2275,7 +2275,7 @@ export async function acquirePooledClient(account, { background = false } = {}) 
   // Evolution waits on a condition variable, offlineimap blocks on a bounded semaphore.
   // RFC 2683 3.1.1 asks clients not to open extra connections to the same mailbox.
   const handedOver = new Promise((resolve, reject) => {
-    const entry = { resolve, reject, timer: null };
+    const entry = { resolve, reject, timer: null, background: background || priority === 'background' };
     entry.timer = setTimeout(() => {
       pool.waiters = pool.waiters.filter(w => w !== entry);
       // Give up on the operation rather than on the limit. Usually the account is
@@ -2286,7 +2286,11 @@ export async function acquirePooledClient(account, { background = false } = {}) 
       err.poolExhausted = true;
       reject(err);
     }, ACQUIRE_TIMEOUT_MS);
-    pool.waiters.push(entry);
+    // Background count scans/prefetches yield queued slots to user operations, FIFO within
+    // each class. The existing connection ceiling and acquire deadline still apply.
+    const firstBackground = pool.waiters.findIndex(w => w.background);
+    if (!entry.background && firstBackground !== -1) pool.waiters.splice(firstBackground, 0, entry);
+    else pool.waiters.push(entry);
   });
   return handedOver.then(client => handOutPooledClient(pool, client));
 }
@@ -2345,8 +2349,8 @@ function guardPoolLease(client) {
 
 // Exported for imapPoolStall.test.js. stallTimeout: false keeps the lease on the normal
 // timeout, for an operation the stall timer cannot judge (appendToFolder).
-export async function withFreshClient(account, fn, { stallTimeout = true, background = false } = {}) {
-  const client = await acquirePooledClient(account, { background });
+export async function withFreshClient(account, fn, { stallTimeout = true, background = false, priority = 'normal' } = {}) {
+  const client = await acquirePooledClient(account, { background, priority });
   const lease = stallTimeout ? guardPoolLease(client) : { stalled: false, end() {} };
   try {
     return await fn(client);
@@ -2790,6 +2794,11 @@ export class ImapManager {
     this._statusAccountTimers = new Map();
     this.folderStatusMonitor = new FolderStatusMonitor({
       withClient: (account, fn) => this._withCountClient(account, fn),
+      // Proxy handshakes are expensive. STATUS needs only a short lease: reuse the bounded
+      // pool, releasing between folders so clicks can run before the rest of the rotation.
+      // Integrity/body ingestion keeps its separate long-work path below.
+      withFolderClient: account => ['http', 'socks5'].includes(account.proxy_type)
+        ? fn => withFreshClient(account, fn, { priority: 'background' }) : null,
       enqueueSync: (account, path, status) => this._queueObservedFolder(account, path, status),
       broadcast: (event, userId) => this.broadcast(event, userId),
     });

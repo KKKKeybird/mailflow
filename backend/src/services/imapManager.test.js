@@ -5651,6 +5651,19 @@ describe('secondary work over the pool (#474 round 5)', () => {
     expect(seen[0].close).not.toHaveBeenCalled(); // still pooled, not torn down per cycle
   });
 
+  it('proxy STATUS leases reuse a session, while direct providers keep their status path', async () => {
+    const { mgr, account } = arrange();
+    expect(mgr.folderStatusMonitor.withFolderClient(account)).toBeNull();
+    const proxyAccount = { ...account, proxy_type: 'http', proxy_host: '127.0.0.1', proxy_port: 8080 };
+    const lease = mgr.folderStatusMonitor.withFolderClient(proxyAccount);
+    const seen = [];
+    await lease(async c => { seen.push(c); });
+    await lease(async c => { seen.push(c); });
+    expect(seen[1]).toBe(seen[0]);
+    expect(ImapFlow).toHaveBeenCalledTimes(1);
+    expect(seen[0].close).not.toHaveBeenCalled();
+  });
+
   it('a reused pooled session does not clear the secondary ladder', async () => {
     // Only an ACCEPTED LOGIN says logins are welcome; reusing a session that already
     // existed says nothing. The clear lives on the pool GROW alone for this provider.
