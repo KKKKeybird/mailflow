@@ -36,13 +36,14 @@ Use Node 22 and a **dedicated disposable PostgreSQL database** whose name contai
 createdb mailflow_sender_revision
 psql mailflow_sender_revision -f backend/benchmarks/senderGrouping.sql
 psql mailflow_sender_revision -f backend/migrations/0063_normalized_sender_index.sql
+psql mailflow_sender_revision -f backend/migrations/0064_sender_thread_source_index.sql
 psql mailflow_sender_revision -f backend/migrations/0066_sender_identity_preferences.sql
 psql mailflow_sender_revision -f backend/migrations/0067_sender_identity_index.sql
 DB_NAME=mailflow_sender_revision DB_HOST=localhost DB_USER="$USER" BENCH_VALIDATE=1 node backend/benchmarks/senderGrouping.mjs
 DB_NAME=mailflow_sender_revision DB_HOST=localhost DB_USER="$USER" BENCH_OUTPUT=endpoint-results.json node backend/benchmarks/senderGrouping.mjs
 ```
 
-Set `DB_PORT` and `DB_PASSWORD` as appropriate for the disposable database. `BENCH_BASE_REF` defaults to `v4.3.0`; fetch it first or set an exact baseline ref.
+Set `DB_PORT` and `DB_PASSWORD` as appropriate for the disposable database. `BENCH_BASE_REF` defaults to `v4.3.1`; fetch it first or set an exact baseline ref.
 
 The driver mounts the **actual `/api/mail/messages` router** and calls it over HTTP. It uses a fixture session but runs normal database authorization, scope resolution, queries and JSON serialization. IMAP body prefetch is stubbed so no external mail server is contacted. The baseline implementation is read from Git and runs against the same database, route and pool. Timings cover flat/threaded mode, grouping off/on, six senders at 90%/99.9% density, and offsets 0/1000, with two warm-ups followed by ten measured requests. The grouping-on parameter is ignored by main because main has no such feature.
 

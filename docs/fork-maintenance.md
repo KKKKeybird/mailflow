@@ -3,7 +3,7 @@
 ## Ownership and baseline
 
 Repository: `KKKKeybird/mailflow`; maintained branch: `main`; upstream: `maathimself/mailflow`.
-Current upstream baseline: `v4.3.0`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
+Current upstream baseline: `v4.3.1`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
 
 ## Sync policy
 
@@ -128,3 +128,12 @@ Merged stable v4.3.0 with ancestry preserved: personal API tokens, fresh authent
 The upstream REST API authentication chain coexists with the separately authenticated fork MCP endpoint, mounted first and parsing its bounded JSON body only after bearer validation. REST API tokens receive upstream's restricted account projection; browser account settings retain proxy fields. Sender grouping and sorting, aliases, account isolation, shared swipe behavior, icon-only mark-all-read, proxy DNS/TLS, model-first spam and the spam notification verdict gate remain in place.
 
 Bounded idle-expiring caches address retained spam vocabularies, image URL slices retaining complete HTML strings, and avatar buffers. Concurrent cold model loads are deduplicated with invalidation protection. See [memory investigation](memory-investigation.md) for the isolated backend-image reproduction, measured results and production limits. Production audits pass the high threshold; moderate upstream advisories remain.
+
+
+## Integration: v4.3.1 (2026-11-07)
+
+Merged stable v4.3.1 with ancestry preserved. Includes complete older-message flag scans and unread repair, Gmail label-copy read propagation, bounded sync teardown, live account refresh, carried state for moves without destination UIDs, draft/scheduled-send/snooze fixes and notification read/archive actions. No new migrations: all 81 existing files keep their names and apply to an empty PostgreSQL 16 database, then rerun unchanged. README, benchmark and CI use v4.3.1.
+
+Retain the fork's common sender/ordinary swipe component and limits instead of reintroducing upstream's inline swipe implementation. The toolbar keeps its borderless icon-only mark-all-read control. Spam undo combines upstream's held-action flush/cancellation with pending spam-move guards; delayed spam verdicts still gate every notification channel before the new notification action payload is built. Sender identities, aliases, account-scoped pagination/sorting, proxy target DNS/TLS, MCP permissions and bounded large caches remain in place.
+
+This release also includes PR33: proxied Gmail staleness probes atomically borrow only usable idle pooled sessions. Empty/busy pools skip the probe without growth or queueing; failed refreshes/probes evict their session without a replacement login. Direct Gmail fresh probes and Yahoo's existing secondary-pool behavior are retained. This mitigates extra handshakes during the owner's observed post-CONNECT TLS failures; it does not repair or certify the external proxy exit path. No production NAS or proxy configuration is changed by this integration. Production audits meet the high threshold, with moderate upstream advisories remaining.
