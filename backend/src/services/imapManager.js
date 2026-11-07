@@ -1408,6 +1408,7 @@ export const PROVIDERS = {
   google: {
     // Gmail folders are label memberships; matching Message-IDs are not proof of a move.
     labelStore: true,
+    proxyStalenessIdlePool: true,
     // Large batches, short delay: Gmail only throttles BODY[] not envelope/flags/uid.
     // Backfills 30k+ messages in ~2 min instead of 12+ hours.
     batchSize: 500, batchDelay: 2000, errorDelay: 30000, batchesPerConn: 10,
@@ -2170,23 +2171,29 @@ export function registerPoolSecondaryGate(gate) { Object.assign(poolSecondaryGat
 // queues only when nothing is idle at the ceiling. A background grow that fails transiently is
 // retried by fetchMessageBody on a fresh login, so it can cost two logins (never while the backoff
 // is armed, which stops the grow).
-export async function acquirePooledClient(account, { background = false, priority = 'normal' } = {}) {
+// idleOnly atomically borrows an available usable session or returns null, without growth
+// or queueing; refreshing an acquired session may still fail and evict that session.
+export async function acquirePooledClient(account, { background = false, priority = 'normal', idleOnly = false } = {}) {
   const id = account.id;
   if (!connectionPools.has(id)) {
+    if (idleOnly) return null;
     connectionPools.set(id, { clients: [], inUse: new Set(), waiters: [], pending: 0 });
   }
   const pool = connectionPools.get(id);
   const poolCap = Math.min(POOL_SIZE, providerProfile(account).poolSize ?? POOL_SIZE);
 
   // Find an idle client
-  const idleClients = pool.clients.filter(c => !pool.inUse.has(c));
-  const leaveForUser = background && idleClients.length === 1
+  const idleClients = pool.clients.filter(c => !pool.inUse.has(c) && (!idleOnly || c.usable !== false));
+  const leaveForUser = !idleOnly && background && idleClients.length === 1
     && pool.clients.length + pool.pending < poolCap && !poolSecondaryGate.isBlocked(id);
   const idle = leaveForUser ? null : idleClients[0];
   if (idle) {
     pool.inUse.add(idle);
     return handOutPooledClient(pool, idle);
   }
+  // Reserve above before any await: an idle-only probe cannot lose a check/acquire race
+  // and accidentally grow or queue behind user work. A failed refresh never grows either.
+  if (idleOnly) return null;
 
   // Grow pool if under limit — refresh token before creating a new connection
   // `pending` counts connects that have been authorized but have not pushed a client yet.
@@ -3005,7 +3012,8 @@ export class ImapManager {
     // provider whose POOLED session also froze would go undetected, which Yahoo has never
     // shown, against 20 doomed logins/hr, which it has. Every other provider keeps the
     // round-4 behavior exactly (fresh login every cycle, ladder untouched), so no
-    // unrelated background refusal can ever suppress deaf-IDLE recovery there.
+    // unrelated background refusal can ever suppress deaf-IDLE recovery there. Proxied
+    // Gmail additionally borrows idle pooled sessions below to avoid repeated tunnel handshakes.
     this._stalenessCheckTimer = setInterval(async () => {
       // Re-entrancy guard: the per-account probes below do blocking network I/O
       // sequentially, so a slow cycle (many accounts, or one on a degraded provider)
@@ -3067,7 +3075,13 @@ export class ImapManager {
               } finally { lock.release(); }
             };
 
-            const overPool = providerProfile(account).secondaryOverPool === true;
+            // A proxied Gmail probe must not open its own tunnel every three minutes.
+            // The STATUS monitor already maintains this independent pool; borrow an idle
+            // session only, skipping a busy/empty pool instead of adding login pressure.
+            // Direct Gmail and providers with known frozen pooled views keep fresh probes.
+            const proxyGmail = providerProfile(account).proxyStalenessIdlePool === true
+              && ['http', 'socks5'].includes(account.proxy_type);
+            const overPool = proxyGmail || providerProfile(account).secondaryOverPool === true;
 
             let missed = 0;
             if (overPool) {
@@ -3075,8 +3089,9 @@ export class ImapManager {
               // exists to reuse: a probe could only trigger a grow the gate will refuse.
               // With an idle pooled client the probe still runs — reuse costs no login and
               // is the one thing a refusing provider keeps serving. Deliberately scoped to
-              // secondaryOverPool providers (review of round 5): everywhere else the probe
-              // keeps its round-4 behavior — a fresh login every cycle, ladder untouched —
+              // secondaryOverPool providers (review of round 5) and idle-only proxied Gmail.
+              // Other providers keep their probe
+              // on the fresh-login path, with its ladder untouched —
               // because letting a ladder that unrelated background refusals can arm
               // suppress the deaf-IDLE check would trade recovery latency on EVERY
               // provider for a leak only session-limited providers have.
@@ -3088,7 +3103,8 @@ export class ImapManager {
               // so this path deliberately never touches the ladder. Acquired OUTSIDE the
               // command deadline: acquire has its own bounded timeout, and racing it would
               // strand an abandoned waiter in the pool queue for the full acquire window.
-              const pooledProbe = await acquirePooledClient(account);
+              const pooledProbe = await acquirePooledClient(account, proxyGmail ? { idleOnly: true } : undefined);
+              if (!pooledProbe) continue;
               try {
                 missed = await raceTimeout(probeInbox(pooledProbe), 25000, 'Staleness probe');
               } catch (err) {

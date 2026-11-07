@@ -14,7 +14,7 @@ vi.mock('./connectionPolicy.js', () => ({ getConnectionPolicy: vi.fn() }));
 vi.mock('./spamPipeline.js', () => ({ classifyAndTagMessage: vi.fn() }));
 vi.mock('./mailAccess.js', () => ({ getAccountAddresses: vi.fn(async () => []) }));
 
-import { ImapManager, PREFETCH_MAX_CONSECUTIVE_ERRORS, INLINE_IMAGE_REPEAT_BUDGET, hasIdlePooledClient, shouldPrewarmPool, acquirePooledClient, releasePooledClient, MIN_SYNC_INTERVAL_MS, AUTO_IDLE_DELAY_MS, countMissingInboxCopies, fetchBackfillBatch, providerProfile, makeClientCfg, relocateExemptGuard, insertCopiedSibling, deleteMessageCopyRow, emitSectionsChanged, ensureMailbox, createKeyedSemaphore, isConnectionRefusal, connectCooldownMs, effectiveSyncIntervalMs, folderSyncDue, planModseqSync, connectStaggerFor, walkStructure, extractBodyFromMsg, attachmentsFromStructure, contentLocationFromMimeHeader, bodyFallbackApplies, parsePersistentCap, resolvePersistentCap, persistentEligible, shouldRetryIPv4, classifyMoveBySearch, pairMovedCopies, computeThreadId, noteDraftsChanged } from './imapManager.js';
+import { ImapManager, PREFETCH_MAX_CONSECUTIVE_ERRORS, INLINE_IMAGE_REPEAT_BUDGET, hasIdlePooledClient, shouldPrewarmPool, evictPool, acquirePooledClient, releasePooledClient, MIN_SYNC_INTERVAL_MS, AUTO_IDLE_DELAY_MS, countMissingInboxCopies, fetchBackfillBatch, providerProfile, makeClientCfg, relocateExemptGuard, insertCopiedSibling, deleteMessageCopyRow, emitSectionsChanged, ensureMailbox, createKeyedSemaphore, isConnectionRefusal, connectCooldownMs, effectiveSyncIntervalMs, folderSyncDue, planModseqSync, connectStaggerFor, walkStructure, extractBodyFromMsg, attachmentsFromStructure, contentLocationFromMimeHeader, bodyFallbackApplies, parsePersistentCap, resolvePersistentCap, persistentEligible, shouldRetryIPv4, classifyMoveBySearch, pairMovedCopies, computeThreadId, noteDraftsChanged } from './imapManager.js';
 import { pluginRegistry } from '../plugins/registry.js';
 import { ensureFreshToken } from './imapManager.js';
 import { clearRefreshFailure, noteFreshToken, noteRefreshFailure, refreshFailureFor } from './accountErrorCode.js';
@@ -5876,6 +5876,137 @@ describe('staleness probe discipline (#474 round 5)', () => {
     const next = await acquirePooledClient(acct);
     expect(next).not.toBe(pooled);
     expect(ImapFlow).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([['http', true], ['socks5', true], ['http', false], ['socks5', false]])('proxied Gmail %s probes cached=%s without another TLS handshake', async (proxy_type, cached) => {
+    const acct = { id: `gmail-idle-${proxy_type}-${cached}`, user_id: 'u1', imap_host: 'imap.gmail.com', imap_tls: true,
+      auth_user: 'g', auth_pass: 'enc', proxy_type, proxy_host: '127.0.0.1', proxy_port: 1080 };
+    const { mgr, cycle } = arrangeCycle(acct);
+    mgr._syncTick = vi.fn().mockResolvedValue();
+    ImapFlow.mockImplementation(function () {
+      const client = new EventEmitter();
+      client.usable = true;
+      client.connect = vi.fn().mockResolvedValue();
+      client.close = vi.fn();
+      client.getMailboxLock = vi.fn().mockResolvedValue({ release: vi.fn() });
+      client.search = vi.fn().mockResolvedValue([101]);
+      client.fetch = vi.fn(async function* () { yield { uid: 101, envelope: { messageId: '<cached@test>' } }; });
+      return client;
+    });
+    const originalQuery = query.getMockImplementation();
+    query.mockImplementation(async (sql, args) => sql.startsWith('SELECT uid FROM messages')
+      ? { rows: cached ? [{ uid: '101' }] : [] } : originalQuery(sql, args));
+    ImapFlow.mockClear();
+    releasePooledClient(acct, await acquirePooledClient(acct));
+    const pooled = ImapFlow.mock.results[0].value;
+    await cycle();
+    expect(pooled.search).toHaveBeenCalledWith({ uid: '101:*' }, { uid: true });
+    expect(pooled.fetch).toHaveBeenCalledWith('101', { uid: true, envelope: true }, { uid: true });
+    expect(ImapFlow).toHaveBeenCalledTimes(1);
+    if (cached) {
+      expect(pooled.close).not.toHaveBeenCalled();
+      expect(mgr._syncTick).not.toHaveBeenCalled();
+    } else {
+      expect(mgr._syncTick).toHaveBeenCalledWith(acct);
+      expect(pooled.close).toHaveBeenCalled();
+    }
+    evictPool(acct.id);
+  });
+
+  it.each(['empty', 'busy'])('a proxied Gmail probe adds no connection when its pool is %s', async state => {
+    const acct = { id: `gmail-${state}`, user_id: 'u1', imap_host: 'imap.gmail.com', imap_tls: true,
+      auth_user: 'g', auth_pass: 'enc', proxy_type: 'http', proxy_host: '127.0.0.1', proxy_port: 1080 };
+    const { mgr, cycle } = arrangeCycle(acct);
+    ImapFlow.mockImplementation(function () {
+      const client = new EventEmitter();
+      client.usable = true;
+      client.connect = vi.fn().mockResolvedValue();
+      client.close = vi.fn();
+      return client;
+    });
+    ImapFlow.mockClear();
+    const occupied = state === 'busy' ? await acquirePooledClient(acct) : null;
+    const before = ImapFlow.mock.calls.length;
+    await cycle();
+    expect(ImapFlow).toHaveBeenCalledTimes(before);
+    expect(mgr.connections.get(acct.id).close).not.toHaveBeenCalled();
+    if (occupied) releasePooledClient(acct, occupied);
+    evictPool(acct.id);
+  });
+
+  it('an idle-only lease is atomic and never creates or queues a replacement', async () => {
+    const acct = { id: 'probe-atomic', imap_host: 'imap.gmail.com', imap_tls: true };
+    arrangeCycle(acct);
+    ImapFlow.mockImplementation(function () {
+      return Object.assign(new EventEmitter(), { usable: true, connect: vi.fn().mockResolvedValue(), close: vi.fn() });
+    });
+    ImapFlow.mockClear();
+    releasePooledClient(acct, await acquirePooledClient(acct));
+    const [first, second] = await Promise.all([
+      acquirePooledClient(acct, { idleOnly: true }), acquirePooledClient(acct, { idleOnly: true }),
+    ]);
+    expect(first).toBe(ImapFlow.mock.results[0].value);
+    expect(second).toBeNull();
+    expect(ImapFlow).toHaveBeenCalledTimes(1);
+    expect(vi.getTimerCount()).toBe(0);
+    releasePooledClient(acct, first);
+    evictPool(acct.id);
+  });
+
+  it('a failed idle-only session refresh evicts it without growing a replacement', async () => {
+    const acct = { id: 'probe-refresh-fails', imap_host: 'imap.gmail.com', imap_tls: true };
+    arrangeCycle(acct);
+    ImapFlow.mockImplementation(function () {
+      return Object.assign(new EventEmitter(), { usable: true, connect: vi.fn().mockResolvedValue(), close: vi.fn(), noop: vi.fn().mockResolvedValue(false) });
+    });
+    ImapFlow.mockClear();
+    const client = await acquirePooledClient(acct);
+    client.mailbox = { path: 'INBOX' };
+    releasePooledClient(acct, client);
+    await expect(acquirePooledClient(acct, { idleOnly: true })).rejects.toThrow('refresh');
+    expect(client.close).toHaveBeenCalled();
+    expect(await acquirePooledClient(acct, { idleOnly: true })).toBeNull();
+    expect(ImapFlow).toHaveBeenCalledTimes(1);
+    evictPool(acct.id);
+  });
+
+  it('a timed-out proxied Gmail probe evicts its lease without another login', async () => {
+    const acct = { id: 'gmail-hung-probe', imap_host: 'imap.gmail.com', imap_tls: true,
+      proxy_type: 'http', proxy_host: '127.0.0.1', proxy_port: 1080 };
+    const { cycle } = arrangeCycle(acct);
+    ImapFlow.mockImplementation(function () {
+      const client = Object.assign(new EventEmitter(), {
+        usable: true, connect: vi.fn().mockResolvedValue(),
+        getMailboxLock: vi.fn().mockResolvedValue({ release: vi.fn() }),
+        search: vi.fn(() => new Promise(() => {})),
+      });
+      client.close = vi.fn(() => { client.usable = false; client.emit('close'); });
+      return client;
+    });
+    ImapFlow.mockClear();
+    releasePooledClient(acct, await acquirePooledClient(acct));
+    const client = ImapFlow.mock.results[0].value;
+    const run = cycle();
+    await vi.advanceTimersByTimeAsync(25000);
+    await run;
+    expect(client.close).toHaveBeenCalled();
+    expect(await acquirePooledClient(acct, { idleOnly: true })).toBeNull();
+    expect(ImapFlow).toHaveBeenCalledTimes(1);
+    evictPool(acct.id);
+  });
+
+  it('direct Gmail keeps the independent fresh-login probe', async () => {
+    const acct = { id: 'gmail-direct-probe', imap_host: 'imap.gmail.com', imap_tls: true, proxy_type: 'none' };
+    const { cycle } = arrangeCycle(acct);
+    ImapFlow.mockImplementation(function () {
+      return Object.assign(new EventEmitter(), { connect: vi.fn().mockResolvedValue(), close: vi.fn(),
+        getMailboxLock: vi.fn().mockResolvedValue({ release: vi.fn() }), search: vi.fn().mockResolvedValue([]) });
+    });
+    ImapFlow.mockClear();
+    await cycle();
+    expect(ImapFlow).toHaveBeenCalledTimes(1);
+    expect(ImapFlow.mock.results[0].value.search).toHaveBeenCalled();
+    expect(ImapFlow.mock.results[0].value.close).toHaveBeenCalled();
   });
 
   it('probes a secondaryOverPool provider over the pooled session: no fresh login', async () => {
