@@ -1,6 +1,6 @@
 # Backend container memory investigation (2026-11-05)
 
-This integration addresses reproducible retained allocations in the backend. No production container metrics, heap profile or OOM record were supplied, so it does not establish the complete cause of a particular deployment's memory growth. The frontend image serves static files with nginx; browser JavaScript memory is separate from that container.
+This integration addresses reproducible retained allocations in the backend. No production container metrics, heap profile or OOM record were supplied, so it does not establish the complete cause of a particular deployment's memory growth. The frontend image at the time served static files with nginx (Caddy from v4.4.0); browser JavaScript memory is separate from that container.
 
 ## Findings and changes
 

@@ -253,7 +253,8 @@ export const api = {
 
   // Recovery email (profile security)
   getRecoveryEmail: () => request('GET', '/auth/profile/recovery-email'),
-  updateRecoveryEmail: (email) => request('PATCH', '/auth/profile/recovery-email', { email }),
+  // `confirm` is what the server asked for: { password } or { totpCode } (apiTokenReauth.js).
+  updateRecoveryEmail: (email, confirm = {}) => request('PATCH', '/auth/profile/recovery-email', { email, ...confirm }),
 
   // TOTP / 2FA
   totp: {
@@ -262,6 +263,8 @@ export const api = {
     disable: (password) => request('POST', '/totp/disable', { password }),
     cancel: () => request('POST', '/totp/cancel'),
     challenge: (code, rememberDevice) => request('POST', '/auth/2fa/challenge', { code, rememberDevice }),
+    // The second step a pending sign-in waits for, after a single sign-on redirect.
+    pending: () => request('GET', '/auth/2fa/pending'),
     sendEmailOtp: () => request('POST', '/auth/2fa/send-email-otp'),
     verifyEmailOtp: (code, rememberDevice) => request('POST', '/auth/2fa/verify-email-otp', { code, rememberDevice }),
     enrollmentSetup: () => request('GET', '/auth/2fa/enrollment/setup'),

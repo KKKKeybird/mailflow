@@ -19,7 +19,7 @@ registerHooks({
   load(url, context, nextLoad) {
     if (url.endsWith('react-i18next/dist/es/index.js') || url.endsWith('/react-i18next')) {
       return { format: 'module', shortCircuit: true, source: [
-        'export const useTranslation = () => ({ t: (k, o) => (o ? k + " " + JSON.stringify(o) : k), i18n: { language: "en", changeLanguage: () => {} } });',
+        'const t = (k, o) => (o ? k + " " + JSON.stringify(o) : k); export const useTranslation = () => ({ t, i18n: { language: "en", changeLanguage: () => {} } });',
         'export const initReactI18next = { type: "3rdParty", init: () => {} };',
         'export const Trans = ({ children }) => children ?? null;',
         'export const I18nextProvider = ({ children }) => children ?? null;',
@@ -475,6 +475,27 @@ describe('API tokens card', () => {
     await click(createButton());
     await until(() => posts().length === 1, 'the create request');
     assert.deepEqual(posts()[0].body, { name: 'MCP server', scopes: ['read'], expiresInDays: 30 });
+  });
+
+  test('with two-factor on, back from the provider it asks for the code as well', async () => {
+    server.reauth = 'oidc';
+    server.expiryChoices = [7, 30];
+    server.oidc = { providers: [{ slug: 'corp', name: 'Corp SSO' }], confirmedUntil: null, totpToo: true };
+    await mount();
+    await openForm();
+    assertNone(codeInput(), 'no code before the sign-in through the provider');
+    await act(async () => { root.unmount(); });
+
+    server.oidc = { ...server.oidc, confirmedUntil: new Date(Date.now() + 9 * 60_000).toISOString() };
+    await mount();
+    await openForm();
+    assert.deepEqual(links(), []);
+    assert.ok(codeInput(), 'the code as well');
+    assert.equal(createButton().disabled, true, 'not without the code');
+    await type(codeInput(), '123456');
+    await click(createButton());
+    await until(() => posts().length === 1, 'the create request');
+    assert.equal(posts()[0].body.totpCode, '123456');
   });
 
   test('a single sign-on confirmation makes one token, and counts only until its time', async () => {

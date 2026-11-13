@@ -4,7 +4,7 @@ const mocks = vi.hoisted(() => ({
   query: vi.fn(),
   closeSockets: vi.fn(),
   disconnectUser: vi.fn(),
-  redis: { scan: vi.fn(), get: vi.fn(), del: vi.fn() },
+  kv: { set: vi.fn() },
   removeIdentities: vi.fn(),
 }));
 
@@ -28,12 +28,12 @@ vi.mock('../services/authLimiter.js', () => ({
   authLimiterConfig: { maxRequests: 10, windowMs: 900000 },
 }));
 vi.mock('../services/authEvents.js', () => ({ logAuthEvent: vi.fn() }));
-vi.mock('../services/mailer.js', () => ({ sendSystemEmail: vi.fn() }));
+vi.mock('../services/mailer.js', () => ({ sendSystemEmail: vi.fn(), SystemEmailNotConfigured: class SystemEmailNotConfigured extends Error {} }));
 vi.mock('./oidc.js', () => ({ buildEndSessionUrl: vi.fn(async () => null) }));
 vi.mock('../services/categorizer.js', () => ({
   invalidateGlobalCategorizationCache: vi.fn(),
 }));
-vi.mock('../services/redis.js', () => ({ redisClient: mocks.redis }));
+vi.mock('../services/kvStore.js', () => ({ kv: mocks.kv }));
 vi.mock('../services/userIdentities.js', () => ({ removeIdentitiesForPasswordReset: mocks.removeIdentities }));
 vi.mock('../services/rateLimiter.js', () => ({
   consume: vi.fn(async () => ({ limited: false })),
@@ -63,7 +63,6 @@ beforeEach(() => {
   mocks.query.mockImplementation(async sql => (
     sql.includes('DELETE FROM password_reset_tokens') ? { rows: [{ user_id: 'u1' }] }
       : sql.includes('FROM users WHERE id') ? { rows: [{ username: 'maria' }] } : { rows: [] }));
-  mocks.redis.scan.mockResolvedValue({ cursor: 0, keys: [] });
 });
 const reset = () => fetch(`${base}/api/auth/reset-password`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: 'reset-token', password: 'a-new-password' }),
