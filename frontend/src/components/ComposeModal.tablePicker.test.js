@@ -107,4 +107,3 @@ describe('phone table picker positioning', () => {
     });
   }
 });
-
