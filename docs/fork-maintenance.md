@@ -3,7 +3,7 @@
 ## Ownership and baseline
 
 Repository: `KKKKeybird/mailflow`; maintained branch: `main`; upstream: `maathimself/mailflow`.
-Current upstream baseline: `v4.3.1`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
+Current upstream baseline: `v4.4.0`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
 
 ## Sync policy
 
@@ -137,3 +137,14 @@ Merged stable v4.3.1 with ancestry preserved. Includes complete older-message fl
 Retain the fork's common sender/ordinary swipe component and limits instead of reintroducing upstream's inline swipe implementation. The toolbar keeps its borderless icon-only mark-all-read control. Spam undo combines upstream's held-action flush/cancellation with pending spam-move guards; delayed spam verdicts still gate every notification channel before the new notification action payload is built. Sender identities, aliases, account-scoped pagination/sorting, proxy target DNS/TLS, MCP permissions and bounded large caches remain in place.
 
 This release also includes PR33: proxied Gmail staleness probes atomically borrow only usable idle pooled sessions. Empty/busy pools skip the probe without growth or queueing; failed refreshes/probes evict their session without a replacement login. Direct Gmail fresh probes and Yahoo's existing secondary-pool behavior are retained. This mitigates extra handshakes during the owner's observed post-CONNECT TLS failures; it does not repair or certify the external proxy exit path. No production NAS or proxy configuration is changed by this integration. Production audits meet the high threshold, with moderate upstream advisories remaining.
+
+
+## Integration: v4.4.0 (2026-11-13)
+
+Merged stable v4.4.0 with ancestry preserved, including strict second-factor enforcement, SSO MFA and recovery-email confirmation. Sessions and ephemeral keys move to PostgreSQL, with migrations `0076_sessions_and_kv_store` and `0077_oidc_idp_enforces_mfa` retaining their complete filenames. Empty PostgreSQL 16 startup applies all 83 migrations and reruns unchanged; a previous 81-migration fork schema applies only the two new files and reruns unchanged.
+
+The Docker frontend now runs Caddy. Keep upstream's TLS modes, legacy `NGINX_TLS`/certificate compatibility, proxy forwarding and backend security-header precedence. The old nginx config is removed, rather than mounted into a server that does not read it. Compose images and actionable README download/clone links point to this fork. See [upgrade notes](upgrading-v4.4.0.md) before replacing a deployment: existing logins end once, old standalone HTTPS/Redis containers become obsolete, and TLS/proxy settings must match the new Compose layout. Caddy does not impose the old short API response wait; external proxies still need at least 120 seconds.
+
+Retain scoped MCP bearer authentication before the ordinary session chain, sender grouping/alias/navigation/sort/page isolation, common swipe limits/animation, icon-only borderless all-read, proxy-side target DNS and Gmail idle-only staleness probes, model-first spam decisions and the durable notification verdict gate. Mobile selection's spam menu acts through the fork's row/guard helpers and upstream's per-account unread deltas. Responsive toolbar/menu sizing also preserves the additional all-read control and sender actions. Large-cache memory fixes remain intact.
+
+The proxy route test now allows PostgreSQL limiter-key access while asserting no mailbox state access or reconnect. Two settings render-test translation stubs retain a stable translator identity, matching react-i18next, so the new recovery-status effect does not loop in tests. Production dependency audits meet the high threshold; low/moderate advisories remain. README, endpoint benchmark and CI baseline use v4.4.0.

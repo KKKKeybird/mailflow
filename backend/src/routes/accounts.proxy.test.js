@@ -81,6 +81,9 @@ describe('account proxy settings', () => {
     expect(query).toHaveBeenCalledTimes(1);
   });
   it('tests an unsaved endpoint without changing or reconnecting any account', async () => {
+    // The shared limiter now uses PostgreSQL; only its key store may be touched here.
+    query.mockImplementation(async sql => sql.includes('kv_store')
+      ? { rows: [{ value: 1, ttl: 60000 }], rowCount: 1 } : { rows: [] });
     const endpoint = net.createServer(socket => socket.end());
     await new Promise(resolve => endpoint.listen(0, '127.0.0.1', resolve));
     try {
@@ -89,7 +92,7 @@ describe('account proxy settings', () => {
       expect(response.status).toBe(200);
       expect(response.headers.get('cache-control')).toBe('no-store');
       expect((await response.json()).ok).toBe(true);
-      expect(query).not.toHaveBeenCalled();
+      expect(query.mock.calls.filter(([sql]) => !sql.includes('kv_store'))).toEqual([]);
       expect(imapManager.connectAccount).not.toHaveBeenCalled();
       expect(imapManager.disconnectAccount).not.toHaveBeenCalled();
     } finally { await new Promise(resolve => endpoint.close(resolve)); }

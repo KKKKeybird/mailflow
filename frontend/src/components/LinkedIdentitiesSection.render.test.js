@@ -20,7 +20,7 @@ registerHooks({
   load(url, context, nextLoad) {
     if (url.endsWith('react-i18next/dist/es/index.js') || url.endsWith('/react-i18next')) {
       return { format: 'module', shortCircuit: true, source: [
-        'export const useTranslation = () => ({ t: (k) => k, i18n: { language: "en", changeLanguage: () => {} } });',
+        'const t = (k) => k; export const useTranslation = () => ({ t, i18n: { language: "en", changeLanguage: () => {} } });',
         'export const initReactI18next = { type: "3rdParty", init: () => {} };',
         'export const Trans = ({ children }) => children ?? null;',
         'export const I18nextProvider = ({ children }) => children ?? null;',
@@ -172,6 +172,20 @@ describe('linking an SSO identity asks for a confirmation first (#714)', () => {
     await click(linkButton());
 
     assert.deepEqual(posted, [{}]);
+    assert.deepEqual(navigated, ['/auth/oidc/other/start?action=link']);
+  });
+
+  test('back from that sign-in with two-factor on: the code as well, then the link', async () => {
+    await render({ reauth: 'oidc', oidc: { ...corp, confirmedUntil: new Date(Date.now() + 9 * 60_000).toISOString(), totpToo: true } });
+    await click(linkButton());
+
+    assert.deepEqual(posted, [], 'the sign-in alone does not confirm');
+    assert.equal(document.querySelector(SIGN_IN_WITH_CORP), null, 'already signed in through the provider');
+    assert.ok(codeField(), 'the section asks for the code');
+    await type(codeField(), '123456');
+    await click(continueButton());
+
+    assert.deepEqual(posted, [{ totpCode: '123456' }]);
     assert.deepEqual(navigated, ['/auth/oidc/other/start?action=link']);
   });
 

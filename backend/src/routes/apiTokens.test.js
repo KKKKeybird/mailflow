@@ -1,10 +1,10 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // The token routes as the browser and a token reach them: the real router, requireAuth and
-// re-authentication over an in-memory database and Redis.
+// re-authentication over an in-memory database and key store.
 const { rs, db } = vi.hoisted(() => ({ rs: { store: new Map() }, db: {} }));
-vi.mock('../services/redis.js', () => ({
-  redisClient: {
+vi.mock('../services/kvStore.js', () => ({
+  kv: {
     async incr(k)        { const e = rs.store.get(k) || { v: 0, exp: 0 }; e.v++; rs.store.set(k, e); return e.v; },
     async decr(k)        { const e = rs.store.get(k) || { v: 0, exp: 0 }; e.v--; rs.store.set(k, e); return e.v; },
     async pExpire(k, ms) { const e = rs.store.get(k); if (e) e.exp = Date.now() + ms; return true; },
@@ -192,7 +192,7 @@ describe('listing tokens', () => {
     expect(await (await list('u-totp')).json()).toEqual({ enabled: true, reauth: 'totp', expiryChoices: [7, 30, 90, 365], maxTokens: 20, tokens: [] });
     expect(await (await list('u-pw')).json()).toMatchObject({ reauth: 'password', expiryChoices: [7, 30, 90, 365] });
     expect(await (await list('u-sso')).json()).toMatchObject({
-      reauth: 'oidc', oidc: { providers: [{ slug: 'corp', name: 'Corp SSO' }], confirmedUntil: null }, expiryChoices: [7, 30],
+      reauth: 'oidc', oidc: { providers: [{ slug: 'corp', name: 'Corp SSO' }], confirmedUntil: null, totpToo: false }, expiryChoices: [7, 30],
     });
     db.mfaEnforcement = 'required';
     expect(await (await list('u-pw')).json()).toMatchObject({ reauth: 'totpSetup' });
@@ -209,7 +209,7 @@ describe('listing tokens', () => {
     signedInThrough(CORP, 1);
     const at = session.extra.oidcConfirmation.at;
     expect((await (await list('u-sso')).json()).oidc).toEqual({
-      providers: [{ slug: 'corp', name: 'Corp SSO' }], confirmedUntil: new Date(at + 10 * 60_000).toISOString(),
+      providers: [{ slug: 'corp', name: 'Corp SSO' }], confirmedUntil: new Date(at + 10 * 60_000).toISOString(), totpToo: false,
     });
     signedInThrough(CORP, 11);
     expect((await (await list('u-sso')).json()).oidc.confirmedUntil).toBe(null);
@@ -220,7 +220,7 @@ describe('listing tokens', () => {
     expect((await (await list('u-sso')).json()).oidc.confirmedUntil).toBe(null);
     signedInThrough(CORP, 1);
     db.providers[CORP].enabled = false;
-    expect((await (await list('u-sso')).json()).oidc).toEqual({ providers: [], confirmedUntil: null });
+    expect((await (await list('u-sso')).json()).oidc).toEqual({ providers: [], confirmedUntil: null, totpToo: false });
   });
 
   it('lists the user\'s own tokens, newest first, without their hashes', async () => {
