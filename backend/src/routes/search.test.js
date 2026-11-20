@@ -13,6 +13,7 @@ import {
   freeTextTermCondition,
   FTS_BODY_CHAR_CAP,
   searchMessages,
+  SEARCH_BODY_SQL,
 } from './search.js';
 import { query } from '../services/db.js';
 
@@ -150,10 +151,15 @@ describe('freeTextTermCondition (oversized-body crash hotfix)', () => {
     // The body text is fed to to_tsvector through LEFT(..., FTS_BODY_CHAR_CAP).
     // Without this cap a single oversized body raises SQLSTATE 54000 and 500s search.
     expect(cond).toContain(
-      `to_tsvector('english', LEFT(coalesce(m.body_text,''), ${FTS_BODY_CHAR_CAP}))`
+      `to_tsvector('english', LEFT(${SEARCH_BODY_SQL}, ${FTS_BODY_CHAR_CAP}))`
     );
     // Guard against a regression back to the uncapped expression.
-    expect(cond).not.toContain("to_tsvector('english', coalesce(m.body_text,'')) @@");
+    expect(cond).not.toContain(`to_tsvector('english', ${SEARCH_BODY_SQL}) @@`);
+  });
+
+  it('reads the HTML-only body text from message_search when there is no body_text (D#320)', () => {
+    expect(SEARCH_BODY_SQL).toMatch(/^coalesce\(m\.body_text,/);
+    expect(SEARCH_BODY_SQL).toContain('FROM message_search ms WHERE ms.message_id = m.id');
   });
 
   it('pins the cap at 600000 chars (msgvault maxFTSBodyChars parity)', () => {
@@ -170,7 +176,7 @@ describe('freeTextTermCondition (oversized-body crash hotfix)', () => {
   it('selects the simple dictionary only for an empty English body query', () => {
     const cond = freeTextTermCondition(3, 4);
     expect(cond).toContain("CASE WHEN numnode(plainto_tsquery('english', $4)) > 0");
-    expect(cond).toContain(`to_tsvector('simple', LEFT(coalesce(m.body_text,''), ${FTS_BODY_CHAR_CAP})) @@ plainto_tsquery('simple', $4)`);
+    expect(cond).toContain(`to_tsvector('simple', LEFT(${SEARCH_BODY_SQL}, ${FTS_BODY_CHAR_CAP})) @@ plainto_tsquery('simple', $4)`);
     expect(cond).toContain('END');
   });
 

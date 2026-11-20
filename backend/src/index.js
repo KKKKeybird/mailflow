@@ -9,7 +9,7 @@ import 'dotenv/config';
 import { PgSessionStore } from './services/sessionStore.js';
 import { startExpirySweep, stopExpirySweep } from './services/kvStore.js';
 import { parseTrustProxyHops } from './utils/trustProxy.js';
-import { buildSessionOptions } from './utils/sessionConfig.js';
+import { buildSessionOptions, parseSessionIdleDays, MAX_SESSION_IDLE_DAYS } from './utils/sessionConfig.js';
 import { mountApiAuth } from './middleware/apiChain.js';
 
 import sendRoutes from './routes/send.js';
@@ -32,6 +32,7 @@ import contactsRoutes from './routes/contacts.js';
 import todoistRoutes from './routes/todoist.js';
 import aiRoutes from './routes/ai.js';
 import categoriesRoutes from './routes/categories.js';
+import tagsRoutes from './routes/tags.js';
 import { pluginRegistry } from './plugins/registry.js';
 import { loadBundledPlugins } from './plugins/loadPlugins.js';
 import { setMailEngine } from './plugins/mailEngine.js';
@@ -40,6 +41,7 @@ import senderFaviconsRoutes from './routes/senderFavicons.js';
 import diagnosticsRoutes from './routes/diagnostics.js';
 import backupRoutes from './routes/backup.js';
 import apiTokenRoutes from './routes/apiTokens.js';
+import webhookRoutes from './routes/webhooks.js';
 import spamRoutes, { accountSpamRouter } from './routes/spam.js';
 import carddavRouter from './routes/carddav.js';
 import carddavAccountRouter from './routes/carddavAccount.js';
@@ -56,6 +58,7 @@ import { getUpdateStatus } from './services/updateCheck.js';
 import { recordHttp } from './services/performanceMetrics.js';
 import { shutDown } from './services/sendShutdown.js';
 import { startScheduledSender } from './services/scheduledSend.js';
+import { backfillMessageSearch } from './services/messageSearchBackfill.js';
 
 const packageMeta = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf-8'));
 let buildMeta = {};
@@ -85,8 +88,8 @@ if (!process.env.SESSION_SECRET || process.env.SESSION_SECRET.length < 32) {
   console.error('FATAL: SESSION_SECRET must be set and at least 32 characters. Exiting.');
   process.exit(1);
 }
-if (!process.env.DB_PASSWORD) {
-  console.error('FATAL: DB_PASSWORD must be set. Exiting.');
+if (!process.env.DATABASE_URL && !process.env.DB_PASSWORD) {
+  console.error('FATAL: DATABASE_URL or DB_PASSWORD must be set. Exiting.');
   process.exit(1);
 }
 if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY.length !== 64) {
@@ -98,6 +101,11 @@ if (!process.env.ENCRYPTION_KEY || process.env.ENCRYPTION_KEY.length !== 64) {
 // ALLOWED_ORIGIN is null), and OIDC redirect URIs become malformed.
 if (process.env.NODE_ENV === 'production' && !process.env.APP_URL) {
   console.error('FATAL: APP_URL must be set in production (e.g. https://mail.example.com). WebSocket connections and OIDC depend on it.');
+  process.exit(1);
+}
+
+if (parseSessionIdleDays(process.env.SESSION_IDLE_DAYS) === null) {
+  console.error(`FATAL: SESSION_IDLE_DAYS must be a whole number of days from 1 to ${MAX_SESSION_IDLE_DAYS} (how long a session lasts without use; unset means 7), got "${process.env.SESSION_IDLE_DAYS}". Exiting.`);
   process.exit(1);
 }
 
@@ -170,6 +178,7 @@ app.use('/api/admin/backup', backupRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/totp', totpRoutes);
 app.use('/api/api-tokens', apiTokenRoutes);
+app.use('/api/webhooks', webhookRoutes);
 app.use('/api/rules', rulesRoutes);
 app.use('/api/block-list', blockListRoutes);
 app.use('/api/contacts', contactsRoutes);
@@ -177,6 +186,7 @@ app.use('/api/todoist', todoistRoutes);
 app.use('/api/carddav', carddavAccountRouter);
 app.use('/api', aiRoutes);
 app.use('/api', categoriesRoutes);
+app.use('/api/tags', tagsRoutes);
 // Tier-1 plugin routers, mounted via the plugin registry (see src/plugins/). Registered
 // here — before the unauthenticated /api/health and /api/version probes below — so a
 // plugin's router-level auth can't intercept them. GTD is the first such plugin; its
@@ -258,6 +268,12 @@ imapManager.startSnoozeWatcher();
 // Send scheduled messages as they fall due (#543). Its first tick recovers sends a previous
 // process left unfinished, before it claims anything.
 startScheduledSender();
+
+// Make the whole body of HTML-only mail stored before migration 0080 searchable (D#320). In the
+// background and throttled: search keeps working meanwhile and finds those bodies as they fill.
+backfillMessageSearch()
+  .then(({ filled, skipped }) => { if (!skipped) console.log(`Search: indexed the text of ${filled} HTML-only message(s)`); })
+  .catch(err => console.warn('Search backfill stopped; it starts again at the next restart:', err.message));
 
 // Schedule periodic CardDAV contact sync for any connected accounts.
 startCardavScheduler();

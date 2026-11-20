@@ -4,8 +4,10 @@ import express from 'express';
 
 vi.mock('../services/db.js', () => ({ query: vi.fn() }));
 vi.mock('../middleware/auth.js', () => ({ requireAuth: (req, _res, next) => { req.session = { userId: 'owner' }; next(); } }));
+vi.mock('../services/gmailServerSearch.js', () => ({ gmailServerMatches: vi.fn(async () => null) }));
 import routes, { freeTextTermCondition } from './search.js';
 import { query } from '../services/db.js';
+import { gmailServerMatches } from '../services/gmailServerSearch.js';
 
 // All fixtures are connection-local temporary tables in an explicitly supplied database.
 describe.skipIf(!process.env.MAILFLOW_TEST_DATABASE_URL)('stop-word body search PostgreSQL', () => {
@@ -20,14 +22,15 @@ describe.skipIf(!process.env.MAILFLOW_TEST_DATABASE_URL)('stop-word body search 
     await database.connect();
     await database.query(`
       CREATE TEMP TABLE email_accounts (id text, user_id text, enabled boolean,
-        include_in_unified_inbox boolean, name text, email_address text, color text);
+        include_in_unified_inbox boolean, name text, email_address text, color text, imap_host text);
       CREATE TEMP TABLE folders (account_id text, path text, special_use text, name text);
       CREATE TEMP TABLE messages (id text, account_id text DEFAULT 'main', folder text DEFAULT 'INBOX',
         uid bigint, message_id text, subject text DEFAULT 'Status', from_name text DEFAULT 'Sender',
         from_email text DEFAULT 'sender@example.test', to_addresses jsonb, cc_addresses jsonb, reply_to jsonb, delivery_addresses jsonb, thread_id text,
         in_reply_to text, thread_references text, date timestamptz DEFAULT now(), snippet text,
         is_read boolean, is_starred boolean, has_attachments boolean, is_deleted boolean DEFAULT false,
-        search_vector tsvector, body_text text);
+        search_vector tsvector, body_text text, provider_msgid text);
+      CREATE TEMP TABLE message_search (message_id text PRIMARY KEY, body_text text NOT NULL);
       INSERT INTO email_accounts VALUES
         ('main','owner',true,true,'Primary','owner@example.test',NULL),
         ('other','stranger',true,true,'Other','other@example.test',NULL),
@@ -85,10 +88,30 @@ describe.skipIf(!process.env.MAILFLOW_TEST_DATABASE_URL)('stop-word body search 
     expect(await search('Orion -???')).toEqual(['body', 'split', 'unrelated']);
   });
 
+  it("accepts Gmail's own body matches for mail whose body was never downloaded (D#320)", async () => {
+    await database.query(`INSERT INTO messages(id,subject,body_text,provider_msgid,message_id) VALUES
+      ('gmail-unopened','Geofence alert',NULL,'1801',NULL), ('gmail-by-mid','Geofence alert',NULL,NULL,'<b@x>'),
+      ('gmail-excluded','Geofence alert YARD',NULL,'1803',NULL)`);
+    gmailServerMatches.mockImplementation(async (accounts, terms) => {
+      expect(accounts.map(a => a.id)).toEqual(['main']); // the search's account scope only
+      expect(terms).toEqual(['5037']);
+      return { accountIds: ['main'], providerIds: ['1801', '1803'], messageIds: ['<b@x>'] };
+    });
+    try {
+      expect(await search('5037')).toEqual(['gmail-by-mid', 'gmail-excluded', 'gmail-unopened']);
+      expect(await search('5037 -yard')).toEqual(['gmail-by-mid', 'gmail-unopened']);
+      gmailServerMatches.mockImplementation(async () => ({ accountIds: ['other'], providerIds: ['1801'], messageIds: [] }));
+      expect(await search('5037')).toEqual([]); // only for the accounts Gmail answered for
+    } finally {
+      gmailServerMatches.mockImplementation(async () => null);
+      await database.query(`DELETE FROM messages WHERE id LIKE 'gmail-%'`);
+    }
+  });
+
   it('keeps English stemming when a term contains both stop words and significant words', async () => {
     const result = await database.query(`SELECT ${freeTextTermCondition(1, 2)} AS matched FROM
       (SELECT ''::text AS from_name, ''::text AS from_email, ''::text AS subject,
-        ''::tsvector AS search_vector, 'runs swiftly'::text AS body_text) m`,
+        ''::tsvector AS search_vector, 'runs swiftly'::text AS body_text, NULL::text AS id) m`,
     ['%the running%', 'the running']);
     expect(result.rows[0].matched).toBe(true);
   });
@@ -98,7 +121,7 @@ describe.skipIf(!process.env.MAILFLOW_TEST_DATABASE_URL)('stop-word body search 
     for (const [padding, expected] of [[599997, true], [599998, false], [600000, false]]) {
       const result = await database.query(`SELECT ${condition} AS matched FROM
         (SELECT ''::text AS from_name, ''::text AS from_email, ''::text AS subject,
-          ''::tsvector AS search_vector, repeat('界', $3::int) || ' we ' AS body_text) m`,
+          ''::tsvector AS search_vector, repeat('界', $3::int) || ' we ' AS body_text, NULL::text AS id) m`,
       ['%we%', 'we', padding]);
       expect(result.rows[0].matched, String(padding)).toBe(expected);
     }
@@ -116,7 +139,7 @@ describe.skipIf(!process.env.MAILFLOW_TEST_DATABASE_URL)('stop-word body search 
       const result = await database.query(`SELECT ${condition} AS positive,
         NOT coalesce(${condition},false) AS negative FROM
         (SELECT NULL::text AS from_name, NULL::text AS from_email, NULL::text AS subject,
-          NULL::tsvector AS search_vector, $3::text AS body_text) m`, [`%${term}%`, term, body]);
+          NULL::tsvector AS search_vector, $3::text AS body_text, NULL::text AS id) m`, [`%${term}%`, term, body]);
       const present = body !== null && tokens.includes(term);
       // Absent body matches may be SQL NULL through nullable metadata; route negation coalesces it.
       expect(result.rows[0].positive === true, JSON.stringify({ i, term, body })).toBe(present);

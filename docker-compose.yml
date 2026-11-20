@@ -64,12 +64,14 @@ services:
       DB_NAME: ${DB_NAME:-mailflow}
       DB_USER: ${DB_USER:-mailflow}
       DB_PASSWORD: ${DB_PASSWORD}
+      DATABASE_URL: ${DATABASE_URL:-}
       ENCRYPTION_KEY: ${ENCRYPTION_KEY:-}
       VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
       VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
       VAPID_SUBJECT: ${VAPID_SUBJECT:-}
       IMAP_MAX_PERSISTENT_PER_HOST: ${IMAP_MAX_PERSISTENT_PER_HOST:-}
       TRUST_PROXY_HOPS: ${TRUST_PROXY_HOPS:-}
+      SESSION_IDLE_DAYS: ${SESSION_IDLE_DAYS:-}
       # false stops offering MailFlow's built-in Microsoft app for personal accounts (#674).
       MS_BUILTIN_APP: ${MS_BUILTIN_APP:-}
       # Your own OAuth apps (#676). Values saved under Settings > Email providers take

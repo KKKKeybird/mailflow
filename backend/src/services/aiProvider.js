@@ -39,6 +39,41 @@ function normalizeBaseUrl(value) {
   return cleanString(value).replace(/\/+$/, '');
 }
 
+// Extra request headers for the API-key provider (#746): a gateway in front of the provider can
+// need a second header of its own besides the key (Cloudflare AI Gateway's cf-aig-authorization,
+// Helicone's Helicone-Auth, a reverse proxy's). Their values are credentials, kept like the key:
+// encrypted at rest, masked when read back, redacted from provider errors.
+export const MAX_EXTRA_HEADERS = 10;
+const MAX_HEADER_NAME_LENGTH = 100;
+const MAX_HEADER_VALUE_LENGTH = 4096;
+const HEADER_NAME_RE = /^[!#$%&'*+.^_`|~0-9A-Za-z-]+$/;
+// Visible ASCII, spaces and tabs: no line breaks (a header injected into the request) and nothing
+// fetch cannot send as a header byte.
+const HEADER_VALUE_RE = /^[\t\x20-\x7e]*$/;
+// Headers MailFlow sets itself, and those that belong to the connection rather than the request.
+const RESERVED_HEADERS = new Set([
+  'authorization', 'content-type', 'content-length', 'host', 'cookie', 'transfer-encoding',
+  'connection', 'keep-alive', 'te', 'trailer', 'upgrade', 'expect',
+]);
+
+export function extraHeaderNameError(name) {
+  if (!name) return 'Each extra header needs a name';
+  if (name.length > MAX_HEADER_NAME_LENGTH || !HEADER_NAME_RE.test(name)) return `"${sanitizeText(name).slice(0, 60)}" is not a valid header name`;
+  const lower = name.toLowerCase();
+  if (RESERVED_HEADERS.has(lower) || lower.startsWith('proxy-')) return `The ${name} header is set by MailFlow and cannot be added`;
+  return null;
+}
+
+function normalizeExtraHeaders(value) {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter(header => header && typeof header === 'object')
+    .map(header => ({
+      name: cleanString(header.name),
+      value: typeof header.value === 'string' ? header.value : null,
+    }));
+}
+
 export function normalizeAiConfig(raw = {}) {
   const hasStructuredConfig = raw.apiKeyConfig && typeof raw.apiKeyConfig === 'object';
   const apiSource = hasStructuredConfig ? raw.apiKeyConfig : raw;
@@ -53,6 +88,7 @@ export function normalizeAiConfig(raw = {}) {
       baseUrl: normalizeBaseUrl(apiSource.baseUrl),
       apiKey: apiSource.apiKey || null,
       model: cleanString(apiSource.model),
+      extraHeaders: normalizeExtraHeaders(apiSource.extraHeaders),
     },
     chatgptConfig: {
       model: cleanString(chatgptSource.model) || DEFAULT_CODEX_MODEL,
@@ -71,6 +107,7 @@ function publicConfig(config) {
     apiKeyConfig: {
       ...config.apiKeyConfig,
       apiKey: config.apiKeyConfig.apiKey ? MASKED_API_KEY : '',
+      extraHeaders: config.apiKeyConfig.extraHeaders.map(({ name }) => ({ name, value: MASKED_API_KEY })),
     },
   };
 }
@@ -100,28 +137,60 @@ function providerRequestError(error, request, callerSignal) {
   );
 }
 
-// Redirects are not followed. The base URL's host is checked against the private-host policy when
-// it is saved (saveConfig); a redirect would send the request, with a 307 its body (the email text
-// being summarized or drafted) too, to a host that was never checked, one the policy forbids among
-// them. fetch drops the API key on a redirect to another origin.
+// A redirect is followed only within the base URL's own origin, and only as a 307 or 308, which
+// keep the method and body. The base URL's host is checked against the private-host policy when it
+// is saved (saveConfig); a redirect elsewhere would send the request, with a 307 its body (the
+// email text being summarized or drafted) too, to a host that was never checked, one the policy
+// forbids among them. Those still fail, naming the target so it can be entered as the base URL
+// instead. Some providers redirect within their API (#401), which failed outright after e32c678f.
+const MAX_SAME_ORIGIN_REDIRECTS = 3;
+
+function redirectTarget(location, from) {
+  if (!location) return null;
+  try {
+    return new URL(location, from);
+  } catch {
+    return null;
+  }
+}
+
+// Origin and path only: a query string could carry a token.
+function describeTarget(target) {
+  if (!target || !['http:', 'https:'].includes(target.protocol)) return '';
+  return sanitizeText(`${target.origin}${target.pathname}`).slice(0, 300);
+}
+
 async function openProviderRequest(fetchFn, url, init, { signal, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
   const request = createRequestSignal(signal, timeoutMs, 'AI request timed out');
-  let response;
-  try {
-    response = await fetchFn(url, { ...init, redirect: 'manual', signal: request.signal });
-  } catch (error) {
-    request.cleanup();
-    throw providerRequestError(error, request, signal);
-  }
-  if (response.status >= 300 && response.status < 400) {
-    request.cleanup();
+  const origin = new URL(url).origin;
+  let current = url;
+  for (let hop = 0; ; hop += 1) {
+    let response;
+    try {
+      response = await fetchFn(current, { ...init, redirect: 'manual', signal: request.signal });
+    } catch (error) {
+      request.cleanup();
+      throw providerRequestError(error, request, signal);
+    }
+    if (response.status < 300 || response.status >= 400) return { ...request, response };
+
     response.body?.cancel().catch(() => {});
-    throw new AiProviderError(
-      `AI provider redirected the request (${response.status}); set the API base URL to the address it redirects to`,
-      { status: 502, expose: true },
-    );
+    const target = redirectTarget(response.headers?.get?.('location'), current);
+    const sameOrigin = target?.origin === origin;
+    if (sameOrigin && (response.status === 307 || response.status === 308) && hop < MAX_SAME_ORIGIN_REDIRECTS) {
+      current = target.href;
+      continue;
+    }
+
+    request.cleanup();
+    const where = describeTarget(target);
+    const message = sameOrigin
+      ? `AI provider redirected the request (${response.status}) to ${where}, which MailFlow does not follow; set the API base URL to that address`
+      : where
+        ? `AI provider redirected the request (${response.status}) to ${where}; set the API base URL to that address if it is the provider's`
+        : `AI provider redirected the request (${response.status}); set the API base URL to the address it redirects to`;
+    throw new AiProviderError(message, { status: 502, expose: true });
   }
-  return { ...request, response };
 }
 
 async function* parseChatCompletionsSse(response, { signal, secrets } = {}) {
@@ -194,9 +263,14 @@ export function createAiProvider({
     const storedKey = typeof incomingKey === 'string' && incomingKey && incomingKey !== MASKED_API_KEY
       ? encryptFn(incomingKey)
       : (existing?.apiKeyConfig.apiKey || null);
+    // A save without the list (an admin tab from before #746) keeps the headers as they are;
+    // anything sent in its place that is not a list is refused (resolveExtraHeaders).
+    const extraHeaders = incomingApi.extraHeaders === undefined
+      ? (existing?.apiKeyConfig.extraHeaders || [])
+      : resolveExtraHeaders(incomingApi.extraHeaders, existing?.apiKeyConfig.extraHeaders || []);
     const config = normalizeAiConfig({
       ...input,
-      apiKeyConfig: { ...incomingApi, apiKey: storedKey },
+      apiKeyConfig: { ...incomingApi, apiKey: storedKey, extraHeaders },
     });
 
     if (config.enabled && config.provider === AI_PROVIDER_API_KEY
@@ -227,6 +301,37 @@ export function createAiProvider({
     return withNewUsersEnabled(config);
   }
 
+  // The headers as they are to be stored, values encrypted. A masked value keeps the value stored
+  // under that name; a header whose name changed needs its value entered again.
+  function resolveExtraHeaders(incoming, stored) {
+    if (!Array.isArray(incoming)) throw new AiProviderError('Extra headers must be a list', { status: 400 });
+    if (incoming.length > MAX_EXTRA_HEADERS) {
+      throw new AiProviderError(`At most ${MAX_EXTRA_HEADERS} extra headers can be added`, { status: 400 });
+    }
+    const storedByName = new Map(stored.map(header => [header.name.toLowerCase(), header.value]));
+    const seen = new Set();
+    return incoming.map((header) => {
+      if (!header || typeof header !== 'object') throw new AiProviderError('Each extra header needs a name and a value', { status: 400 });
+      const name = cleanString(header.name);
+      const nameError = extraHeaderNameError(name);
+      if (nameError) throw new AiProviderError(nameError, { status: 400 });
+      const key = name.toLowerCase();
+      if (seen.has(key)) throw new AiProviderError(`The ${name} header is listed twice`, { status: 400 });
+      seen.add(key);
+      if (header.value === MASKED_API_KEY) {
+        const kept = storedByName.get(key);
+        if (!kept) throw new AiProviderError(`Enter a value for the ${name} header`, { status: 400 });
+        return { name, value: kept };
+      }
+      const value = typeof header.value === 'string' ? header.value.trim() : '';
+      if (!value) throw new AiProviderError(`Enter a value for the ${name} header`, { status: 400 });
+      if (value.length > MAX_HEADER_VALUE_LENGTH || !HEADER_VALUE_RE.test(value)) {
+        throw new AiProviderError(`The value of the ${name} header can only hold printable ASCII on one line`, { status: 400 });
+      }
+      return { name, value: encryptFn(value) };
+    });
+  }
+
   async function deleteAiConfig() {
     await queryFn("DELETE FROM system_settings WHERE key = 'ai_config'");
   }
@@ -246,14 +351,21 @@ export function createAiProvider({
     return config.apiKeyConfig.apiKey ? decryptFn(config.apiKeyConfig.apiKey) : null;
   }
 
-  function apiKeyHeaders(apiKey) {
-    const headers = { 'Content-Type': 'application/json' };
+  // The extra headers decrypted, and every secret a provider error must not repeat. A stored
+  // header that fails the rules now (they can only have grown stricter) is left out.
+  function apiKeyRequest(config) {
+    const apiKey = apiKeyCredential(config);
+    const extra = config.apiKeyConfig.extraHeaders
+      .filter(header => !extraHeaderNameError(header.name) && header.value)
+      .map(header => [header.name, decryptFn(header.value)]);
+    const headers = Object.fromEntries(extra);
+    headers['Content-Type'] = 'application/json';
     if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
-    return headers;
+    return { headers, secrets: [apiKey, ...extra.map(([, value]) => value)] };
   }
 
   async function completeApiKey(config, messages, { signal, maxTokens, allowEmpty = false } = {}) {
-    const apiKey = apiKeyCredential(config);
+    const { headers, secrets } = apiKeyRequest(config);
     const body = {
       model: config.apiKeyConfig.model,
       messages,
@@ -262,13 +374,13 @@ export function createAiProvider({
     };
     const request = await openProviderRequest(fetchFn, `${config.apiKeyConfig.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: apiKeyHeaders(apiKey),
+      headers,
       body: JSON.stringify(body),
     }, { signal });
     try {
       const { response } = request;
       const text = await readLimited(response, response.ok ? JSON_BODY_LIMIT_BYTES : ERROR_BODY_LIMIT_BYTES);
-      if (!response.ok) throw providerError(response.status, text, [apiKey]);
+      if (!response.ok) throw providerError(response.status, text, secrets);
       const parsed = parseJson(text);
       const choice = parsed?.choices?.[0];
       const content = choice?.message?.content;
@@ -296,19 +408,19 @@ export function createAiProvider({
   }
 
   async function* streamApiKey(config, messages, { signal } = {}) {
-    const apiKey = apiKeyCredential(config);
+    const { headers, secrets } = apiKeyRequest(config);
     const request = await openProviderRequest(fetchFn, `${config.apiKeyConfig.baseUrl}/chat/completions`, {
       method: 'POST',
-      headers: apiKeyHeaders(apiKey),
+      headers,
       body: JSON.stringify({ model: config.apiKeyConfig.model, messages, stream: true }),
     }, { signal, timeoutMs: 120_000 });
     try {
       const { response } = request;
       if (!response.ok) {
         const text = await readLimited(response, ERROR_BODY_LIMIT_BYTES);
-        throw providerError(response.status, text, [apiKey]);
+        throw providerError(response.status, text, secrets);
       }
-      yield* parseChatCompletionsSse(response, { signal: request.signal, secrets: [apiKey] });
+      yield* parseChatCompletionsSse(response, { signal: request.signal, secrets });
     } catch (error) {
       throw providerRequestError(error, request, signal);
     } finally {

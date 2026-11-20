@@ -34,6 +34,8 @@ export const SETUP_TABLES = [
   'invites',
   'mcp_tokens',
   'mcp_tool_events',
+  'message_tags',
+  'notification_webhooks',
   'oidc_providers',
   'plugin_account_config',
   'plugin_data',
@@ -46,6 +48,7 @@ export const SETUP_TABLES = [
   'spam_training_deletions',
   'spam_training_log',
   'system_settings',
+  'tag_definitions',
   'trusted_devices',
   'user_identities',
   'user_integrations',
@@ -60,8 +63,11 @@ export const MAIL_CACHE_TABLES = ['folders', 'messages', 'unfetchable_uids'];
 export const TRANSIENT_TABLES = ['ai_codex_device_flows', 'api_tokens', 'email_otp_tokens', 'kv_store', 'password_reset_tokens', 'sessions'];
 // The record of which migrations shaped the schema the rows are written back into.
 export const SCHEMA_TABLES = ['schema_migrations'];
+// Computed from other tables by triggers, so never written to a backup: a restore truncates
+// them with messages (CASCADE) and the trigger fills them again as the rows are written back.
+export const DERIVED_TABLES = ['message_search'];
 
-const KNOWN_TABLES = new Set([...SETUP_TABLES, ...MAIL_CACHE_TABLES, ...TRANSIENT_TABLES, ...SCHEMA_TABLES]);
+const KNOWN_TABLES = new Set([...SETUP_TABLES, ...MAIL_CACHE_TABLES, ...TRANSIENT_TABLES, ...SCHEMA_TABLES, ...DERIVED_TABLES]);
 const RESTORABLE_TABLES = new Set([...SETUP_TABLES, ...MAIL_CACHE_TABLES]);
 
 // Encrypted with the installation's ENCRYPTION_KEY and stored in the manifest, so a restore can

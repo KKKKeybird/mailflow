@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../services/db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { resolveAccountScope } from '../services/unifiedInbox.js';
+import { gmailServerMatches } from '../services/gmailServerSearch.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -110,8 +111,14 @@ export function trashFolderExclusionCondition() {
 // (SQLSTATE 54000), so an oversized body would 500 the whole search. Cap the
 // text fed to to_tsvector at 600k chars — matching msgvault's maxFTSBodyChars
 // (internal/store/dialect_pg.go) — so one huge email can't crash the query.
-// Exported because slice 02's search_fts trigger caps the same way.
+// mf_html_to_text (migration 0080) caps message_search.body_text the same way.
 export const FTS_BODY_CHAR_CAP = 600000;
+
+// The body text search reads: body_text, or for a message sent only as HTML, the text
+// migration 0080 keeps in message_search. Without it only the 200-character snippet of
+// an HTML-only body was searchable (D#320).
+export const SEARCH_BODY_SQL = `coalesce(m.body_text,
+          (SELECT ms.body_text FROM message_search ms WHERE ms.message_id = m.id), '')`;
 
 // Builds the per-term free-text OR-condition: a term matches if it appears in
 // the sender, the subject, the stored search_vector, or the length-capped body.
@@ -123,8 +130,8 @@ export function freeTextTermCondition(likeIdx, ftsIdx) {
         OR m.subject ILIKE $${likeIdx}
         OR m.search_vector @@ plainto_tsquery('english', $${ftsIdx})
         OR CASE WHEN numnode(plainto_tsquery('english', $${ftsIdx})) > 0
-          THEN to_tsvector('english', LEFT(coalesce(m.body_text,''), ${FTS_BODY_CHAR_CAP})) @@ plainto_tsquery('english', $${ftsIdx})
-          ELSE to_tsvector('simple', LEFT(coalesce(m.body_text,''), ${FTS_BODY_CHAR_CAP})) @@ plainto_tsquery('simple', $${ftsIdx})
+          THEN to_tsvector('english', LEFT(${SEARCH_BODY_SQL}, ${FTS_BODY_CHAR_CAP})) @@ plainto_tsquery('english', $${ftsIdx})
+          ELSE to_tsvector('simple', LEFT(${SEARCH_BODY_SQL}, ${FTS_BODY_CHAR_CAP})) @@ plainto_tsquery('simple', $${ftsIdx})
         END
       )`;
 }
@@ -136,7 +143,7 @@ export async function searchMessages(req, res) {
   if (trimmed.length > 500) return res.status(400).json({ error: 'Search query too long' });
 
   const accountsResult = await query(
-    'SELECT id, include_in_unified_inbox FROM email_accounts WHERE user_id = $1 AND enabled = true',
+    'SELECT id, include_in_unified_inbox, imap_host FROM email_accounts WHERE user_id = $1 AND enabled = true',
     [req.session.userId]
   );
   const { accountIds: targetIds } = resolveAccountScope(accountsResult.rows, accountId);
@@ -202,6 +209,8 @@ export async function searchMessages(req, res) {
   // AND between all terms: every word must appear somewhere in the email.
   // A negated term (-word) must appear nowhere.
 
+  const positiveTextConds = [];
+  const positiveTerms = [];
   for (const term of terms.slice(0, 10)) {
     if (term.value.length < 2) continue; // single-char terms are too broad and expensive
     params.push(`%${term.value}%`); // ILIKE pattern
@@ -211,7 +220,27 @@ export async function searchMessages(req, res) {
     const ftsIdx = p++;
 
     const cond = freeTextTermCondition(likeIdx, ftsIdx);
-    conditions.push(term.negate ? negateCond(cond) : cond);
+    if (term.negate) conditions.push(negateCond(cond));
+    else { positiveTextConds.push(cond); positiveTerms.push(term.value); }
+  }
+
+  // A Gmail body MailFlow never downloaded is searched on Gmail's side (D#320): a message Gmail
+  // reports for the positive terms satisfies them as a group. Every other condition, including
+  // -word exclusions, still applies here.
+  if (positiveTextConds.length) {
+    let textCond = positiveTextConds.join('\n        AND ');
+    const gmail = req.mcpAccountId ? null : await gmailServerMatches(
+      accountsResult.rows.filter(account => targetIds.includes(account.id)),
+      positiveTerms,
+      { loadAccounts: async ids => (await query('SELECT * FROM email_accounts WHERE id = ANY($1) AND user_id = $2 AND enabled = true', [ids, req.session.userId])).rows },
+    );
+    if (gmail) {
+      params.push(gmail.accountIds, gmail.providerIds, gmail.messageIds);
+      textCond = `((${textCond})
+        OR (m.account_id = ANY($${p}) AND (m.provider_msgid = ANY($${p + 1}) OR m.message_id = ANY($${p + 2}))))`;
+      p += 3;
+    }
+    conditions.push(textCond);
   }
 
   // Require at least one real search condition before applying folder scope, so a
