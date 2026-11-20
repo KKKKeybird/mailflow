@@ -3,6 +3,7 @@ import { query } from '../services/db.js';
 import { requireAuth } from '../middleware/auth.js';
 import { resolveAccountScope } from '../services/unifiedInbox.js';
 import { gmailServerMatches } from '../services/gmailServerSearch.js';
+import { findOwnedAccounts } from '../services/ownership.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -232,7 +233,7 @@ export async function searchMessages(req, res) {
     const gmail = req.mcpAccountId ? null : await gmailServerMatches(
       accountsResult.rows.filter(account => targetIds.includes(account.id)),
       positiveTerms,
-      { loadAccounts: async ids => (await query('SELECT * FROM email_accounts WHERE id = ANY($1) AND user_id = $2 AND enabled = true', [ids, req.session.userId])).rows },
+      { loadAccounts: ids => findOwnedAccounts(req.session.userId, ids, { enabled: true }) },
     );
     if (gmail) {
       params.push(gmail.accountIds, gmail.providerIds, gmail.messageIds);
