@@ -1,5 +1,6 @@
 import { createBoundedCache, detachCacheString } from '../services/boundedCache.js';
 import { senderGroupTargets } from '../services/senderGroupTargets.js';
+import { notifyMessageRowsDeleted } from '../services/messageRowsDeleted.js';
 import { STATUS_STALE_MS } from '../services/folderStatus.js';
 import { Router } from 'express';
 import { createRequire } from 'module';
@@ -134,6 +135,7 @@ export async function relocateRows(ids, newUids, folder) {
     SELECT d.* FROM deleted d WHERE NOT (d.id = ANY($2::uuid[]))
   `, [ids, withUid, withUid.map(id => newUids.get(id)), folder]);
   rememberDroppedRows(folder, result?.rows);
+  return result?.rows || [];
 }
 
 
@@ -1332,7 +1334,8 @@ router.post('/folders/delete', async (req, res) => {
     return res.status(500).json({ error: 'Failed to delete folder on server' });
   }
   await query('DELETE FROM folders WHERE account_id = $1 AND path = $2', [accountId, path]);
-  await query('DELETE FROM messages WHERE account_id = $1 AND folder = $2', [accountId, path]);
+  const deleted = await query('DELETE FROM messages WHERE account_id = $1 AND folder = $2 RETURNING thread_key', [accountId, path]);
+  notifyMessageRowsDeleted(account, deleted.rows, path);
   res.json({ ok: true });
 });
 
@@ -1381,7 +1384,7 @@ router.post('/folders/rename', async (req, res) => {
       'UPDATE folders SET name = $1, updated_at = NOW() WHERE account_id = $2 AND path = $3',
       [newName.trim(), accountId, newPath]
     );
-    await query(`
+    const removedDuplicates = await query(`
       DELETE FROM messages old
       WHERE old.account_id = $1
         AND (old.folder = $2 OR substr(old.folder, 1, length($3)) = $3)
@@ -1390,7 +1393,8 @@ router.post('/folders/rename', async (req, res) => {
           WHERE n.account_id = $1
             AND n.folder = $4 || substr(old.folder, length($2) + 1)
             AND n.uid = old.uid
-        )`, [accountId, oldPath, childPrefix, newPath]);
+        ) RETURNING old.account_id, old.folder, old.thread_key`, [accountId, oldPath, childPrefix, newPath]);
+    notifyMessageRowsDeleted(account, removedDuplicates.rows);
     await query(`
       UPDATE messages SET folder = $4 || substr(folder, length($2) + 1)
       WHERE account_id = $1
@@ -1439,11 +1443,15 @@ router.post('/folders/empty', async (req, res) => {
   (async () => {
     try {
       await imapManager.emptyFolder(account, path);
-      await query('DELETE FROM messages WHERE account_id = $1 AND folder = $2', [accountId, path]);
-      await query(
-        'UPDATE folders SET total_count = 0, unread_count = 0 WHERE account_id = $1 AND path = $2',
-        [accountId, path]
-      );
+      const deleted = await query('DELETE FROM messages WHERE account_id = $1 AND folder = $2 RETURNING thread_key', [accountId, path]);
+      try {
+        await query(
+          'UPDATE folders SET total_count = 0, unread_count = 0 WHERE account_id = $1 AND path = $2',
+          [accountId, path]
+        );
+      } finally {
+        notifyMessageRowsDeleted(account, deleted.rows, path);
+      }
       imapManager.broadcast({ type: 'folder_emptied', accountId, folder: path, ok: true }, account.user_id);
       imapManager.broadcast({ type: 'sync_complete', accountId }, account.user_id);
     } catch (err) {
@@ -1649,6 +1657,7 @@ router.post('/messages/bulk-delete', async (req, res) => {
   }
 
   const moveGuards = [];
+  const removedRows = [];
   try {
     const owned = await findOwnedMessages(req.session.userId, ids, { columns: 'm.*, a.user_id, a.folder_mappings' });
     if (!owned.length) return res.json({ ok: true, deleted: [] });
@@ -1731,14 +1740,16 @@ router.post('/messages/bulk-delete', async (req, res) => {
 
     // Permanently deleted: remove DB rows immediately.
     if (expungeSucceeded.length) {
-      await query('DELETE FROM messages WHERE id = ANY($1::uuid[])', [expungeSucceeded.map(m => m.id)]);
+      const deletedRows = await query('DELETE FROM messages WHERE id = ANY($1::uuid[]) RETURNING account_id, folder, thread_key', [expungeSucceeded.map(m => m.id)]);
+      removedRows.push(...deletedRows.rows);
     }
 
     // Sync never corrects a row whose uid holds another message. Drop the refused rows, so a sync
     // can file what the server holds at those uids, and pull their folders. They are left out of
     // `deleted`.
     if (expungeRefused.length) {
-      await query('DELETE FROM messages WHERE id = ANY($1::uuid[])', [expungeRefused.map(m => m.id)]);
+      const deletedRows = await query('DELETE FROM messages WHERE id = ANY($1::uuid[]) RETURNING account_id, folder, thread_key', [expungeRefused.map(m => m.id)]);
+      removedRows.push(...deletedRows.rows);
       const refusedBy = {};
       for (const msg of expungeRefused) {
         const key = `${msg.account_id}:${msg.folder}`;
@@ -1747,7 +1758,7 @@ router.post('/messages/bulk-delete', async (req, res) => {
         if (!msg.is_read) refusedBy[key].unread++;
       }
       for (const { account, path, total, unread } of Object.values(refusedBy)) {
-        adjustFolderCounts(account.id, path, -total, -unread);
+        await adjustFolderCounts(account.id, path, -total, -unread);
         imapManager.syncFolderOnDemand(account, path)
           .catch(err => console.warn('post-delete folder sync failed:', err.message));
         imapManager.broadcast({ type: 'folder_updated', folder: path, accountId: account.id }, req.session.userId);
@@ -1765,7 +1776,7 @@ router.post('/messages/bulk-delete', async (req, res) => {
       for (const [trashPath, entries] of Object.entries(byTrashPath)) {
         const allIds    = entries.map(u => u.msg.id);
         const withUid   = entries.filter(u => u.newUid);
-        await relocateRows(allIds, new Map(withUid.map(u => [u.msg.id, u.newUid])), trashPath);
+        removedRows.push(...await relocateRows(allIds, new Map(withUid.map(u => [u.msg.id, u.newUid])), trashPath));
       }
       // Non-UIDPLUS trash moves were deleted with no reinsert; pull each affected
       // (account, trash folder) now so they reappear promptly instead of via IDLE.
@@ -1806,7 +1817,7 @@ router.post('/messages/bulk-delete', async (req, res) => {
         if (!msg.is_read) srcDeltas[key].unread++;
       }
       for (const { accountId, path, total, unread } of Object.values(srcDeltas)) {
-        adjustFolderCounts(accountId, path, -total, -unread);
+        await adjustFolderCounts(accountId, path, -total, -unread);
       }
       const dstDeltas = {};
       for (const { msg, trashPath } of trashMoveSucceeded) {
@@ -1816,7 +1827,7 @@ router.post('/messages/bulk-delete', async (req, res) => {
         if (!msg.is_read) dstDeltas[key].unread++;
       }
       for (const { accountId, path, total, unread } of Object.values(dstDeltas)) {
-        adjustFolderCounts(accountId, path, total, unread);
+        await adjustFolderCounts(accountId, path, total, unread);
       }
       // Notify clients viewing each Trash folder to refresh silently.
       for (const { accountId, path } of Object.values(dstDeltas)) {
@@ -1832,6 +1843,7 @@ router.post('/messages/bulk-delete', async (req, res) => {
     console.error('bulk-delete error:', err);
     res.status(500).json({ error: 'Failed to delete messages' });
   } finally {
+    notifyMessageRowsDeleted(null, removedRows, undefined, req.session.userId);
     for (const g of moveGuards) imapManager._unguardMoveUid(g.accountId, g.folder, g.uid);
   }
 });
@@ -1929,6 +1941,7 @@ router.post('/messages/bulk-move', async (req, res) => {
   }
 
   const moveGuards = [];
+  const removedRows = [];
   try {
     const owned = await findOwnedMessages(req.session.userId, ids, { columns: 'm.*, a.user_id' });
     if (!owned.length) return res.json({ ok: true, moved: [] });
@@ -1993,7 +2006,7 @@ router.post('/messages/bulk-move', async (req, res) => {
       // keeps it intact. For messages without new UIDs the DELETE-only path relies
       // on IMAP IDLE + the message_id pre-check in processMsg to re-insert them.
       const uidUpdateMap = new Map(uidUpdates.map(u => [u.id, u.newUid]));
-      await relocateRows(movedIds, uidUpdateMap, folder);
+      removedRows.push(...await relocateRows(movedIds, uidUpdateMap, folder));
       // Messages moved on a non-UIDPLUS server were deleted with no reinsert; pull the
       // destination folder now so they reappear promptly instead of waiting for IDLE.
       for (const acct of resyncAccounts) {
@@ -2011,8 +2024,8 @@ router.post('/messages/bulk-move', async (req, res) => {
         if (!msg.is_read) srcTotals[key].unread++;
       }
       for (const { accountId, path, total, unread } of Object.values(srcTotals)) {
-        adjustFolderCounts(accountId, path, -total, -unread);
-        adjustFolderCounts(accountId, folder, total, unread);
+        await adjustFolderCounts(accountId, path, -total, -unread);
+        await adjustFolderCounts(accountId, folder, total, unread);
       }
 
       // Notify clients that the destination folder has new content so they
@@ -2030,6 +2043,7 @@ router.post('/messages/bulk-move', async (req, res) => {
     console.error('bulk-move error:', err);
     res.status(500).json({ error: 'Failed to move messages' });
   } finally {
+    notifyMessageRowsDeleted(null, removedRows, undefined, req.session.userId);
     for (const g of moveGuards) imapManager._unguardMoveUid(g.accountId, g.folder, g.uid);
   }
 });
@@ -2084,6 +2098,7 @@ router.post('/messages/bulk-archive', async (req, res) => {
   }
 
   const moveGuards = [];
+  const removedRows = [];
   try {
     const owned = await findOwnedMessages(req.session.userId, ids, { columns: 'm.*, a.user_id, a.folder_mappings' });
     if (!owned.length) return res.json({ ok: true, archived: [], noArchiveFolder: [] });
@@ -2147,11 +2162,12 @@ router.post('/messages/bulk-archive', async (req, res) => {
     for (const [archiveFolder, entries] of Object.entries(byFolder)) {
       const allIds  = entries.map(e => e.id);
       if (allMailDestFolders.has(archiveFolder)) {
-        await query('DELETE FROM messages WHERE id = ANY($1::uuid[])', [allIds]);
+        const deletedRows = await query('DELETE FROM messages WHERE id = ANY($1::uuid[]) RETURNING account_id, folder, thread_key', [allIds]);
+        removedRows.push(...deletedRows.rows);
         continue;
       }
       const withUid = entries.filter(e => e.newUid != null);
-      await relocateRows(allIds, new Map(withUid.map(e => [e.id, e.newUid])), archiveFolder);
+      removedRows.push(...await relocateRows(allIds, new Map(withUid.map(e => [e.id, e.newUid])), archiveFolder));
     }
 
     // Non-UIDPLUS archive moves were deleted with no reinsert; pull each affected
@@ -2191,7 +2207,7 @@ router.post('/messages/bulk-archive', async (req, res) => {
         folderDeltas[dstKey].unreadDelta += wasUnread;
       }
       for (const { accountId, path, totalDelta, unreadDelta } of Object.values(folderDeltas)) {
-        adjustFolderCounts(accountId, path, totalDelta, unreadDelta);
+        await adjustFolderCounts(accountId, path, totalDelta, unreadDelta);
       }
       // Notify clients viewing each destination folder to refresh silently.
       const destFolders = [...new Set(archivedIds.map(a => a.folder))].filter(f => !allMailDestFolders.has(f));
@@ -2214,6 +2230,7 @@ router.post('/messages/bulk-archive', async (req, res) => {
     console.error('bulk-archive error:', err);
     res.status(500).json({ error: 'Failed to archive messages' });
   } finally {
+    notifyMessageRowsDeleted(null, removedRows, undefined, req.session.userId);
     for (const g of moveGuards) imapManager._unguardMoveUid(g.accountId, g.folder, g.uid);
   }
 });
@@ -2431,13 +2448,17 @@ router.post('/messages/:id/snooze', async (req, res) => {
         // message in Snoozed. Drop the row and let a sync of Snoozed file the message, which
         // the snooze below still finds by its Message-ID.
         const dropped = await query('DELETE FROM messages WHERE id = $1 RETURNING *', [tm.id]);
+        await adjustFolderCounts(tm.account_id, tm.folder, -1, tm.is_read ? 0 : -1);
+        notifyMessageRowsDeleted(account, dropped.rows);
         rememberDroppedRows(snoozedFolder, dropped.rows);
         imapManager.syncFolderOnDemand(account, snoozedFolder)
           .catch(err => console.warn(`Sync of ${snoozedFolder} after a snooze without a new uid failed: ${err.message}`));
       }
 
-      adjustFolderCounts(tm.account_id, tm.folder, -1, tm.is_read ? 0 : -1);
-      if (snoozedUid != null) adjustFolderCounts(tm.account_id, snoozedFolder, 1, tm.is_read ? 0 : 1);
+      if (snoozedUid != null) {
+        await adjustFolderCounts(tm.account_id, tm.folder, -1, tm.is_read ? 0 : -1);
+        await adjustFolderCounts(tm.account_id, snoozedFolder, 1, tm.is_read ? 0 : 1);
+      }
     } finally {
       imapManager._unguardMoveUid(tm.account_id, tm.folder, tm.uid);
     }
@@ -2496,8 +2517,9 @@ router.post('/messages/:id/unsnooze', async (req, res) => {
 // holds at that uid, and pull the folder.
 async function refuseStaleExpunge(req, res, account, message, wasUnread) {
   console.warn(`Not permanently deleting uid=${message.uid} in ${message.folder}: the server copy there is not this row's message`);
-  await query('DELETE FROM messages WHERE id = $1', [message.id]);
-  adjustFolderCounts(message.account_id, message.folder, -1, -wasUnread);
+  const deletedRows = await query('DELETE FROM messages WHERE id = $1 RETURNING account_id, folder, thread_key', [message.id]);
+  await adjustFolderCounts(message.account_id, message.folder, -1, -wasUnread);
+  notifyMessageRowsDeleted(account, deletedRows.rows);
   imapManager.syncFolderOnDemand(account, message.folder)
     .catch(err => console.warn('post-delete folder sync failed:', err.message));
   imapManager.broadcast({ type: 'folder_updated', folder: message.folder, accountId: message.account_id }, req.session.userId);
@@ -2525,8 +2547,9 @@ async function deleteMessage(req, res, id) {
       return res.status(500).json({ error: 'Failed to delete draft' });
     }
     if (deleted === false) return refuseStaleExpunge(req, res, account, message, wasUnread);
-    await query('DELETE FROM messages WHERE id = $1', [id]);
-    adjustFolderCounts(message.account_id, message.folder, -1, -wasUnread);
+    const deletedRows = await query('DELETE FROM messages WHERE id = $1 RETURNING account_id, folder, thread_key', [id]);
+    await adjustFolderCounts(message.account_id, message.folder, -1, -wasUnread);
+    notifyMessageRowsDeleted(account, deletedRows.rows);
     imapManager.broadcast({ type: 'folder_updated', folder: message.folder, accountId: message.account_id }, req.session.userId);
     return res.json({ ok: true });
   }
@@ -2544,6 +2567,7 @@ async function deleteMessage(req, res, id) {
     // the DB row if an EXPUNGE arrives while the move is in flight.
     imapManager._guardMoveUid(message.account_id, message.folder, message.uid);
     let newUid;
+    let removedRows;
     try {
       try {
         newUid = await imapManager.moveMessage(account, message.uid, message.folder, trashPath);
@@ -2557,23 +2581,28 @@ async function deleteMessage(req, res, id) {
       if (newUid != null) {
         // Delete any stale row the sync may have already inserted at the destination,
         // then update the source row in place to avoid a unique-constraint violation.
-        await query('DELETE FROM messages WHERE account_id = $1 AND uid = $2 AND folder = $3 AND id != $4',
+        const deletedRows = await query('DELETE FROM messages WHERE account_id = $1 AND uid = $2 AND folder = $3 AND id != $4 RETURNING account_id, folder, thread_key',
           [message.account_id, newUid, trashPath, id]);
+        removedRows = deletedRows.rows;
         await query('UPDATE messages SET folder = $1, uid = $2, id = gen_random_uuid() WHERE id = $3', [trashPath, newUid, id]);
       } else {
         // The new uid is not known (see moveMessage). The source uid can belong to another
         // message in Trash, so the row is dropped rather than kept on it, and a sync of Trash
         // files the message under its real uid; Trash's counts come from that sync.
         const dropped = await query('DELETE FROM messages WHERE id = $1 RETURNING *', [id]);
+        removedRows = dropped.rows;
         rememberDroppedRows(trashPath, dropped.rows);
         imapManager.syncFolderOnDemand(account, trashPath)
           .catch(err => console.warn(`Sync of ${trashPath} after a delete without a new uid failed: ${err.message}`));
       }
     } finally {
+      if (removedRows) {
+        await adjustFolderCounts(message.account_id, message.folder, -1, -wasUnread);
+        if (newUid != null) await adjustFolderCounts(message.account_id, trashPath, 1, wasUnread);
+        notifyMessageRowsDeleted(account, removedRows);
+      }
       imapManager._unguardMoveUid(message.account_id, message.folder, message.uid);
     }
-    adjustFolderCounts(message.account_id, message.folder, -1, -wasUnread);
-    if (newUid != null) adjustFolderCounts(message.account_id, trashPath, 1, wasUnread);
   } else {
     // strategy.action === 'expunge': message is already in Trash — permanently delete. A move
     // into Trash without UIDPLUS leaves the row under the message's source uid, which in Trash
@@ -2586,8 +2615,9 @@ async function deleteMessage(req, res, id) {
       return res.status(500).json({ error: 'Failed to delete message' });
     }
     if (deleted === false) return refuseStaleExpunge(req, res, account, message, wasUnread);
-    await query('DELETE FROM messages WHERE id = $1', [id]);
-    adjustFolderCounts(message.account_id, message.folder, -1, -wasUnread);
+    const deletedRows = await query('DELETE FROM messages WHERE id = $1 RETURNING account_id, folder, thread_key', [id]);
+    await adjustFolderCounts(message.account_id, message.folder, -1, -wasUnread);
+    notifyMessageRowsDeleted(account, deletedRows.rows);
   }
   imapManager.broadcast({ type: 'folder_updated', folder: message.folder, accountId: message.account_id }, req.session.userId);
   // Refresh GTD section data if this thread still carries a GTD label sibling (same staleness the
@@ -2722,6 +2752,8 @@ async function moveForSpamLabel(messageId, userId, destinationFolder, label) {
   // delete the DB row if an EXPUNGE arrives while the move is in flight.
   imapManager._guardMoveUid(account.id, message.folder, message.uid);
   let newUid;
+  let removedRows;
+  const wasUnread = !message.is_read ? 1 : 0;
   try {
     try {
       newUid = await imapManager.moveMessage(account, message.uid, message.folder, destinationFolder);
@@ -2730,8 +2762,9 @@ async function moveForSpamLabel(messageId, userId, destinationFolder, label) {
       return { ok: false, status: 502, error: `IMAP move failed: ${err.message}` };
     }
     if (newUid != null) {
-      await query('DELETE FROM messages WHERE account_id = $1 AND uid = $2 AND folder = $3 AND id != $4',
+      const deletedRows = await query('DELETE FROM messages WHERE account_id = $1 AND uid = $2 AND folder = $3 AND id != $4 RETURNING account_id, folder, thread_key',
         [account.id, newUid, destinationFolder, messageId]);
+      removedRows = deletedRows.rows;
       await query(
         `UPDATE messages SET folder = $1, uid = $2,
             spam_user_override = $3, spam_verdict = $3, spam_analyzed_at = NOW()
@@ -2745,19 +2778,20 @@ async function moveForSpamLabel(messageId, userId, destinationFolder, label) {
       // The decision this move makes goes with it, so the destination's sync files the
       // message with the user's verdict and does not classify it again.
       const dropped = await query('DELETE FROM messages WHERE id = $1 RETURNING *', [messageId]);
+      removedRows = dropped.rows;
       rememberDroppedRows(destinationFolder, dropped.rows,
         { spam_user_override: label, spam_verdict: label, spam_analyzed_at: new Date() });
       imapManager.syncFolderOnDemand(account, destinationFolder)
         .catch(err => console.warn(`Sync of ${destinationFolder} after a move without a new uid failed: ${err.message}`));
     }
   } finally {
+    if (removedRows) {
+      await adjustFolderCounts(account.id, message.folder, -1, -wasUnread);
+      if (newUid != null) await adjustFolderCounts(account.id, destinationFolder, 1, wasUnread);
+      notifyMessageRowsDeleted(account, removedRows);
+    }
     imapManager._unguardMoveUid(account.id, message.folder, message.uid);
   }
-
-  // Adjust cached folder counts.
-  const wasUnread = !message.is_read ? 1 : 0;
-  adjustFolderCounts(account.id, message.folder, -1, -wasUnread);
-  if (newUid != null) adjustFolderCounts(account.id, destinationFolder, 1, wasUnread);
 
   // Training log: capture the decision for future model training. Record the UID that now
   // lives in the destination folder: the row was re-keyed to newUid above, so message.uid (the

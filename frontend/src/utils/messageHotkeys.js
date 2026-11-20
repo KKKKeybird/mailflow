@@ -1,4 +1,6 @@
 import { selectedListMessage } from './messageRowTree.js';
+import { inboxShare } from './inboxBadge.js';
+
 // Resolve the selected row across the ordinary list, search, deep-link stash,
 // and GTD rail. GTD copies may not exist in the current mailbox's messages.
 export function selectedMessage(state) {
@@ -23,13 +25,15 @@ export function markMessageUnread(message, { cancel, update, incrementUnread, de
   cancel?.();
   if (!message.is_read) return true;
   update?.(message.id, { is_read: false });
-  incrementUnread?.(message.account_id);
-  adjustCategoryCount?.(message.category, 1);
+  // The badge and the category counts are INBOX only (inboxBadge.js).
+  const share = inboxShare(message);
+  if (share) incrementUnread?.(message.account_id, share);
+  if (share) adjustCategoryCount?.(message.category, share);
   void Promise.resolve(patch?.([message.id], false)).catch(error => {
     console.error('markUnread failed:', error?.message);
     update?.(message.id, { is_read: true });
-    decrementUnread?.(message.account_id);
-    adjustCategoryCount?.(message.category, -1);
+    if (share) decrementUnread?.(message.account_id, share);
+    if (share) adjustCategoryCount?.(message.category, -share);
   });
   return true;
 }

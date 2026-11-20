@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useStore } from '../store/index.js';
 import { getPluginMeta } from '../plugins/registry.js';
 import { PluginSlot } from '../plugins/PluginSlot.jsx';
+import TagsSettings from '../tags/TagsSettings.jsx';
 import { newAiAction, AI_ACTION_LIMITS } from '../aiActions.js';
 import { useMobile } from '../hooks/useMobile.js';
 import { api } from '../utils/api.js';
@@ -20,11 +21,14 @@ import {
   AI_CONNECTION_METHOD_OPTIONS,
   AI_PROVIDER_API_KEY,
   AI_PROVIDER_CHATGPT,
+  MAX_EXTRA_HEADERS,
   OPENAI_MODELS_URL,
   buildAiSavePayload,
   createCodexDevicePoller,
+  editExtraHeaderValue,
   isAiFormValid,
   normalizeAiForm,
+  renameExtraHeader,
   selectAiConnectionMethod,
 } from '../utils/aiConfig.js';
 import { THEMES, applyTheme, applyCustomCss } from '../themes.js';
@@ -35,7 +39,7 @@ import { usePushNotifications } from '../hooks/usePushNotifications.js';
 import SignatureEditor from './SignatureEditor.jsx';
 import DiagnosticsReportModal from './DiagnosticsReportModal.jsx';
 import { getEffectiveShortcuts, getGroupedActions, getShortcutConflicts, shortcutActionText, shortcutBindingFromEvent, SPECIAL_KEY_LABELS, parseModKey, modLabel } from '../utils/defaultShortcuts.js';
-import { isValidForwardAddress } from '../utils/ruleActions.js';
+import { isValidForwardAddress, labelNameErrorKey, MAX_LABEL_NAME_LENGTH } from '../utils/ruleActions.js';
 import { folderParentLabel } from '../utils/folderDisplay.js';
 import AdminUserEditor from './AdminUserEditor.jsx';
 import AccountErrorCallout from './AccountErrorCallout.jsx';
@@ -52,6 +56,8 @@ import SpamSettings from './SpamSettings.jsx';
 import BackupSettings from './BackupSettings.jsx';
 import PasswordInput from './PasswordInput.jsx';
 import ApiTokensSection from './ApiTokensSection.jsx';
+import WebhookSettings, { AdminWebhookSettings } from './WebhookSettings.jsx';
+import ToggleRow from './SettingsToggleRow.jsx';
 
 // ─── Shared field component ───────────────────────────────────────────────────
 function Field({ label, required, children }) {
@@ -2112,44 +2118,6 @@ function ChoiceChips({ options, isActive, onSelect, wrap = false }) {
   );
 }
 
-// An on/off setting: its name and what it does, with a switch on the right.
-function ToggleRow({ label, desc, checked, onChange, disabled = false }) {
-  return (
-    <div style={{
-      display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16,
-      padding: '10px 12px', borderRadius: 8,
-      background: 'var(--bg-tertiary)', border: '1px solid var(--border-subtle)',
-    }}>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ fontSize: 12, fontWeight: 500, color: 'var(--text-primary)' }}>{label}</div>
-        {desc && <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 2, lineHeight: 1.4 }}>{desc}</div>}
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        aria-label={label}
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        style={{
-          width: 44, height: 24, borderRadius: 12,
-          background: checked ? 'var(--accent)' : 'var(--bg-elevated)',
-          border: `1px solid ${checked ? 'var(--accent)' : 'var(--border)'}`,
-          cursor: disabled ? 'not-allowed' : 'pointer',
-          position: 'relative', transition: 'all 0.2s', flexShrink: 0,
-          opacity: disabled ? 0.6 : 1,
-        }}
-      >
-        <span style={{
-          position: 'absolute', top: 3, left: checked ? 22 : 3,
-          width: 16, height: 16, borderRadius: '50%', background: 'white',
-          transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-        }} />
-      </button>
-    </div>
-  );
-}
-
 // ─── Appearance › Layout ─────────────────────────────────────────────────────
 // How things look: the pane arrangement and what the message list shows. How MailFlow acts
 // (reading, writing, sync) is under Behavior.
@@ -4026,6 +3994,66 @@ function AISection() {
     </div>
   );
 
+  // Extra request headers for a gateway in front of the provider (#746).
+  const setExtraHeaders = update => setForm(f => ({
+    ...f, apiKeyConfig: { ...f.apiKeyConfig, extraHeaders: update(f.apiKeyConfig.extraHeaders) },
+  }));
+  const updateExtraHeader = (index, change) => setExtraHeaders(list => list.map((header, i) => (i === index ? change(header) : header)));
+  const headerInputStyle = { flex: '1 1 0', minWidth: 0, background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: 6, padding: '7px 10px', color: 'var(--text-primary)', fontSize: 13 };
+  const extraHeadersSection = (
+    <div style={{ marginBottom: 14 }}>
+      <div id="ai-extra-headers-label" style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 3 }}>{t('admin.ai.extraHeaders')}</div>
+      <div id="ai-extra-headers-help" style={{ fontSize: 11, color: 'var(--text-tertiary)', marginBottom: 8, lineHeight: 1.4 }}>{t('admin.ai.extraHeadersHelp')}</div>
+      {form.apiKeyConfig.extraHeaders.map((header, index) => (
+        <div
+          key={index}
+          role="group"
+          aria-labelledby="ai-extra-headers-label"
+          style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}
+        >
+          <input
+            type="text"
+            value={header.name}
+            onChange={e => updateExtraHeader(index, h => renameExtraHeader(h, e.target.value))}
+            placeholder={t('admin.ai.headerNamePh')}
+            aria-label={t('admin.ai.headerName')}
+            autoComplete="off"
+            spellCheck={false}
+            style={headerInputStyle}
+          />
+          <input
+            type="password"
+            value={header.value}
+            onChange={e => updateExtraHeader(index, h => editExtraHeaderValue(h, e.target.value))}
+            placeholder={t('admin.ai.headerValue')}
+            aria-label={t('admin.ai.headerValueFor', { name: header.name.trim() || t('admin.ai.headerName') })}
+            aria-describedby="ai-extra-headers-help"
+            autoComplete="new-password"
+            style={headerInputStyle}
+          />
+          <button
+            type="button"
+            onClick={() => setExtraHeaders(list => list.filter((_, i) => i !== index))}
+            aria-label={t('admin.ai.removeHeader', { name: header.name.trim() || t('admin.ai.headerName') })}
+            title={t('admin.ai.removeHeader', { name: header.name.trim() || t('admin.ai.headerName') })}
+            style={{ flexShrink: 0, alignSelf: 'stretch', width: 34, background: 'none', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 16, lineHeight: 1 }}
+          >
+            ×
+          </button>
+        </div>
+      ))}
+      {form.apiKeyConfig.extraHeaders.length < MAX_EXTRA_HEADERS && (
+        <button
+          type="button"
+          onClick={() => setExtraHeaders(list => [...list, { name: '', value: '', storedName: '' }])}
+          style={{ fontSize: 12, padding: '5px 10px', background: 'none', border: '1px dashed var(--border)', borderRadius: 6, color: 'var(--text-secondary)', cursor: 'pointer' }}
+        >
+          {t('admin.ai.addHeader')}
+        </button>
+      )}
+    </div>
+  );
+
   // A switch inside its label, so the text toggles it too and a screen reader reads its state.
   const toggle = (label, checked, onChange) => (
     <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', marginBottom: 10 }}>
@@ -4129,6 +4157,7 @@ function AISection() {
             {field(t('admin.ai.baseUrl'), form.apiKeyConfig.baseUrl, value => setForm(f => ({ ...f, apiKeyConfig: { ...f.apiKeyConfig, baseUrl: value } })), 'text', t('admin.ai.baseUrlPh'))}
             {field(t('admin.ai.apiKey'), form.apiKeyConfig.apiKey, value => setForm(f => ({ ...f, apiKeyConfig: { ...f.apiKeyConfig, apiKey: value } })), 'password', t('admin.ai.apiKeyPh'))}
             {field(t('admin.ai.model'), form.apiKeyConfig.model, value => setForm(f => ({ ...f, apiKeyConfig: { ...f.apiKeyConfig, model: value } })), 'text', t('admin.ai.modelPh'))}
+            {extraHeadersSection}
             {config?.provider === AI_PROVIDER_API_KEY && (
               <button type="button" onClick={handleTest} disabled={testing} style={{ fontSize: 12, padding: '6px 12px', marginBottom: 14, background: 'var(--bg-secondary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', cursor: testing ? 'default' : 'pointer', opacity: testing ? 0.6 : 1 }}>
                 {testing ? t('admin.ai.testing') : t('admin.ai.test')}
@@ -4565,6 +4594,8 @@ function CategoriesSection({ initialSubTab }) {
           </div>
         </>
       )}
+
+      <TagsSettings />
 
       {/* Plugins that contribute settings under the Categories tab (currently GTD). Rendered only
           while the plugin is activated; core knows nothing plugin-specific here. */}
@@ -5705,6 +5736,7 @@ function NotificationsTab() {
 
       {/* Push Notifications */}
       <PushNotificationsSection />
+      <WebhookSettings />
     </div>
   );
 }
@@ -5802,7 +5834,7 @@ const LANGUAGES = [
 
 function LanguageTab() {
   const { t } = useTranslation();
-  const { language, setLanguage } = useStore();
+  const { language, setLanguage, timeFormat, setTimeFormat } = useStore();
 
   return (
     <div>
@@ -5844,6 +5876,26 @@ function LanguageTab() {
             </button>
           );
         })}
+      </div>
+
+      {/* Time format (#758): independent of the language above. Automatic keeps the
+          clock the language implies; 12- / 24-hour force it either way. */}
+      <div style={{ marginTop: 28 }}>
+        <div style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
+          {t('admin.appearance.timeFormat')}
+        </div>
+        <div style={{ fontSize: 13, color: 'var(--text-tertiary)', marginBottom: 20 }}>
+          {t('admin.appearance.timeFormatDesc')}
+        </div>
+        <ChoiceChips
+          isActive={v => timeFormat === v}
+          onSelect={setTimeFormat}
+          options={[
+            { value: 'auto', label: t('admin.appearance.timeFormatAuto') },
+            { value: '12',   label: t('admin.appearance.timeFormat12') },
+            { value: '24',   label: t('admin.appearance.timeFormat24') },
+          ]}
+        />
       </div>
     </div>
   );
@@ -6057,6 +6109,8 @@ function RulesTab() {
       if (detail.ok === false) setRunError(t('admin.rules.runError'));
       else setRunResult({ processed: detail.processed, matched: detail.matched });
       setRunningRules(false);
+      // A run can record or clear an Apply label failure (D#751): show the rules as they are now.
+      api.getRules().then(setRules).catch(() => {});
     };
     window.addEventListener('mailflow:rules-run-complete', onRunComplete);
     return () => window.removeEventListener('mailflow:rules-run-complete', onRunComplete);
@@ -6179,6 +6233,12 @@ function RulesTab() {
       setFormError(t('admin.rules.errorForwardEmail'));
       return;
     }
+    const labelAction = actions.find(action => action.type === 'apply_label');
+    const labelError = labelAction && labelNameErrorKey(labelAction.value);
+    if (labelError) {
+      setFormError(t(labelError));
+      return;
+    }
     setFormSaving(true);
     setFormError('');
     try {
@@ -6272,13 +6332,32 @@ function RulesTab() {
     }).join(` ${rule.condition_logic} `) + (conds.length > 2 ? ` +${conds.length - 2}` : '');
   }
 
+  // Where the rule's Apply label last failed, per account (D#751), as the list says it. An account
+  // since removed is left out; the next save or successful run clears it anyway.
+  function labelFailures(rule) {
+    const recorded = rule.label_failures && typeof rule.label_failures === 'object' ? rule.label_failures : {};
+    return Object.entries(recorded).flatMap(([accountId, failure]) => {
+      const account = accounts.find(a => a.id === accountId);
+      if (!account || !failure) return [];
+      const when = failure.at ? new Date(failure.at) : null;
+      return [{
+        accountId,
+        label: failure.label || '',
+        account: account.email_address || account.name || '',
+        when: when && !Number.isNaN(when.getTime()) ? formatDateTime(when) : '',
+        error: failure.subject ? `${failure.error} (“${failure.subject}”)` : failure.error,
+      }];
+    });
+  }
+
   function actionSummary(rule) {
     const acts = Array.isArray(rule.actions) ? rule.actions : [];
     if (!acts.length) return '—';
-    const labels = { mark_read: t('admin.rules.actionMarkRead'), star: t('admin.rules.actionStar'), forward: t('admin.rules.actionForward'), archive: t('admin.rules.actionArchive'), delete: t('admin.rules.actionDelete'), move: t('admin.rules.actionMove'), set_category: t('admin.rules.actionSetCategory'), notify: t('admin.rules.actionNotify') };
-    // Show the move destination and the category so same-named rules are tellable apart at a glance.
+    const labels = { mark_read: t('admin.rules.actionMarkRead'), star: t('admin.rules.actionStar'), forward: t('admin.rules.actionForward'), archive: t('admin.rules.actionArchive'), delete: t('admin.rules.actionDelete'), move: t('admin.rules.actionMove'), set_category: t('admin.rules.actionSetCategory'), notify: t('admin.rules.actionNotify'), apply_label: t('admin.rules.actionApplyLabel') };
+    // Show the move destination, the label and the category so same-named rules are tellable apart at a glance.
     return acts.map(a => {
       if (a.type === 'move' && a.value) return `${labels.move} → ${a.value}`;
+      if (a.type === 'apply_label' && a.value) return `${labels.apply_label} → ${a.value}`;
       if (a.type === 'set_category' && a.value) return `${labels.set_category} → ${t(`messageList.categories.${a.value}`)}`;
       return labels[a.type] || a.type;
     }).join(', ');
@@ -6309,6 +6388,7 @@ function RulesTab() {
     { type: 'archive',   label: t('admin.rules.actionArchive') },
     { type: 'delete',    label: t('admin.rules.actionDelete') },
     { type: 'move',      label: t('admin.rules.actionMove') },
+    { type: 'apply_label', label: t('admin.rules.actionApplyLabel') },
     { type: 'set_category', label: t('admin.rules.actionSetCategory') },
     { type: 'notify',    label: t('admin.rules.actionNotify') },
   ];
@@ -6524,6 +6604,24 @@ function RulesTab() {
                     {t('admin.rules.actionNotifyHint')}
                   </div>
                 )}
+                {type === 'apply_label' && checked && (
+                  <input
+                    type="text"
+                    autoComplete="off"
+                    maxLength={MAX_LABEL_NAME_LENGTH}
+                    aria-label={t('admin.rules.actionApplyLabel')}
+                    aria-describedby="rule-apply-label-hint"
+                    style={{ ...inputStyle, marginTop: 6, marginLeft: 22 }}
+                    value={fd.actions.find(action => action.type === 'apply_label')?.value || ''}
+                    onChange={event => setActionValue('apply_label', event.target.value)}
+                    placeholder={t('admin.rules.actionApplyLabelPlaceholder')}
+                  />
+                )}
+                {type === 'apply_label' && (
+                  <div id="rule-apply-label-hint" style={{ fontSize: 11, color: 'var(--text-tertiary)', marginLeft: 22, marginTop: 2, lineHeight: 1.4 }}>
+                    {t('admin.rules.actionApplyLabelHint')}
+                  </div>
+                )}
                 {type === 'set_category' && checked && (
                   <select
                     aria-label={t('admin.rules.actionSetCategory')}
@@ -6703,6 +6801,11 @@ function RulesTab() {
                   <div style={{ fontSize: 11, color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {conditionSummary(rule)} → {actionSummary(rule)}
                   </div>
+                  {labelFailures(rule).map(failure => (
+                    <div key={failure.accountId} role="note" style={{ fontSize: 11, color: 'var(--red)', marginTop: 4, lineHeight: 1.4, overflowWrap: 'anywhere' }}>
+                      {t('admin.rules.labelFailed', failure)} {t('admin.rules.labelFailedRetry')}
+                    </div>
+                  ))}
                 </div>
                 <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
                   <button
@@ -7060,7 +7163,7 @@ const TAB_GROUPS = [
   { id: 'mail', labelKey: 'admin.tabs.groupMail', tabIds: ['accounts', 'rules', 'categories', 'antispam', 'cleanup'] },
   { id: 'preferences', labelKey: 'admin.tabs.groupPreferences', tabIds: ['appearance', 'behavior', 'notifications', 'shortcuts', 'security'] },
   { id: 'ai-extensions', labelKey: 'admin.tabs.groupAiExtensions', tabIds: ['ai-actions', 'ai', 'integrations', 'plugins'] },
-  { id: 'admin', labelKey: 'admin.tabs.groupAdmin', tabIds: ['users', 'sso', 'mail-signin', 'backup'] },
+  { id: 'admin', labelKey: 'admin.tabs.groupAdmin', tabIds: ['users', 'sso', 'mail-signin', 'webhooks', 'backup'] },
 ];
 
 const TABS = [
@@ -7140,6 +7243,10 @@ const TABS = [
     id: 'mail-signin', labelKey: 'admin.tabs.mailSignIn',
     adminOnly: true,
     icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2 7 12 13 22 7"/><circle cx="18" cy="17" r="3" fill="var(--bg-secondary)"/><path d="M18 15.5v1.5l1 .8"/></svg>,
+  },
+  {
+    id: 'webhooks', labelKey: 'webhooks.title', adminOnly: true,
+    icon: <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9"/><path d="M10 21h4"/></svg>,
   },
   {
     id: 'backup', labelKey: 'admin.tabs.backup',
@@ -7686,6 +7793,41 @@ function ScreenLockSection() {
   );
 }
 
+// How long this account stays signed in on a device without being used (D#400). Each visit
+// starts the count again. "Default" follows the server's SESSION_IDLE_DAYS.
+const SESSION_DAY_CHOICES = [7, 14, 30, 60, 90];
+function SessionLengthSection() {
+  const { t } = useTranslation();
+  const days = useStore(s => s.sessionDays);
+  const defaultDays = useStore(s => s.sessionDaysDefault);
+  const setSessionDays = useStore(s => s.setSessionDays);
+  const [status, setStatus] = useState(''); // '' | 'saved' | 'failed'
+
+  const choose = (value) => {
+    setStatus('');
+    setSessionDays(value).then(() => setStatus('saved'), () => setStatus('failed'));
+  };
+
+  return (
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+        <div>
+          <div style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>{t('admin.session.title')}</div>
+          <div style={{ fontSize: 12.5, color: 'var(--text-tertiary)', lineHeight: 1.5 }}>{t('admin.session.description')}</div>
+        </div>
+        <select id="session-days" aria-label={t('admin.session.title')} value={days}
+          onChange={e => choose(Number(e.target.value))}
+          style={{ padding: '7px 9px', background: 'var(--bg-tertiary)', border: '1px solid var(--border)', borderRadius: 6, color: 'var(--text-primary)', fontSize: 13 }}>
+          <option value={0}>{t('admin.session.default', { count: defaultDays })}</option>
+          {SESSION_DAY_CHOICES.map(n => <option key={n} value={n}>{t('admin.session.days', { count: n })}</option>)}
+        </select>
+      </div>
+      {status === 'saved' && <div style={{ fontSize: 12, color: 'var(--green)', marginTop: 8 }}>{t('admin.session.saved')}</div>}
+      {status === 'failed' && <div style={{ fontSize: 12, color: 'var(--red)', marginTop: 8 }}>{t('admin.session.failed')}</div>}
+    </div>
+  );
+}
+
 function SecurityTab() {
   const { t } = useTranslation();
   const { user, setUser } = useStore();
@@ -7726,6 +7868,7 @@ function SecurityTab() {
   const [recoverySaving, setRecoverySaving] = useState(false);
   const [recoverySaved, setRecoverySaved] = useState(false);
   const [recoveryError, setRecoveryError] = useState('');
+  const [recoveryLoadFailed, setRecoveryLoadFailed] = useState(false);
   // Changing it is confirmed as an API token is (the server says how: GET answers `reauth`).
   const [recoveryReauth, setRecoveryReauth] = useState(null); // 'password' | 'totp' | 'oidc'
   const [recoveryOidc, setRecoveryOidc] = useState(null); // with 'oidc': { providers, confirmedUntil, totpToo }
@@ -7765,9 +7908,11 @@ function SecurityTab() {
         setRecoveryEmailLoaded(d.email || '');
         setRecoveryReauth(d.reauth ?? null);
         setRecoveryOidc(d.oidc ?? null);
+        setRecoveryLoadFailed(false);
       })
-      .catch(() => setRecoveryError(t('admin.security.recoveryLoadFailed')));
-  }, [user?.isAdmin, t]);
+      // A flag, translated as it renders: t is not a dependency, so no load runs per render.
+      .catch(() => setRecoveryLoadFailed(true));
+  }, [user?.isAdmin]);
 
   const loadAuthEvents = () => {
     setEventsLoading(true);
@@ -7843,7 +7988,7 @@ function SecurityTab() {
     } finally {
       // A code works once, a single sign-on confirmation confirms one change, and a refused
       // password is typed again: ask the server what the next change needs.
-      api.getRecoveryEmail().then(d => { setRecoveryReauth(d.reauth ?? null); setRecoveryOidc(d.oidc ?? null); }).catch(() => {});
+      api.getRecoveryEmail().then(d => { setRecoveryReauth(d.reauth ?? null); setRecoveryOidc(d.oidc ?? null); setRecoveryLoadFailed(false); }).catch(() => {});
       setRecoveryPassword('');
       setRecoveryCode('');
       setRecoverySaving(false);
@@ -7941,6 +8086,8 @@ function SecurityTab() {
       </p>
 
       <ScreenLockSection />
+
+      <SessionLengthSection />
 
       {/* Login Protection — admin only */}
       {user?.isAdmin && (
@@ -8438,8 +8585,8 @@ function SecurityTab() {
             />
           </div>
         )}
-        {recoveryError && (
-          <div role="alert" style={{ fontSize: 12, color: 'var(--red)', marginBottom: 8 }}>{recoveryError}</div>
+        {(recoveryError || recoveryLoadFailed) && (
+          <div role="alert" style={{ fontSize: 12, color: 'var(--red)', marginBottom: 8 }}>{recoveryError || t('admin.security.recoveryLoadFailed')}</div>
         )}
         <button
           onClick={saveRecoveryEmail}
@@ -8862,6 +9009,7 @@ function makeSearchIndex(t) {
     { label: t('admin.messageList.defaultMailApp'), keywords: ['mailto', 'default app', 'default email', 'protocol handler', 'links'], tab: 'behavior', breadcrumb: behaviorCrumb },
     // Appearance > Fonts & Language
     { label: t('admin.appearance.language'), keywords: ['language', 'locale', 'french', 'english', 'spanish', 'german', 'deutsch', 'russian', 'chinese', 'italian', 'czech', 'čeština', 'portuguese', 'português', 'brasil', 'korean', '한국어', 'français', 'español'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
+    { label: t('admin.appearance.timeFormat'), keywords: ['time format', 'clock', '12-hour', '24-hour', '12 hour', '24 hour', 'am pm', 'time'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     { label: t('admin.appearance.fontSize'), keywords: ['font size', 'text size', 'zoom', 'scale', 'accessibility', 'larger text'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     { label: t('admin.appearance.typography'), keywords: ['font', 'typography', 'typeface', 'serif', 'sans', 'monospace', 'reading font'], tab: 'appearance', subtab: 'fonts', breadcrumb: fontsCrumb },
     // Email providers (admin)
@@ -8886,6 +9034,8 @@ function makeSearchIndex(t) {
     { label: t('admin.search.notificationSound'), keywords: ['sound', 'notification sound', 'audio', 'alert', 'beep', 'chime'], tab: 'notifications', breadcrumb: tabLabel('notifications') },
     { label: t('admin.notifications.appBadge'), keywords: ['badge', 'app icon', 'pwa', 'unread count', 'icon badge'], tab: 'notifications', breadcrumb: tabLabel('notifications') },
     { label: t('admin.notifications.faviconBadge'), keywords: ['favicon', 'tab badge', 'browser tab', 'tab icon', 'unread dot'], tab: 'notifications', breadcrumb: tabLabel('notifications') },
+    { label: t('webhooks.title'), keywords: ['webhook', 'ntfy', 'gotify'], tab: 'notifications', breadcrumb: tabLabel('notifications') },
+    { label: t('webhooks.adminEnable'), keywords: ['webhook', 'ntfy', 'gotify', 'origins'], tab: 'webhooks', adminOnly: true, breadcrumb: tabLabel('webhooks') },
     { label: t('admin.push.title'), keywords: ['push', 'notification', 'browser notification', 'desktop notification', 'permission'], tab: 'notifications', breadcrumb: tabLabel('notifications') },
     // Shortcuts (desktop only)
     { label: tabLabel('shortcuts'), keywords: ['shortcut', 'keyboard', 'hotkey', 'keybind', 'key binding', 'compose shortcut', 'reply shortcut'], tab: 'shortcuts', mobileHidden: true, breadcrumb: tabLabel('shortcuts') },
@@ -9017,6 +9167,7 @@ export default function AdminPanel() {
       {adminTab === 'mail-signin' && user?.isAdmin && <MailSignInTab />}
       {adminTab === 'users' && <UsersTab />}
       {adminTab === 'sso' && <SSOTab />}
+      {adminTab === 'webhooks' && user?.isAdmin && <AdminWebhookSettings />}
       {adminTab === 'backup' && <BackupSettings />}
       {adminTab === 'security' && <SecurityPrivacyTab initialSubTab={pendingSubTab} />}
       {adminTab === 'behavior' && <BehaviorTab />}

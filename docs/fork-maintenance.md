@@ -3,7 +3,7 @@
 ## Ownership and baseline
 
 Repository: `KKKKeybird/mailflow`; maintained branch: `main`; upstream: `maathimself/mailflow`.
-Current upstream baseline: `v4.4.0`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
+Current upstream baseline: `v4.5.0`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
 
 ## Sync policy
 
@@ -148,3 +148,11 @@ The Docker frontend now runs Caddy. Keep upstream's TLS modes, legacy `NGINX_TLS
 Retain scoped MCP bearer authentication before the ordinary session chain, sender grouping/alias/navigation/sort/page isolation, common swipe limits/animation, icon-only borderless all-read, proxy-side target DNS and Gmail idle-only staleness probes, model-first spam decisions and the durable notification verdict gate. Mobile selection's spam menu acts through the fork's row/guard helpers and upstream's per-account unread deltas. Responsive toolbar/menu sizing also preserves the additional all-read control and sender actions. Large-cache memory fixes remain intact.
 
 The proxy route test now allows PostgreSQL limiter-key access while asserting no mailbox state access or reconnect. Two settings render-test translation stubs retain a stable translator identity, matching react-i18next, so the new recovery-status effect does not loop in tests. Production dependency audits meet the high threshold; low/moderate advisories remain. README, endpoint benchmark and CI baseline use v4.4.0.
+
+## Integration: v4.5.0 (2026-11-20)
+
+Merged stable v4.5.0 with ancestry preserved. Inbox refresh and page fallback carry sender grouping through each request. Tags appear on ordinary mail and conversation rows, including rows inside a sender group. Sender cards continue to represent the group as a whole. The existing action resolver keeps those cards out of message-level selection.
+
+Gmail full-text search uses the existing account connection pool, proxy routing and TLS policy. MCP searches continue to use the local index with token-scoped mailbox access. Web Push and outgoing webhooks share the candidates that remain after spam verdicts, move intent and notification rules are applied. The browser session lifetime setting uses PostgreSQL-backed sessions and leaves independent MCP bearer authorization in place.
+
+Keep migrations `0078_notification_webhooks`, `0079_tags`, `0080_message_search` and `0081_inbox_rule_label_failures` under their full names. The fork's concurrent sender indexes retain their existing identities and transaction markers. The endpoint benchmark and CI use v4.5.0. The fork retains Caddy and its image and app update endpoints.
