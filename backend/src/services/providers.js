@@ -39,6 +39,14 @@ export const PROVIDERS = {
     // [Gmail] is a namespace container — not a selectable mailbox. It must be
     // matched exactly so that real subfolders like [Gmail]/Drafts are not skipped.
     skipFolderNames: ['[gmail]'],
+    // Gmail allows 15 IMAP sessions per account, shared by every client the user runs, and
+    // refuses the next login with "[ALERT] Too many simultaneous connections." On a
+    // 340k-message account the IDLE session, a pool of four and a fresh login for every folder
+    // status cycle and staleness probe overlapped with the background syncs enough to be
+    // refused 98 times in 48h, and the user's other mail clients were refused with it. So: a
+    // pool of two, and folder status and the staleness probe reuse the pooled session (#805).
+    poolSize: 2,
+    secondaryOverPool: true,
   },
   yahoo: {
     batchSize: 100, batchDelay: 2000, errorDelay: 30000, batchesPerConn: 10,
@@ -153,6 +161,28 @@ export const PROVIDERS = {
     skipFolderNames: [],
     disableIMAP4rev2: true,
   },
+  zoho: {
+    // Like generic, except for Zoho's per-account session ceiling. Measured Nov 20, 2026 on a
+    // Zoho Mail account (imappro.zoho.com): with MailFlow holding its two sessions, one more login
+    // was accepted and the next was closed straight after the TLS handshake, while six quick
+    // login/logout cycles in a row all succeeded. So the limit is about three sessions at once,
+    // shared with the user's other mail apps, not a login rate. The generic profile went past it:
+    // a pool of up to four plus a fresh login for each folder status, integrity and staleness pass,
+    // which failed around 50 times a day with "Unexpected close" (and the startup pre-warm with
+    // it). Yahoo's budget fits (#474): one pooled session that the periodic work shares, and no
+    // pre-warm, which leaves the persistent connection plus one.
+    batchSize: 100, batchDelay: 1500, errorDelay: 15000, batchesPerConn: 15,
+    connectStaggerMs: 500,
+    fetchBody: false,
+    pushesFlags: true,
+    snippetIndex: true,
+    speculativeFetch: true,
+    skipFolderPatterns: [],
+    skipFolderNames: [],
+    poolSize: 1,
+    poolPrewarm: false,
+    secondaryOverPool: true,
+  },
   generic: {
     batchSize: 100, batchDelay: 1500, errorDelay: 15000, batchesPerConn: 15,
     connectStaggerMs: 500, // unknown provider — moderate connect spacing (#218)
@@ -173,5 +203,8 @@ export function providerProfile(account) {
   if (host.includes('.outlook.com') || host.includes('office365.com') || host.includes('.hotmail.com') || host.includes('.live.com') || (account.oauth_provider === 'microsoft')) return PROVIDERS.microsoft;
   if (host.includes('purelymail.com')) return PROVIDERS.purelymail;
   if (host.includes('.strato.')) return PROVIDERS.strato;
+  // imap.zoho.com, imappro.zoho.com and Zoho's regional data centers (imap.zoho.eu, imap.zohocloud.ca
+  // in Canada, and so on).
+  if (/(^|\.)(zoho\.(com|eu|in|com\.au|jp|com\.cn|sa|uk)|zohocloud\.ca)$/.test(host)) return PROVIDERS.zoho;
   return PROVIDERS.generic;
 }

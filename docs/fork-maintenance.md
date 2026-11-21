@@ -3,7 +3,7 @@
 ## Ownership and baseline
 
 Repository: `KKKKeybird/mailflow`; maintained branch: `main`; upstream: `maathimself/mailflow`.
-Current upstream baseline: `v4.5.0`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
+Current upstream baseline: `v4.5.1`. Sender grouping comes from `feat/sender-grouping-performance` at `84be8b0` (including indexed live-query optimizations), not the older grouping branch or design experiments. Other feature branches are not part of this fork's maintained scope.
 
 ## Sync policy
 
@@ -156,3 +156,9 @@ Merged stable v4.5.0 with ancestry preserved. Inbox refresh and page fallback ca
 Gmail full-text search uses the existing account connection pool, proxy routing and TLS policy. MCP searches continue to use the local index with token-scoped mailbox access. Web Push and outgoing webhooks share the candidates that remain after spam verdicts, move intent and notification rules are applied. The browser session lifetime setting uses PostgreSQL-backed sessions and leaves independent MCP bearer authorization in place.
 
 Keep migrations `0078_notification_webhooks`, `0079_tags`, `0080_message_search` and `0081_inbox_rule_label_failures` under their full names. The fork's concurrent sender indexes retain their existing identities and transaction markers. The endpoint benchmark and CI use v4.5.0. The fork retains Caddy and its image and app update endpoints.
+
+## Integration: v4.5.1 (2026-11-21)
+
+Merged v4.5.1 with ancestry preserved. Direct Gmail uses a pool of two and Zoho uses a pool of one. The upstream one-off login for nested work holding a full pool coexists with the fork's foreground queue priority. Proxied Gmail staleness probes still lease an idle connection atomically and skip a busy or empty pool. Proxy folder-status work still releases its lease between folders.
+
+Web Push prompts open tabs to check the WebSocket, and folder drops restrict moves to the target account. No migrations were added or renamed. The endpoint benchmark and CI use v4.5.1.
